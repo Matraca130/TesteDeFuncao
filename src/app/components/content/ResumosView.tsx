@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '@/app/context/AppContext';
 import { AxonPageHeader } from '@/app/components/shared/AxonPageHeader';
+import { AdminBanner } from '@/app/components/shared/AdminBanner';
 import { headingStyle, colors } from '@/app/design-system';
 import * as api from '@/app/services/studentApi';
 import { courses } from '@/app/data/courses';
@@ -17,8 +18,7 @@ import { findKeyword, masteryConfig } from '@/app/data/keywords';
 import type { MasteryLevel } from '@/app/data/keywords';
 
 // ══════════════════════════════════════════════
-// RESUMOS VIEW — Visualização de Estudante (somente leitura)
-// Para criar/editar/deletar, use o AdminPanel.
+// RESUMOS VIEW
 // ══════════════════════════════════════════════
 
 type SortMode = 'recent' | 'oldest' | 'alpha' | 'bookmarked';
@@ -101,6 +101,11 @@ export function ResumosView() {
           <AnimatePresence mode="wait">
             {subView === 'list' && (
               <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {/* Admin banner */}
+                <div className="mb-6">
+                  <AdminBanner context="Resumos" variant="inline" />
+                </div>
+
                 {/* KPI Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                   <KPICard icon={<FileText className="w-5 h-5 text-teal-600" />} label="Total de Resumos" value={String(totalSummaries)} trend={`${courses.length} materias`} color="bg-teal-50" />
@@ -237,7 +242,7 @@ function SummaryRow({ summary, onOpen, onToggleBookmark }: {
   summary: StudySummary; onOpen: () => void; onToggleBookmark: () => void;
 }) {
   const preview = summary.content
-    ? summary.content.replace(/[#*_\\[\\]`>-]/g, '').slice(0, 160) + (summary.content.length > 160 ? '...' : '')
+    ? summary.content.replace(/[#*_\[\]`>-]/g, '').slice(0, 160) + (summary.content.length > 160 ? '...' : '')
     : 'Sem conteudo ainda...';
 
   const accentColor = colors.courseAccents[summary.courseId] || colors.courseAccents.anatomy;
