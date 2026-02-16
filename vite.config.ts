@@ -14,10 +14,12 @@ export default defineConfig({
     alias: {
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
+      // Force all three imports to resolve to the same physical module
+      'three': path.resolve(__dirname, 'node_modules/three'),
     },
     dedupe: ['three'],
   },
   optimizeDeps: {
-    include: ['three'],
+    include: ['three', 'three/examples/jsm/controls/OrbitControls.js'],
   },
 })
