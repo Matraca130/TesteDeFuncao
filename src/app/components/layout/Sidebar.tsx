@@ -12,7 +12,9 @@ import {
   Users,
   Calendar,
   Home,
-  Database
+  Database,
+  Settings2,
+  SquarePen
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -20,7 +22,7 @@ export function Sidebar() {
   const { activeView, setActiveView, isSidebarOpen, setSidebarOpen, currentCourse } = useApp();
 
   const navItems = [
-    { id: 'home', label: 'Início', icon: Home },
+    { id: 'home', label: 'In\u00edcio', icon: Home },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'study-hub', label: 'Estudar', icon: BookOpen },
     { id: 'schedule', label: 'Cronograma', icon: Calendar },
@@ -32,7 +34,12 @@ export function Sidebar() {
 
   const secondaryItems = [
     { id: 'community', label: 'Comunidade', icon: Users },
-    { id: 'settings', label: 'Configurações', icon: Settings },
+    { id: 'settings', label: 'Configura\u00e7\u00f5es', icon: Settings },
+  ];
+
+  const adminItems = [
+    { id: 'admin', label: 'Criar Quizzes', icon: Settings2, accentBg: 'bg-violet-500/15', accentText: 'text-violet-400', accentBorder: 'border-violet-500/20' },
+    { id: 'flashcard-admin', label: 'Criar Flashcards', icon: SquarePen, accentBg: 'bg-teal-500/15', accentText: 'text-teal-400', accentBorder: 'border-teal-500/20' },
   ];
 
   return (
@@ -71,6 +78,39 @@ export function Sidebar() {
                   <motion.div
                     layoutId="active-nav-indicator"
                     className={clsx("ml-auto w-1.5 h-1.5 rounded-full", currentCourse.color)}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Admin Section */}
+        <div className="space-y-1">
+          <p className={components.sidebar.sectionLabel}>Administrador</p>
+          {adminItems.map((item) => {
+            const isActive = activeView === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveView(item.id as any);
+                  setSidebarOpen(false);
+                }}
+                className={clsx(
+                  components.sidebar.navItem.base,
+                  isActive 
+                    ? clsx(item.accentBg, item.accentText, 'shadow-sm border', item.accentBorder)
+                    : components.sidebar.navItem.inactive
+                )}
+              >
+                <Icon size={20} className={isActive ? "text-current" : "text-gray-500 group-hover:text-white"} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <motion.div
+                    layoutId="active-admin-indicator"
+                    className={clsx("ml-auto w-1.5 h-1.5 rounded-full", item.id === 'admin' ? 'bg-violet-400' : 'bg-teal-400')}
                   />
                 )}
               </button>

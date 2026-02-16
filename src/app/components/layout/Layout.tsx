@@ -19,6 +19,8 @@ import { StudyDashboardsView } from '@/app/components/content/StudyDashboardsVie
 import { KnowledgeHeatmapView } from '@/app/components/content/KnowledgeHeatmapView';
 import { MasteryDashboardView } from '@/app/components/content/MasteryDashboardView';
 import { StudentDataPanel } from '@/app/components/content/StudentDataPanel';
+import { QuizAdminView } from '@/app/components/admin/QuizAdminView';
+import { FlashcardAdminView } from '@/app/components/admin/FlashcardAdminView';
 import { UserProfileDropdown } from '@/app/components/layout/UserProfileDropdown';
 import { AxonAIAssistant } from '@/app/components/ai/AxonAIAssistant';
 import { components, animation } from '@/app/design-system';
@@ -47,6 +49,8 @@ export function Layout() {
       case 'knowledge-heatmap': return <KnowledgeHeatmapView />;
       case 'mastery-dashboard': return <MasteryDashboardView />;
       case 'student-data': return <StudentDataPanel />;
+      case 'admin': return <QuizAdminView />;
+      case 'flashcard-admin': return <FlashcardAdminView />;
       default: return <WelcomeView />;
     };
   };
