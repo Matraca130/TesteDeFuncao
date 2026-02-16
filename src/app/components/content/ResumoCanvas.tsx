@@ -35,6 +35,7 @@ import { PreviewBlock } from './canvas/PreviewBlock';
 import { PdfBlocksRenderer } from './canvas/PdfRenderer';
 import { ImagePickerModal, ColumnResizeHandle } from './canvas/ImageComponents';
 import { KeywordPicker } from './canvas/KeywordPicker';
+import { KeywordPopoverProvider } from './canvas/KeywordPopover';
 import { ReorderBlockWrapper } from './canvas/ReorderBlockWrapper';
 
 // Re-export types so other files (AdminPanel, CanvasBlocksRenderer) can import from here
@@ -653,6 +654,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
             ))}
 
             {viewMode === 'edit' ? (
+              <KeywordPopoverProvider>
               <div className="space-y-2.5">
                 <AnimatePresence>
                 {rows.map((row) => {
@@ -759,8 +761,10 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
                 })}
                 </AnimatePresence>
               </div>
+              </KeywordPopoverProvider>
             ) : (
               /* Preview mode */
+              <KeywordPopoverProvider>
               <div className="space-y-5">
                 {rows.map((row) => {
                   if (row.groupId) {
@@ -779,6 +783,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
                   return <PreviewBlock key={row.columns[0].blocks[0].id} block={row.columns[0].blocks[0]} />;
                 })}
               </div>
+              </KeywordPopoverProvider>
             )}
 
             {/* Add block hint */}
