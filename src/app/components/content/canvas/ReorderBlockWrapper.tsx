@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // REORDER BLOCK WRAPPER — Editable block with controls
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 import React, { useRef, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
@@ -8,7 +8,7 @@ import {
   ImageIcon, Plus,
   ReplaceAll, Crop, MoveHorizontal, MoveVertical, Maximize2,
 } from 'lucide-react';
-import { headingStyle, components } from '@/app/design-system';
+import { headingStyle } from '@/app/design-system';
 import type { BlockType, CanvasBlock } from './types';
 import { CALLOUT_STYLES, IMAGE_PRESETS, ASPECT_RATIO_PRESETS } from './types';
 import { QuickDeleteButton, DragHandle, BlockActions } from './BlockActions';
@@ -149,7 +149,7 @@ export function ReorderBlockWrapper({
                   </div>
                   {/* Aspect ratio */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mr-1">Propor\u00e7\u00e3o:</span>
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mr-1">Proporcao:</span>
                     {ASPECT_RATIO_PRESETS.map(p => (
                       <button key={p.value} onClick={(e) => { e.stopPropagation(); onUpdate({ meta: { ...block.meta, imageAspectRatio: p.value } }); }}
                         className={clsx('px-2 py-1 text-[10px] font-semibold rounded-md transition-all', (block.meta?.imageAspectRatio || 'auto') === p.value ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200')}
