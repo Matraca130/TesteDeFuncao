@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import { useStudentDataContext } from '@/app/context/StudentDataContext';
 import { courses } from '@/app/data/courses';
-import { headingStyle, components } from '@/app/design-system';
+import { headingStyle, iconClasses } from '@/app/design-system';
 import { 
   User,
   GraduationCap,
@@ -21,6 +21,10 @@ import {
   FileText,
   ArrowRight,
 } from 'lucide-react';
+
+import { NavItem } from '@/app/components/shared/NavItem';
+import { CourseCard } from '@/app/components/shared/CourseCard';
+import { ActivityItem } from '@/app/components/shared/ActivityItem';
 
 export function HomeView() {
   const { setActiveView } = useApp();
@@ -67,10 +71,10 @@ export function HomeView() {
     {
       id: 'microbiology',
       title: 'Microbiologia',
-      module: 'MÓDULO IV',
+      module: 'M\u00d3DULO IV',
       progress: 40,
       progressText: '4/10 Aulas',
-      icon: '🦠',
+      icon: '\u{1F9A0}',
       iconBg: 'bg-purple-100',
       progressColor: 'bg-purple-500',
       percentColor: 'text-purple-600',
@@ -78,10 +82,10 @@ export function HomeView() {
     {
       id: 'cell-biology',
       title: 'Biologia Celular',
-      module: 'MÓDULO FINAL',
+      module: 'M\u00d3DULO FINAL',
       progress: 90,
       progressText: '9/10 Aulas',
-      icon: '🌿',
+      icon: '\u{1F33F}',
       iconBg: 'bg-teal-100',
       progressColor: 'bg-teal-500',
       percentColor: 'text-teal-600',
@@ -89,10 +93,10 @@ export function HomeView() {
     {
       id: 'histology',
       title: 'Histologia',
-      module: 'MÓDULO II',
+      module: 'M\u00d3DULO II',
       progress: histologyProgress.progress || 75,
       progressText: histologyProgress.total > 0 ? `${histologyProgress.completed}/${histologyProgress.total} Aulas` : '15/20 Aulas',
-      icon: '🔬',
+      icon: '\u{1F52C}',
       iconBg: 'bg-teal-100',
       progressColor: 'bg-teal-500',
       percentColor: 'text-teal-600',
@@ -100,10 +104,10 @@ export function HomeView() {
     {
       id: 'anatomy',
       title: 'Anatomia Humana',
-      module: 'MÓDULO I',
+      module: 'M\u00d3DULO I',
       progress: anatomyProgress.progress || 20,
       progressText: anatomyProgress.total > 0 ? `${anatomyProgress.completed}/${anatomyProgress.total} Aulas` : '4/20 Aulas',
-      icon: '❤️',
+      icon: '\u{2764}\u{FE0F}',
       iconBg: 'bg-pink-100',
       progressColor: 'bg-pink-500',
       percentColor: 'text-pink-600',
@@ -119,22 +123,22 @@ export function HomeView() {
       icon: <Play size={14} />,
       iconColor: 'text-purple-600',
       iconBg: 'bg-purple-100',
-      title: 'Vídeo de Anatomia',
-      subtitle: 'Sistema Cardiovascular • Há 20 min'
+      title: 'V\u00eddeo de Anatomia',
+      subtitle: 'Sistema Cardiovascular \u2022 H\u00e1 20 min'
     },
     {
       icon: <CheckCircle size={14} />,
       iconColor: 'text-teal-600',
       iconBg: 'bg-teal-100',
       title: isConnected && cardsReviewed > 0 ? `${cardsReviewed} Flashcards Revisados` : 'Quiz de Histologia',
-      subtitle: isConnected && cardsReviewed > 0 ? `Total acumulado • ${streakDays} dias seguidos` : 'Nota: 9.5/10 • Há 2 horas'
+      subtitle: isConnected && cardsReviewed > 0 ? `Total acumulado \u2022 ${streakDays} dias seguidos` : 'Nota: 9.5/10 \u2022 H\u00e1 2 horas'
     },
     {
       icon: <FileText size={14} />,
       iconColor: 'text-amber-600',
       iconBg: 'bg-amber-100',
       title: 'Novo resumo',
-      subtitle: 'Ciclo de Krebs • 09:15'
+      subtitle: 'Ciclo de Krebs \u2022 09:15'
     },
   ];
 
@@ -164,7 +168,7 @@ export function HomeView() {
         <div className="px-4 py-6">
           <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all">
             <LogOut size={16} />
-            <span>Encerrar Sessão</span>
+            <span>Encerrar Sess\u00e3o</span>
           </button>
         </div>
       </aside>
@@ -180,7 +184,7 @@ export function HomeView() {
                 <Search size={16} className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Pesquisar no acervo acadêmico..."
+                  placeholder="Pesquisar no acervo acad\u00eamico..."
                   className="w-full pl-10 pr-4 py-2.5 bg-white/80 border border-gray-200/50 rounded-lg text-sm text-gray-600 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-teal-500 transition-all"
                 />
               </div>
@@ -219,7 +223,7 @@ export function HomeView() {
                 Bem-vindo de volta, Dr. Reed
               </h1>
               <p className="text-gray-500 italic text-sm mb-6" style={headingStyle}>
-                "A excelência não é um ato, mas um hábito." — Aristóteles
+                \"A excel\u00eancia n\u00e3o \u00e9 um ato, mas um h\u00e1bito.\" \u2014 Arist\u00f3teles
               </p>
               
               {/* Time Filters Below Quote */}
@@ -252,7 +256,7 @@ export function HomeView() {
                       : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  Mês
+                  M\u00eas
                 </button>
               </div>
             </div>
@@ -269,7 +273,7 @@ export function HomeView() {
                     onClick={() => setActiveView('lesson-grid')}
                     className="text-teal-600 hover:text-teal-700 font-semibold text-sm flex items-center gap-1"
                   >
-                    Ver currículo completo
+                    Ver curr\u00edculo completo
                     <ArrowRight size={14} />
                   </button>
                 </div>
@@ -298,7 +302,7 @@ export function HomeView() {
                 {/* Daily Performance Card */}
                 <div className="bg-gradient-to-br from-[#2c3e50] to-[#34495e] rounded-2xl p-7 text-white shadow-lg">
                   <h3 className="text-xl font-bold mb-7" style={headingStyle}>
-                    Desempenho Diário
+                    Desempenho Di\u00e1rio
                   </h3>
                   
                   {/* Circular Progress */}
@@ -327,13 +331,13 @@ export function HomeView() {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-6xl font-bold">80<span className="text-4xl">%</span></span>
-                      <span className="text-[10px] text-gray-400 mt-2 uppercase tracking-[0.2em] font-semibold">CONCLUÍDO</span>
+                      <span className="text-[10px] text-gray-400 mt-2 uppercase tracking-[0.2em] font-semibold">CONCLU\u00cdDO</span>
                     </div>
                   </div>
 
                   <div className="text-center">
                     <p className="text-xl font-bold mb-1">8 de 10 Horas</p>
-                    <p className="text-sm text-gray-300">Você está próximo da excelência.</p>
+                    <p className="text-sm text-gray-300">Voc\u00ea est\u00e1 pr\u00f3ximo da excel\u00eancia.</p>
                   </div>
                 </div>
 
@@ -364,18 +368,18 @@ export function HomeView() {
               </div>
             </div>
 
-            {/* ── Quick Access Shortcuts ── */}
+            {/* Quick Access Shortcuts */}
             <div className="mt-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-5" style={headingStyle}>
-                Acesso Rápido
+                Acesso R\u00e1pido
               </h2>
               <div className="grid grid-cols-5 gap-4">
                 {[
                   { key: 'study' as const, icon: Sparkles, label: 'IA Mentor', desc: 'Assistente inteligente para seus estudos' },
-                  { key: 'quiz' as const, icon: ClipboardCheck, label: 'Avaliações', desc: 'Teste seus conhecimentos' },
-                  { key: 'lesson-grid' as const, icon: Library, label: 'Biblioteca', desc: 'Acesse todo o acervo acadêmico' },
+                  { key: 'quiz' as const, icon: ClipboardCheck, label: 'Avalia\u00e7\u00f5es', desc: 'Teste seus conhecimentos' },
+                  { key: 'lesson-grid' as const, icon: Library, label: 'Biblioteca', desc: 'Acesse todo o acervo acad\u00eamico' },
                   { key: 'study' as const, icon: Video, label: 'Masterclasses', desc: 'Aulas com especialistas' },
-                  { key: '3d' as const, icon: ImageIcon, label: 'Atlas Visual', desc: 'Explore modelos anatômicos' },
+                  { key: '3d' as const, icon: ImageIcon, label: 'Atlas Visual', desc: 'Explore modelos anat\u00f4micos' },
                 ].map((item) => {
                   const Icon = item.icon;
                   return (
@@ -384,7 +388,7 @@ export function HomeView() {
                       onClick={() => setActiveView(item.key)}
                       className="bg-white rounded-2xl p-5 text-left border border-gray-100 shadow-sm hover:shadow-md hover:border-teal-200 transition-all group"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center mb-4 group-hover:bg-teal-100 transition-colors">
+                      <div className={`${iconClasses('lg')} mb-4 group-hover:bg-teal-100 transition-colors`}>
                         <Icon size={22} className="text-teal-600" />
                       </div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-1" style={headingStyle}>
@@ -399,126 +403,6 @@ export function HomeView() {
 
           </div>
         </main>
-      </div>
-    </div>
-  );
-}
-
-// ── Nav Item Component ─────────────────────────────────────
-
-function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-        active
-          ? 'bg-[#34495e] text-white'
-          : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-      }`}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-// ── Course Card Component ──────────────────────────────────
-
-function CourseCard({ 
-  title, 
-  module, 
-  progress, 
-  progressText, 
-  icon, 
-  iconBg,
-  progressColor,
-  percentColor,
-  onContinue 
-}: { 
-  title: string; 
-  module: string; 
-  progress: number; 
-  progressText: string; 
-  icon: string; 
-  iconBg: string;
-  progressColor: string;
-  percentColor: string;
-  onContinue: () => void;
-}) {
-  return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-5">
-        <div className={`w-14 h-14 rounded-xl ${iconBg} flex items-center justify-center flex-shrink-0 text-2xl`}>
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1.5">
-            <h3 className="text-lg font-bold text-gray-900 leading-tight">
-              {title}
-            </h3>
-            <span className={`text-base font-bold ${percentColor}`}>
-              {progress}%
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-            {module}
-          </p>
-        </div>
-      </div>
-
-      {/* Progress */}
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-gray-500">Progresso</span>
-          <span className="text-xs text-gray-500">{progressText}</span>
-        </div>
-        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${progressColor} transition-all duration-700 rounded-full`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Button */}
-      <button 
-        onClick={onContinue}
-        className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl transition-colors text-sm"
-      >
-        Continuar Estudo
-      </button>
-    </div>
-  );
-}
-
-// ── Activity Item Component ────────────────────────────────
-
-function ActivityItem({ 
-  icon, 
-  iconColor,
-  iconBg,
-  title, 
-  subtitle 
-}: { 
-  icon: React.ReactNode; 
-  iconColor: string;
-  iconBg: string;
-  title: string; 
-  subtitle: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0 ${iconColor}`}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 leading-tight mb-0.5">
-          {title}
-        </p>
-        <p className="text-xs text-gray-500">
-          {subtitle}
-        </p>
       </div>
     </div>
   );

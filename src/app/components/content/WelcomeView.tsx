@@ -16,6 +16,9 @@ import {
   Box,
 } from 'lucide-react';
 
+import { CourseCard } from '@/app/components/shared/CourseCard';
+import { ActivityItem } from '@/app/components/shared/ActivityItem';
+
 export function WelcomeView() {
   const { setActiveView } = useApp();
   const { profile, stats, isConnected, loading: studentLoading } = useStudentDataContext();
@@ -132,7 +135,7 @@ export function WelcomeView() {
     },
   ];
 
-  // Shortcut cards — using design system icon pattern
+  // Shortcut cards
   const statCards = [
     { title: 'Resumos', subtitle: 'Acessar resumos', icon: BookOpen, color: components.shortcutCard.iconColor, bg: components.shortcutCard.iconBg, view: 'summaries' as const },
     { title: 'Flashcards', subtitle: 'Revisar cartoes', icon: Layers, color: components.shortcutCard.iconColor, bg: components.shortcutCard.iconBg, view: 'flashcards' as const },
@@ -142,7 +145,6 @@ export function WelcomeView() {
 
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
-      {/* AxonPageHeader — consistent with all other pages */}
       <AxonPageHeader
         title={`Bem-vindo, ${studentName}`}
         subtitle={
@@ -169,14 +171,10 @@ export function WelcomeView() {
         }
       />
 
-      {/* Main scrollable content */}
       <div className={`flex-1 ${layout.content.paddingX} ${layout.content.paddingY} space-y-6 overflow-y-auto custom-scrollbar-light`}>
 
-        {/* ═══ Two-column layout: courses + sidebar (FIRST) ═══ */}
         <div className="flex gap-6">
-          {/* Left Content - Courses */}
           <div className="flex-1 min-w-0">
-            {/* Section Header */}
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-teal-500" />
@@ -194,7 +192,6 @@ export function WelcomeView() {
               </button>
             </div>
 
-            {/* Courses Grid */}
             <div className={layout.grid.courses}>
               {courseData.map((course) => (
                 <CourseCard 
@@ -213,15 +210,12 @@ export function WelcomeView() {
             </div>
           </div>
 
-          {/* Right Sidebar - Performance & Activity */}
           <div className={`${layout.rightPanel.width} space-y-5 flex-shrink-0`}>
-            {/* Daily Performance Card */}
             <div className={`${components.cardDark.base} ${components.cardDark.padding}`}>
               <h3 className="text-lg font-bold mb-6" style={headingStyle}>
-                Desempenho {timeFilter === 'today' ? 'Diário' : timeFilter === 'week' ? 'Semanal' : 'Mensal'}
+                Desempenho {timeFilter === 'today' ? 'Di\u00e1rio' : timeFilter === 'week' ? 'Semanal' : 'Mensal'}
               </h3>
               
-              {/* Circular Progress */}
               <div className="relative w-44 h-44 mx-auto mb-6">
                 <svg className="w-full h-full transform -rotate-90">
                   <circle
@@ -259,7 +253,6 @@ export function WelcomeView() {
               </div>
             </div>
 
-            {/* Recent Activity Card */}
             <div className={`${components.card.base} ${components.card.paddingLg}`}>
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide" style={headingStyle}>
@@ -286,9 +279,7 @@ export function WelcomeView() {
           </div>
         </div>
 
-        {/* ═══ Quick Shortcut Cards (BELOW disciplines) ═══ */}
         <div>
-          {/* Section Header */}
           <div className="flex items-center gap-3 mb-4">
             <div className="w-3 h-3 rounded-full bg-teal-500" />
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide" style={headingStyle}>
@@ -315,120 +306,6 @@ export function WelcomeView() {
             })}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// -- Course Card Component --
-
-function CourseCard({ 
-  title, 
-  module, 
-  progress, 
-  progressText, 
-  icon, 
-  iconBg,
-  progressColor,
-  percentColor,
-  onContinue 
-}: { 
-  title: string; 
-  module: string; 
-  progress: number; 
-  progressText: string; 
-  icon: string; 
-  iconBg: string;
-  progressColor: string;
-  percentColor: string;
-  onContinue: () => void;
-}) {
-  // SVG circle params (same style as Atlas 3D cards)
-  const radius = 18;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
-
-  return (
-    <div className={`${components.courseCard.base}`}>
-      {/* Top row: icon + progress circle */}
-      <div className="flex items-start justify-between mb-4">
-        <div className={`${components.courseCard.iconSize} ${iconBg} flex items-center justify-center flex-shrink-0 text-2xl`}>
-          {icon}
-        </div>
-        <div className="relative w-12 h-12 flex items-center justify-center">
-          <svg width="48" height="48" className="-rotate-90">
-            <circle cx="24" cy="24" r={radius} fill="none" stroke="#e5e7eb" strokeWidth={components.progressCircle.strokeWidthSmall} />
-            <circle
-              cx="24" cy="24" r={radius} fill="none"
-              stroke={components.progressCircle.strokeColorSmall} strokeWidth={components.progressCircle.strokeWidthSmall}
-              strokeLinecap={components.progressCircle.strokeLinecap}
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="transition-all duration-500"
-            />
-          </svg>
-          <span className={`absolute text-[10px] font-semibold ${percentColor}`}>{progress}%</span>
-        </div>
-      </div>
-
-      {/* Title */}
-      <h4 className="font-bold text-gray-900 mb-1" style={headingStyle}>{title}</h4>
-      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-3">
-        {module}
-      </p>
-
-      {/* Progress row */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-gray-500">Progresso</span>
-        <span className="text-xs font-semibold text-gray-700">{progressText}</span>
-      </div>
-
-      {/* Progress bar */}
-      <div className={components.progressBar.track + ' mb-4'}>
-        <div
-          className={`${components.progressBar.fill} ${progressColor}`}
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      {/* Teal button */}
-      <button 
-        onClick={onContinue}
-        className={components.courseCard.ctaButton}
-      >
-        Continuar Estudo
-      </button>
-    </div>
-  );
-}
-
-// -- Activity Item Component --
-
-function ActivityItem({ 
-  icon, 
-  iconColor,
-  iconBg,
-  title, 
-  subtitle 
-}: { 
-  icon: React.ReactNode; 
-  iconColor: string;
-  iconBg: string;
-  title: string; 
-  subtitle: string;
-}) {
-  return (
-    <div className={components.activityItem.layout}>
-      <div className={`${components.activityItem.iconSize} ${iconBg} flex items-center justify-center flex-shrink-0 ${iconColor}`}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 leading-tight mb-0.5">
-          {title}
-        </p>
-        <p className="text-xs text-gray-500">
-          {subtitle}
-        </p>
       </div>
     </div>
   );

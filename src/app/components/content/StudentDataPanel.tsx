@@ -5,20 +5,12 @@
 
 import React, { useState } from 'react';
 import { useStudentDataContext } from '@/app/context/StudentDataContext';
-import { headingStyle, components, colors } from '@/app/design-system';
 import {
   User,
-  BarChart3,
-  BookOpen,
-  Flame,
-  Clock,
-  Brain,
-  Activity,
   Database,
   RefreshCw,
   Zap,
   GraduationCap,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Search,
@@ -34,8 +26,25 @@ import {
   Image,
   LogOut,
   MoreHorizontal,
-  FileEdit,
 } from 'lucide-react';
+
+import { NavItem } from '@/app/components/shared/NavItem';
+import { CourseCard } from '@/app/components/shared/CourseCard';
+import { ActivityItem } from '@/app/components/shared/ActivityItem';
+
+// ── Mapping helpers for StudentDataPanel data → shared component props ──
+const COURSE_VISUALS = [
+  { icon: '\u{1F9A0}', bg: 'bg-purple-100', progress: 'bg-purple-500', percent: 'text-purple-600' },
+  { icon: '\u{1F33F}', bg: 'bg-teal-100', progress: 'bg-teal-600', percent: 'text-teal-600' },
+  { icon: '\u{1F52C}', bg: 'bg-blue-100', progress: 'bg-blue-500', percent: 'text-blue-600' },
+  { icon: '\u{2764}\u{FE0F}', bg: 'bg-pink-100', progress: 'bg-pink-500', percent: 'text-pink-600' },
+];
+
+const ACTIVITY_VISUALS = [
+  { icon: <Play size={16} />, bg: 'bg-blue-100', color: 'text-blue-600', label: 'V\u00eddeo de Anatomia', sub: 'Sistema Cardiovascular' },
+  { icon: <CheckCircle size={16} />, bg: 'bg-teal-100', color: 'text-teal-600', label: 'Quiz de Histologia', sub: 'Nota: 9.5/10' },
+  { icon: <FileText size={16} />, bg: 'bg-amber-100', color: 'text-amber-600', label: 'Novo resumo', sub: 'Ciclo de Krebs' },
+];
 
 export function StudentDataPanel() {
   const { profile, stats, courseProgress, dailyActivity, sessions, loading, error, isConnected, refresh, seedAndLoad } = useStudentDataContext();
@@ -76,19 +85,19 @@ export function StudentDataPanel() {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
-          <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active />
-          <NavItem icon={<Sparkles size={20} />} label="IA Mentor" />
-          <NavItem icon={<ClipboardCheck size={20} />} label="Avaliações" />
-          <NavItem icon={<Library size={20} />} label="Biblioteca" />
-          <NavItem icon={<Video size={20} />} label="Masterclasses" />
-          <NavItem icon={<Image size={20} />} label="Atlas Visual" />
+          <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" active variant="panel" />
+          <NavItem icon={<Sparkles size={20} />} label="IA Mentor" variant="panel" />
+          <NavItem icon={<ClipboardCheck size={20} />} label="Avalia\u00e7\u00f5es" variant="panel" />
+          <NavItem icon={<Library size={20} />} label="Biblioteca" variant="panel" />
+          <NavItem icon={<Video size={20} />} label="Masterclasses" variant="panel" />
+          <NavItem icon={<Image size={20} />} label="Atlas Visual" variant="panel" />
         </nav>
 
         {/* Logout Button */}
         <div className="p-4">
           <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 rounded-lg transition-colors">
             <LogOut size={18} />
-            <span>Encerrar Sessão</span>
+            <span>Encerrar Sess\u00e3o</span>
           </button>
         </div>
       </aside>
@@ -104,7 +113,7 @@ export function StudentDataPanel() {
                 <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Pesquisar no acervo acadêmico..."
+                  placeholder="Pesquisar no acervo acad\u00eamico..."
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
@@ -153,14 +162,14 @@ export function StudentDataPanel() {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-sm text-gray-900">
-                  {loading ? 'Conectando ao Supabase...' : error ? 'Erro de Conexão' : 'Banco de Dados Vazio'}
+                  {loading ? 'Conectando ao Supabase...' : error ? 'Erro de Conex\u00e3o' : 'Banco de Dados Vazio'}
                 </h3>
                 <p className="text-xs text-gray-600 mt-0.5">
                   {loading
                     ? 'Verificando dados do estudante...'
                     : error
                     ? error
-                    : 'Clique em "Carregar Dados Demo" para popular o banco'}
+                    : 'Clique em \"Carregar Dados Demo\" para popular o banco'}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -197,43 +206,26 @@ export function StudentDataPanel() {
                   Bem-vindo de volta, {profile?.name?.split(' ')[0] || 'Dr. Reed'}
                 </h1>
                 <p className="text-gray-500 italic text-sm">
-                  "A excelência não é um ato, mas um hábito." — Aristóteles
+                  \"A excel\u00eancia n\u00e3o \u00e9 um ato, mas um h\u00e1bito.\" \u2014 Arist\u00f3teles
                 </p>
               </div>
 
-              {/* Time Filters + Link */}
+              {/* Time Filters */}
               <div className="flex items-center justify-between">
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setTimeFilter('today')}
-                    className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${
-                      timeFilter === 'today'
-                        ? 'bg-[#2d3e50] text-white'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    Hoje
-                  </button>
-                  <button
-                    onClick={() => setTimeFilter('week')}
-                    className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${
-                      timeFilter === 'week'
-                        ? 'bg-[#2d3e50] text-white'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    Semana
-                  </button>
-                  <button
-                    onClick={() => setTimeFilter('month')}
-                    className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${
-                      timeFilter === 'month'
-                        ? 'bg-[#2d3e50] text-white'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    Mês
-                  </button>
+                  {(['today', 'week', 'month'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setTimeFilter(f)}
+                      className={`px-6 py-2.5 rounded-lg font-medium text-sm transition-all ${
+                        timeFilter === f
+                          ? 'bg-[#2d3e50] text-white'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {f === 'today' ? 'Hoje' : f === 'week' ? 'Semana' : 'M\u00eas'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -241,23 +233,37 @@ export function StudentDataPanel() {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-900">Disciplinas em Curso</h2>
                 <button className="text-teal-600 hover:text-teal-700 font-medium text-sm flex items-center gap-1">
-                  Ver currículo completo →
+                  Ver curr\u00edculo completo \u2192
                 </button>
               </div>
 
               {/* Courses Grid */}
               {seeded && courseProgress.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {courseProgress.slice(0, 4).map((course, idx) => (
-                    <CourseCard key={course.courseId} course={course} index={idx} />
-                  ))}
+                  {courseProgress.slice(0, 4).map((course, idx) => {
+                    const v = COURSE_VISUALS[idx % COURSE_VISUALS.length];
+                    return (
+                      <CourseCard
+                        key={course.courseId}
+                        title={course.courseName}
+                        module={course.topicProgress?.[0]?.topicTitle || `M\u00d3DULO ${['IV', 'FINAL', 'II', 'I'][idx % 4]}`}
+                        progress={course.masteryPercent}
+                        progressText={`${course.lessonsCompleted}/${course.lessonsTotal} Aulas`}
+                        icon={v.icon}
+                        iconBg={v.bg}
+                        progressColor={v.progress}
+                        percentColor={v.percent}
+                        onContinue={() => {}}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
                   <Database size={48} className="mx-auto text-gray-300 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum dado disponível</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum dado dispon\u00edvel</h3>
                   <p className="text-gray-500 mb-6">
-                    Carregue os dados de demonstração para visualizar o painel completo
+                    Carregue os dados de demonstra\u00e7\u00e3o para visualizar o painel completo
                   </p>
                   <button
                     onClick={handleSeed}
@@ -276,7 +282,7 @@ export function StudentDataPanel() {
               <div className="w-80 space-y-6 flex-shrink-0">
                 {/* Daily Performance Card */}
                 <div className="bg-[#2d3e50] rounded-2xl p-6 text-white">
-                  <h3 className="text-xl font-bold mb-6">Desempenho Diário</h3>
+                  <h3 className="text-xl font-bold mb-6">Desempenho Di\u00e1rio</h3>
                   
                   {/* Circular Progress */}
                   <div className="relative w-48 h-48 mx-auto mb-6">
@@ -304,13 +310,13 @@ export function StudentDataPanel() {
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-5xl font-bold">{dailyProgress}%</span>
-                      <span className="text-xs text-gray-400 mt-1 uppercase tracking-wide">CONCLUÍDO</span>
+                      <span className="text-xs text-gray-400 mt-1 uppercase tracking-wide">CONCLU\u00cdDO</span>
                     </div>
                   </div>
 
                   <div className="text-center">
                     <p className="text-xl font-bold mb-1">{hoursCompleted} de {totalHoursGoal} Horas</p>
-                    <p className="text-sm text-gray-400">Você está próximo da excelência.</p>
+                    <p className="text-sm text-gray-400">Voc\u00ea est\u00e1 pr\u00f3ximo da excel\u00eancia.</p>
                   </div>
                 </div>
 
@@ -324,124 +330,27 @@ export function StudentDataPanel() {
                   </div>
 
                   <div className="space-y-4">
-                    {sessions.slice(0, 3).map((session, idx) => (
-                      <ActivityItem key={session.id} session={session} index={idx} />
-                    ))}
+                    {sessions.slice(0, 3).map((session, idx) => {
+                      const a = ACTIVITY_VISUALS[idx % ACTIVITY_VISUALS.length];
+                      const date = new Date(session.startedAt);
+                      const timeStr = `H\u00e1 ${date.getHours()}h ${date.getMinutes()} min`;
+                      return (
+                        <ActivityItem
+                          key={session.id}
+                          icon={a.icon}
+                          iconColor={a.color}
+                          iconBg={a.bg}
+                          title={a.label}
+                          subtitle={`${a.sub} \u2022 ${timeStr}`}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             )}
           </div>
         </main>
-      </div>
-    </div>
-  );
-}
-
-// ── Nav Item Component ─────────────────────────────────────
-
-function NavItem({ icon, label, active = false }: { icon: React.ReactNode; label: string; active?: boolean }) {
-  return (
-    <button
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${
-        active
-          ? 'bg-white/10 text-white font-medium'
-          : 'text-gray-400 hover:bg-white/5 hover:text-white'
-      }`}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-// ── Course Card Component ──────────────────────────────────
-
-function CourseCard({ course, index }: { course: any; index: number }) {
-  const courseIcons = [
-    { icon: '🦠', bg: 'bg-purple-100', iconColor: 'text-purple-600', progress: 'bg-purple-500', percent: '40%' },
-    { icon: '🌿', bg: 'bg-teal-100', iconColor: 'text-teal-600', progress: 'bg-teal-600', percent: '90%' },
-    { icon: '🔬', bg: 'bg-blue-100', iconColor: 'text-blue-600', progress: 'bg-blue-500', percent: '75%' },
-    { icon: '❤️', bg: 'bg-pink-100', iconColor: 'text-pink-600', progress: 'bg-pink-500', percent: '20%' },
-  ];
-  
-  const config = courseIcons[index % courseIcons.length];
-  const moduleText = course.topicProgress?.[0]?.topicTitle || `MÓDULO ${['IV', 'FINAL', 'II', 'I'][index % 4]}`;
-  const progressText = `${course.lessonsCompleted}/${course.lessonsTotal} Aulas`;
-
-  return (
-    <div className="bg-white rounded-2xl p-6 border border-gray-200 hover:shadow-lg transition-all">
-      {/* Header */}
-      <div className="flex items-start gap-4 mb-4">
-        <div className={`w-14 h-14 rounded-xl ${config.bg} flex items-center justify-center flex-shrink-0 text-2xl`}>
-          {config.icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-lg font-bold text-gray-900 leading-tight">
-              {course.courseName}
-            </h3>
-            <span className={`text-sm font-bold ${config.iconColor}`}>
-              {course.masteryPercent}%
-            </span>
-          </div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">
-            {moduleText}
-          </p>
-        </div>
-      </div>
-
-      {/* Progress */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-600">Progresso</span>
-          <span className="text-xs text-gray-500">{progressText}</span>
-        </div>
-        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${config.progress} transition-all duration-700 rounded-full`}
-            style={{ width: `${course.masteryPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Button */}
-      <button className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl transition-colors">
-        Continuar Estudo
-      </button>
-    </div>
-  );
-}
-
-// ── Activity Item Component ────────────────────────────────
-
-function ActivityItem({ session, index }: { session: any; index: number }) {
-  const activities = [
-    { icon: '▶', bg: 'bg-blue-100', color: 'text-blue-600', label: 'Vídeo de Anatomia', sub: 'Sistema Cardiovascular' },
-    { icon: '✓', bg: 'bg-teal-100', color: 'text-teal-600', label: 'Quiz de Histologia', sub: 'Nota: 9.5/10' },
-    { icon: '📝', bg: 'bg-amber-100', color: 'text-amber-600', label: 'Novo resumo', sub: 'Ciclo de Krebs' },
-  ];
-  
-  const activity = activities[index % activities.length];
-  
-  // Format time
-  const date = new Date(session.startedAt);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const timeStr = `Há ${hours}h ${minutes} min`;
-
-  return (
-    <div className="flex items-start gap-3">
-      <div className={`w-10 h-10 rounded-lg ${activity.bg} flex items-center justify-center flex-shrink-0 ${activity.color} text-lg font-bold`}>
-        {activity.icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 leading-tight">
-          {activity.label}
-        </p>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {activity.sub} • {timeStr}
-        </p>
       </div>
     </div>
   );
