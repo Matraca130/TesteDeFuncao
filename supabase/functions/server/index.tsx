@@ -593,4 +593,266 @@ app.post(`${PREFIX}/ai/explain`, async (c) => {
   }
 });
 
+// ============================================================
+// QUIZ ADMIN CRUD
+// ============================================================
+
+/** POST /quizzes/:courseId/:topicId — Save/update quizzes for a topic */
+app.post(`${PREFIX}/quizzes/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const body = await c.req.json();
+    const { questions, topicTitle, sectionTitle, semesterTitle } = body;
+
+    if (!questions || !Array.isArray(questions)) {
+      return c.json({ error: "Missing or invalid 'questions' array in request body" }, 400);
+    }
+
+    const key = `quiz:${courseId}:${topicId}`;
+    const data = {
+      courseId,
+      topicId,
+      topicTitle: topicTitle || '',
+      sectionTitle: sectionTitle || '',
+      semesterTitle: semesterTitle || '',
+      questions,
+      updatedAt: new Date().toISOString(),
+      questionCount: questions.length,
+    };
+
+    await kv.set(key, data);
+
+    // Update quiz index for this course
+    const indexKey = `quiz-index:${courseId}`;
+    let index: any = {};
+    try {
+      const existing = await kv.get(indexKey);
+      if (existing) index = existing;
+    } catch (_e) {
+      // Index doesn't exist yet
+    }
+
+    index[topicId] = {
+      topicTitle: topicTitle || '',
+      sectionTitle: sectionTitle || '',
+      semesterTitle: semesterTitle || '',
+      questionCount: questions.length,
+      updatedAt: data.updatedAt,
+    };
+
+    await kv.set(indexKey, index);
+
+    console.log(`[Quiz Admin] Saved ${questions.length} questions for ${courseId}/${topicId}`);
+    return c.json({ success: true, questionCount: questions.length });
+  } catch (error: any) {
+    console.log(`[Quiz Admin] Error saving quiz: ${error.message}`);
+    return c.json({ error: `Failed to save quiz: ${error.message}` }, 500);
+  }
+});
+
+/** GET /quizzes/:courseId/:topicId — Get quizzes for a topic */
+app.get(`${PREFIX}/quizzes/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const key = `quiz:${courseId}:${topicId}`;
+    const data = await kv.get(key);
+
+    if (!data) {
+      return c.json({ questions: [], courseId, topicId });
+    }
+
+    return c.json(data);
+  } catch (error: any) {
+    console.log(`[Quiz Admin] Error getting quiz: ${error.message}`);
+    return c.json({ error: `Failed to get quiz: ${error.message}` }, 500);
+  }
+});
+
+/** GET /quizzes-index/:courseId — List topics with saved quizzes */
+app.get(`${PREFIX}/quizzes-index/:courseId`, async (c) => {
+  try {
+    const { courseId } = c.req.param();
+    const indexKey = `quiz-index:${courseId}`;
+    const data = await kv.get(indexKey);
+
+    if (!data) {
+      return c.json({ index: {} });
+    }
+
+    return c.json({ index: data });
+  } catch (error: any) {
+    console.log(`[Quiz Admin] Error getting quiz index: ${error.message}`);
+    return c.json({ error: `Failed to get quiz index: ${error.message}` }, 500);
+  }
+});
+
+/** GET /quizzes-all — Get all quizzes across all courses */
+app.get(`${PREFIX}/quizzes-all`, async (c) => {
+  try {
+    const results = await kv.getByPrefix("quiz:");
+    return c.json({ quizzes: results });
+  } catch (error: any) {
+    console.log(`[Quiz Admin] Error getting all quizzes: ${error.message}`);
+    return c.json({ error: `Failed to get all quizzes: ${error.message}` }, 500);
+  }
+});
+
+/** DELETE /quizzes/:courseId/:topicId — Delete quizzes for a topic */
+app.delete(`${PREFIX}/quizzes/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const key = `quiz:${courseId}:${topicId}`;
+    await kv.del(key);
+
+    // Update index
+    const indexKey = `quiz-index:${courseId}`;
+    try {
+      const index: any = await kv.get(indexKey);
+      if (index && index[topicId]) {
+        delete index[topicId];
+        await kv.set(indexKey, index);
+      }
+    } catch (_e) {
+      // Index might not exist
+    }
+
+    console.log(`[Quiz Admin] Deleted quizzes for ${courseId}/${topicId}`);
+    return c.json({ success: true });
+  } catch (error: any) {
+    console.log(`[Quiz Admin] Error deleting quiz: ${error.message}`);
+    return c.json({ error: `Failed to delete quiz: ${error.message}` }, 500);
+  }
+});
+
+// ============================================================
+// FLASHCARD ADMIN CRUD
+// ============================================================
+
+/** POST /flashcards/:courseId/:topicId — Save/update flashcards for a topic */
+app.post(`${PREFIX}/flashcards/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const body = await c.req.json();
+    const { flashcards, topicTitle, sectionTitle, semesterTitle } = body;
+
+    if (!flashcards || !Array.isArray(flashcards)) {
+      return c.json({ error: "Missing or invalid 'flashcards' array in request body" }, 400);
+    }
+
+    const key = `flashcard:${courseId}:${topicId}`;
+    const data = {
+      courseId,
+      topicId,
+      topicTitle: topicTitle || '',
+      sectionTitle: sectionTitle || '',
+      semesterTitle: semesterTitle || '',
+      flashcards,
+      updatedAt: new Date().toISOString(),
+      flashcardCount: flashcards.length,
+    };
+
+    await kv.set(key, data);
+
+    // Update flashcard index for this course
+    const indexKey = `flashcard-index:${courseId}`;
+    let index: any = {};
+    try {
+      const existing = await kv.get(indexKey);
+      if (existing) index = existing;
+    } catch (_e) {
+      // Index doesn't exist yet
+    }
+
+    index[topicId] = {
+      topicTitle: topicTitle || '',
+      sectionTitle: sectionTitle || '',
+      semesterTitle: semesterTitle || '',
+      flashcardCount: flashcards.length,
+      updatedAt: data.updatedAt,
+    };
+
+    await kv.set(indexKey, index);
+
+    console.log(`[Flashcard Admin] Saved ${flashcards.length} flashcards for ${courseId}/${topicId}`);
+    return c.json({ success: true, flashcardCount: flashcards.length });
+  } catch (error: any) {
+    console.log(`[Flashcard Admin] Error saving flashcards: ${error.message}`);
+    return c.json({ error: `Failed to save flashcards: ${error.message}` }, 500);
+  }
+});
+
+/** GET /flashcards/:courseId/:topicId — Get flashcards for a topic */
+app.get(`${PREFIX}/flashcards/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const key = `flashcard:${courseId}:${topicId}`;
+    const data = await kv.get(key);
+
+    if (!data) {
+      return c.json({ flashcards: [], courseId, topicId });
+    }
+
+    return c.json(data);
+  } catch (error: any) {
+    console.log(`[Flashcard Admin] Error getting flashcards: ${error.message}`);
+    return c.json({ error: `Failed to get flashcards: ${error.message}` }, 500);
+  }
+});
+
+/** GET /flashcards-index/:courseId — List topics with saved flashcards */
+app.get(`${PREFIX}/flashcards-index/:courseId`, async (c) => {
+  try {
+    const { courseId } = c.req.param();
+    const indexKey = `flashcard-index:${courseId}`;
+    const data = await kv.get(indexKey);
+
+    if (!data) {
+      return c.json({ index: {} });
+    }
+
+    return c.json({ index: data });
+  } catch (error: any) {
+    console.log(`[Flashcard Admin] Error getting flashcard index: ${error.message}`);
+    return c.json({ error: `Failed to get flashcard index: ${error.message}` }, 500);
+  }
+});
+
+/** GET /flashcards-all — Get all flashcards across all courses */
+app.get(`${PREFIX}/flashcards-all`, async (c) => {
+  try {
+    const results = await kv.getByPrefix("flashcard:");
+    return c.json({ flashcards: results });
+  } catch (error: any) {
+    console.log(`[Flashcard Admin] Error getting all flashcards: ${error.message}`);
+    return c.json({ error: `Failed to get all flashcards: ${error.message}` }, 500);
+  }
+});
+
+/** DELETE /flashcards/:courseId/:topicId — Delete flashcards for a topic */
+app.delete(`${PREFIX}/flashcards/:courseId/:topicId`, async (c) => {
+  try {
+    const { courseId, topicId } = c.req.param();
+    const key = `flashcard:${courseId}:${topicId}`;
+    await kv.del(key);
+
+    // Update index
+    const indexKey = `flashcard-index:${courseId}`;
+    try {
+      const index: any = await kv.get(indexKey);
+      if (index && index[topicId]) {
+        delete index[topicId];
+        await kv.set(indexKey, index);
+      }
+    } catch (_e) {
+      // Index might not exist
+    }
+
+    console.log(`[Flashcard Admin] Deleted flashcards for ${courseId}/${topicId}`);
+    return c.json({ success: true });
+  } catch (error: any) {
+    console.log(`[Flashcard Admin] Error deleting flashcards: ${error.message}`);
+    return c.json({ error: `Failed to delete flashcards: ${error.message}` }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
