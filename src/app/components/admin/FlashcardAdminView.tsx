@@ -3,9 +3,9 @@ import { useApp } from '@/app/context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import {
-  Plus, Trash2, Eye, ChevronDown, ChevronRight,
+  Plus, Trash2, ChevronDown, ChevronRight,
   Copy, Lightbulb, Layers,
-  X, ChevronUp, Loader2, ImageIcon,
+  X, ChevronUp, Loader2, ImageIcon, AlertTriangle,
 } from 'lucide-react';
 import { Flashcard, Course, Topic, findStaticTopic } from '@/app/data/courses';
 import {
@@ -41,7 +41,10 @@ function validateFlashcard(card: Flashcard): ValidationResult {
 function cleanFlashcardsForSave(cards: Flashcard[]): Flashcard[] {
   return cards.map(c => {
     const cleaned = { ...c };
-    if (!cleaned.image?.trim()) delete cleaned.image;
+    if (!cleaned.image?.trim()) {
+      delete cleaned.image;
+      delete cleaned.imagePosition;
+    }
     cleaned.question = cleaned.question?.trim() || '';
     cleaned.answer = cleaned.answer?.trim() || '';
     return cleaned;
@@ -456,7 +459,7 @@ function FlashcardEditor({ card, index, total, validation, onUpdate, onDelete, o
       {/* Validation warnings */}
       {validation.requiredMissing.length > 0 && (
         <div className="mx-5 mt-3 flex items-start gap-2 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
-          <span className="text-amber-500 mt-0.5 shrink-0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+          <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" />
           <div>
             <p className="text-[11px] text-amber-700 font-semibold">Campos obrigatorios faltando:</p>
             <p className="text-[10px] text-amber-600">{validation.requiredMissing.join(' \u00b7 ')}</p>
