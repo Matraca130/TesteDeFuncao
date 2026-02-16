@@ -1,0 +1,328 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "updated": "2026-02-16",
+    "description": "Mapa do frontend Axon/TesteDeFuncao. Cada pool tem read_first (ler SEMPRE) e read_if_needed (ler conforme a tarefa).",
+    "total_files": 99,
+    "total_files_detail": "50 domain + 48 ui/shadcn + 1 figma/infra = 99 .ts/.tsx + 4 CSS",
+    "pools_count": 10,
+    "implicit_dependency": "design-system/ e importado por 17 arquivos em quase todos os pools. Nao e listado em cada pool — consulte cross_reference.",
+
+    "read_protocol": {
+      "step_1": "Leia o CODEMAP.json inteiro (este arquivo).",
+      "step_2": "Identifique o pool pedido. Leia TODOS os arquivos de read_first (sao poucos, ~500-900 linhas).",
+      "step_3": "Analise o pedido do usuario. Leia de read_if_needed APENAS os arquivos relevantes para a tarefa.",
+      "step_4": "Consulte shared_warnings ANTES de editar qualquer arquivo compartilhado.",
+      "combined_pools": "Para 'pool: admin + canvas', leia read_first de ambos. Dedup: ResumoCanvas.tsx aparece nos dois — ler so uma vez.",
+      "monster_files": "Arquivos com mais de 400 linhas: leia imports + assinaturas de funcoes primeiro (offset 0, limit 60). Leia o resto sob demanda."
+    }
+  },
+
+  "line_counts": {
+    "_description": "Linhas por arquivo. Use para estimar custo de leitura antes de ler.",
+    "App.tsx": 74,
+    "StudyView.tsx": 557,
+    "DashboardView.tsx": 176,
+    "ResumosView.tsx": 508,
+    "AdminPanel.tsx": 329,
+    "ResumoCanvas.tsx": 906,
+    "CanvasBlocksRenderer.tsx": 209,
+    "AdminOverview.tsx": 270,
+    "AdminResumos.tsx": 276,
+    "AdminPlaceholderTab.tsx": 252,
+    "AdminSettings.tsx": 190,
+    "canvas/types.ts": 94,
+    "canvas/helpers.ts": 165,
+    "canvas/index.ts": 16,
+    "canvas/useBlockOperations.ts": 205,
+    "canvas/CanvasTopBar.tsx": 76,
+    "canvas/ToolbarComponents.tsx": 111,
+    "canvas/PreviewBlock.tsx": 106,
+    "canvas/PdfRenderer.tsx": 143,
+    "canvas/ImageComponents.tsx": 175,
+    "canvas/KeywordPicker.tsx": 88,
+    "canvas/KeywordPopover.tsx": 447,
+    "canvas/AnnotationPanel.tsx": 229,
+    "canvas/BlockActions.tsx": 102,
+    "canvas/ReorderBlockWrapper.tsx": 347,
+    "AxonPageHeader.tsx": 49,
+    "AdminBanner.tsx": 309,
+    "Sidebar.tsx": 219,
+    "AxonLogo.tsx": 52,
+    "AppContext.tsx": 83,
+    "StudentDataContext.tsx": 263,
+    "courses.ts": 477,
+    "keywords.ts": 249,
+    "studyContent.ts": 428,
+    "sectionImages.ts": 130,
+    "lessonData.ts": 26,
+    "studentApi.ts": 83,
+    "student.ts": 169
+  },
+
+  "pools": {
+
+    "study": {
+      "description": "Sessao de estudo — plano de estudos (StudyPlan) + leitor de conteudo (StudySession) com keywords, imagens, CanvasBlocksRenderer, timer",
+      "read_first": [
+        "src/app/components/content/StudyView.tsx",
+        "src/app/context/AppContext.tsx"
+      ],
+      "read_first_lines": 640,
+      "read_if_needed": {
+        "rendering_resumos": ["src/app/components/content/CanvasBlocksRenderer.tsx", "src/app/components/content/canvas/KeywordPopover.tsx"],
+        "content_medico": ["src/app/data/studyContent.ts", "src/app/data/sectionImages.ts"],
+        "keywords_mastery": ["src/app/data/keywords.ts"],
+        "api_persistencia": ["src/app/services/studentApi.ts", "src/app/types/student.ts"],
+        "ui_header_banner": ["src/app/components/shared/AxonPageHeader.tsx", "src/app/components/shared/AdminBanner.tsx"],
+        "navegacao_cursos": ["src/app/data/courses.ts"]
+      },
+      "shared_warnings": [
+        "courses.ts (477 linhas) — tambem: resumos, canvas, admin, AppContext",
+        "keywords.ts — tambem: resumos, canvas (KeywordPicker, KeywordPopover)",
+        "studentApi.ts — usado por todos os pools que persistem dados",
+        "AxonPageHeader.tsx — tambem: resumos, dashboard, admin"
+      ],
+      "notes": "Contem StudyPlan + StudySession como sub-views internas. Usa CanvasBlocksRenderer (standalone, tipos duplicados) para renderizar resumos. lessonData.ts (26 linhas) exporta topicLessons mas NENHUM arquivo importa — orfao preparado para uso futuro."
+    },
+
+    "resumos": {
+      "description": "Lista de resumos do estudante — busca, filtros, ordenacao, preview read-only, toggle bookmark",
+      "read_first": [
+        "src/app/components/content/ResumosView.tsx",
+        "src/app/context/AppContext.tsx"
+      ],
+      "read_first_lines": 591,
+      "read_if_needed": {
+        "rendering_blocks": ["src/app/components/content/CanvasBlocksRenderer.tsx", "src/app/components/content/canvas/KeywordPopover.tsx"],
+        "keywords": ["src/app/data/keywords.ts"],
+        "api_tipos": ["src/app/services/studentApi.ts", "src/app/types/student.ts"],
+        "ui_header_banner": ["src/app/components/shared/AxonPageHeader.tsx", "src/app/components/shared/AdminBanner.tsx"],
+        "dados_cursos": ["src/app/data/courses.ts"]
+      },
+      "shared_warnings": [
+        "CanvasBlocksRenderer.tsx — standalone com tipos duplicados, tambem usado por study",
+        "courses.ts — tambem: study, canvas, admin",
+        "studentApi.ts — usado por todos os pools que persistem dados"
+      ],
+      "notes": "Sub-views: 'list' (grade de cards) e 'detail' (preview read-only). NAO abre o editor — ResumoCanvas so e acessado pelo admin."
+    },
+
+    "canvas": {
+      "description": "Editor rico de resumos (ResumoCanvas) + 14 sub-modulos — toolbar, blocos, PDF, keywords, annotations, imagens, reorder",
+      "read_first": [
+        "src/app/components/content/ResumoCanvas.tsx",
+        "src/app/components/content/canvas/types.ts",
+        "src/app/components/content/canvas/helpers.ts",
+        "src/app/components/content/canvas/useBlockOperations.ts"
+      ],
+      "read_first_lines": 1370,
+      "read_if_needed": {
+        "toolbar_ui": ["src/app/components/content/canvas/CanvasTopBar.tsx", "src/app/components/content/canvas/ToolbarComponents.tsx"],
+        "bloco_individual": ["src/app/components/content/canvas/ReorderBlockWrapper.tsx", "src/app/components/content/canvas/BlockActions.tsx"],
+        "preview_pdf": ["src/app/components/content/canvas/PreviewBlock.tsx", "src/app/components/content/canvas/PdfRenderer.tsx"],
+        "keywords": ["src/app/components/content/canvas/KeywordPicker.tsx", "src/app/components/content/canvas/KeywordPopover.tsx"],
+        "annotations": ["src/app/components/content/canvas/AnnotationPanel.tsx"],
+        "imagens_colunas": ["src/app/components/content/canvas/ImageComponents.tsx"],
+        "dados": ["src/app/data/courses.ts", "src/app/data/keywords.ts"],
+        "api_tipos": ["src/app/services/studentApi.ts", "src/app/types/student.ts"],
+        "barrel": ["src/app/components/content/canvas/index.ts"]
+      },
+      "shared_warnings": [
+        "courses.ts — getAllTopics() em helpers.ts itera todos os cursos",
+        "keywords.ts — KeywordPicker e KeywordPopover dependem do banco completo",
+        "student.ts — AnnotationPanel usa SummaryAnnotation; ResumoCanvas usa StudySummary",
+        "4 renderers sincronizados: PreviewBlock (editor), PdfBlocksRenderer (PDF), CanvasBlocksRenderer (standalone). Se mudar formato de bloco, atualizar os 4."
+      ],
+      "notes": "13 sub-modulos refatorados. Restricoes Figma Make: sem ResponsiveContainer, <span> em vez de React.Fragment com key. CanvasTopBar usa constante CARD de types.ts."
+    },
+
+    "admin": {
+      "description": "Painel admin — hub com 6 tabs (overview, resumos CRUD, quiz/flashcards/content placeholders, settings)",
+      "read_first": [
+        "src/app/components/content/AdminPanel.tsx",
+        "src/app/context/AppContext.tsx"
+      ],
+      "read_first_lines": 412,
+      "read_if_needed": {
+        "tab_overview": ["src/app/components/content/admin/AdminOverview.tsx"],
+        "tab_resumos_crud": ["src/app/components/content/admin/AdminResumos.tsx"],
+        "tab_placeholders": ["src/app/components/content/admin/AdminPlaceholderTab.tsx"],
+        "tab_settings": ["src/app/components/content/admin/AdminSettings.tsx"],
+        "editor_canvas": ["src/app/components/content/ResumoCanvas.tsx"],
+        "api_tipos": ["src/app/services/studentApi.ts", "src/app/types/student.ts"],
+        "dados_cursos": ["src/app/data/courses.ts"],
+        "ui_header": ["src/app/components/shared/AxonPageHeader.tsx"]
+      },
+      "shared_warnings": [
+        "AppContext.tsx — isAdmin, adminLogin, adminLogout (ADMIN_PLACEHOLDER para Supabase Auth)",
+        "ResumoCanvas.tsx (906 linhas) — e o pool 'canvas' inteiro. Se a tarefa envolve o editor, carregue pool canvas tambem.",
+        "courses.ts — AdminOverview e AdminResumos iteram cursos para stats"
+      ],
+      "notes": "Exports { AdminPanel, AdminLoginGate }. AdminPanel carrega ResumoCanvas como sub-view do tab 'resumos'. Se precisar mexer no editor, combine: 'pool: admin + canvas'."
+    },
+
+    "dashboard": {
+      "description": "Dashboard principal — KPIs, graficos recharts (BarChart, PieChart), progresso por materia, streak",
+      "read_first": [
+        "src/app/components/content/DashboardView.tsx",
+        "src/app/context/AppContext.tsx",
+        "src/app/context/StudentDataContext.tsx"
+      ],
+      "read_first_lines": 522,
+      "read_if_needed": {
+        "tipos": ["src/app/types/student.ts"],
+        "ui_header": ["src/app/components/shared/AxonPageHeader.tsx"]
+      },
+      "shared_warnings": [
+        "StudentDataContext.tsx — fonte de todos os dados (stats, courseProgress, dailyActivity)",
+        "AppContext.tsx — currentCourse para titulo"
+      ],
+      "notes": "Usa recharts (BarChart, PieChart). Fallback a dados hardcoded quando isConnected=false. NAO importa data files — tudo via StudentDataContext."
+    },
+
+    "navigation": {
+      "description": "App shell — routing por ViewType, sidebar, toggle, transicoes",
+      "read_first": [
+        "src/app/App.tsx",
+        "src/app/components/shared/Sidebar.tsx",
+        "src/app/context/AppContext.tsx"
+      ],
+      "read_first_lines": 376,
+      "read_if_needed": {
+        "logo": ["src/app/components/shared/AxonLogo.tsx"]
+      },
+      "shared_warnings": [
+        "AppContext.tsx — ViewType define todas as rotas possiveis",
+        "App.tsx — ViewRouter mapeia ViewType para componentes de cada modulo"
+      ],
+      "notes": "NAO usa React Router — routing manual via ViewType + switch. AnimatePresence para transicoes. Sidebar: moduleItems (dashboard, study, resumos, quiz) + admin separado."
+    },
+
+    "design-system": {
+      "description": "Tokens, cores, tipografia, sombras, shapes, regras, animacoes",
+      "read_first": [
+        "src/app/design-system/index.ts",
+        "src/app/design-system/typography.ts",
+        "src/app/design-system/colors.ts",
+        "src/app/design-system/components.ts"
+      ],
+      "read_first_lines": "~200 (depende dos arquivos)",
+      "read_if_needed": {
+        "brand_logo": ["src/app/design-system/brand.ts"],
+        "shapes_shadows": ["src/app/design-system/shapes.ts", "src/app/design-system/shadows.ts"],
+        "sections": ["src/app/design-system/section-colors.ts"],
+        "navigation": ["src/app/design-system/navigation.ts"],
+        "layout": ["src/app/design-system/layout.ts"],
+        "animation": ["src/app/design-system/animation.ts"],
+        "rules": ["src/app/design-system/rules.ts"]
+      },
+      "shared_warnings": [
+        "TODOS os arquivos sao compartilhados — headingStyle, colors, components usados em quase todas as views"
+      ],
+      "notes": "Barrel via index.ts. Mais usados: headingStyle (typography), colors, components, brand (AxonLogo). NAO criar tailwind.config.js — Tailwind v4 com tokens em /src/styles/theme.css."
+    },
+
+    "data": {
+      "description": "Dados estaticos — cursos/topicos, keywords medicas, conteudo, imagens, licoes",
+      "read_first": [
+        "src/app/data/courses.ts"
+      ],
+      "read_first_lines": 477,
+      "read_if_needed": {
+        "keywords_medicas": ["src/app/data/keywords.ts"],
+        "conteudo_estudo": ["src/app/data/studyContent.ts"],
+        "imagens_secao": ["src/app/data/sectionImages.ts"],
+        "licoes": ["src/app/data/lessonData.ts"]
+      },
+      "shared_warnings": [
+        "courses.ts (477 linhas) — hierarquia: Course > Semester > Section > Topic > Lesson/Flashcard/QuizQuestion. Usado por MUITOS pools.",
+        "keywords.ts — usado por study, resumos, canvas",
+        "lessonData.ts — importa Lesson de courses.ts mas NENHUM arquivo consome (orfao)"
+      ],
+      "notes": "courses.ts e arquivo grande pendente de refactor. Contem TODOS os cursos com dados inline. Para ler so a estrutura (tipos), use offset 0 limit 40."
+    },
+
+    "shared-components": {
+      "description": "Componentes reutilizaveis — header, sidebar, logo, admin banner, status badge",
+      "read_first": [
+        "src/app/components/shared/AxonPageHeader.tsx",
+        "src/app/components/shared/AdminBanner.tsx",
+        "src/app/components/shared/Sidebar.tsx",
+        "src/app/components/shared/AxonLogo.tsx"
+      ],
+      "read_first_lines": 629,
+      "read_if_needed": {
+        "context": ["src/app/context/AppContext.tsx"]
+      },
+      "shared_warnings": [
+        "AxonPageHeader — usado por: study, resumos, dashboard, admin",
+        "AdminBanner — 4 variantes (banner, inline, floating, minimal) + BackendStatusBadge. Usado por: study, resumos",
+        "Sidebar — modulos, toggle, admin. Usa AxonLogo + AppContext",
+        "AxonLogo — AxonMark SVG + AxonBrand + AxonBadge + AxonWatermark. Usado por: Sidebar, AxonPageHeader"
+      ],
+      "notes": "AdminBanner: 4 variantes + AdminRequired wrapper + BackendStatusBadge."
+    },
+
+    "types-services": {
+      "description": "Camada API + tipos — interfaces de dados e comunicacao com backend Supabase",
+      "read_first": [
+        "src/app/services/studentApi.ts",
+        "src/app/types/student.ts"
+      ],
+      "read_first_lines": 252,
+      "read_if_needed": {
+        "context_reativo": ["src/app/context/StudentDataContext.tsx"]
+      },
+      "shared_warnings": [
+        "student.ts — TODAS as interfaces: StudentProfile, StudentStats, CourseProgress, StudySummary, QuizAttempt, etc.",
+        "studentApi.ts — ~35 funcoes para rotas Hono. Editar aqui afeta TODOS os pools.",
+        "StudentDataContext.tsx — wrapper reativo sobre studentApi"
+      ],
+      "notes": "BASE_URL via projectId de /utils/supabase/info. DEFAULT_STUDENT_ID = 'demo-student-001'. NotFoundError com status 404."
+    }
+  },
+
+  "cross_reference": {
+    "_description": "Se voce edita este arquivo, estes pools podem quebrar.",
+    "courses.ts": ["study", "resumos", "canvas", "admin", "navigation (via AppContext)", "data"],
+    "keywords.ts": ["study", "resumos", "canvas", "data"],
+    "student.ts": ["study", "resumos", "canvas", "admin", "dashboard", "types-services"],
+    "studentApi.ts": ["study", "resumos", "canvas", "admin", "types-services"],
+    "AppContext.tsx": ["study", "resumos", "admin", "dashboard", "navigation", "shared-components"],
+    "StudentDataContext.tsx": ["dashboard", "types-services"],
+    "AxonPageHeader.tsx": ["study", "resumos", "dashboard", "admin", "shared-components"],
+    "AdminBanner.tsx": ["study", "resumos", "shared-components"],
+    "CanvasBlocksRenderer.tsx": ["study", "resumos"],
+    "ResumoCanvas.tsx": ["canvas", "admin"],
+    "design-system/*": ["study", "resumos", "canvas", "admin", "dashboard", "navigation", "shared-components"]
+  },
+
+  "monster_files": {
+    "_description": "Arquivos grandes — para ler so estrutura use offset 0 limit 60.",
+    "ResumoCanvas.tsx": { "lines": 906, "pool": "canvas", "tip": "Orquestrador. Imports ate linha 41, state ate ~100, JSX a partir de ~600." },
+    "StudyView.tsx": { "lines": 557, "pool": "study", "tip": "Sub-views StudyPlan + StudySession. Imports ate linha 22." },
+    "ResumosView.tsx": { "lines": 508, "pool": "resumos", "tip": "Sub-views list + detail. Imports ate linha 18." },
+    "courses.ts": { "lines": 477, "pool": "data", "tip": "Tipos ate linha 50, dados a partir de ~55. Para so tipos: offset 0 limit 50." },
+    "KeywordPopover.tsx": { "lines": 447, "pool": "canvas", "tip": "Provider + portal + sub-components (QuestionCard, MasteryToggle, KeywordNotes)." }
+  },
+
+  "ui_components": {
+    "_description": "48 componentes shadcn/ui em src/app/components/ui/. NAO importados por nenhum componente da app atualmente.",
+    "path": "src/app/components/ui/",
+    "count": 48,
+    "status": "INSTALADOS MAS NAO USADOS. App usa Tailwind + clsx diretamente. Disponiveis para uso futuro.",
+    "utilities": ["utils.ts (cn() — wrapper clsx+twMerge, usado internamente)", "use-mobile.ts (useIsMobile, usado por ui/sidebar.tsx)"]
+  },
+
+  "styles": {
+    "_description": "CSS globais. Leia se precisar mudar fontes, tema ou tokens Tailwind v4.",
+    "files": ["src/styles/fonts.css", "src/styles/index.css", "src/styles/tailwind.css", "src/styles/theme.css"]
+  },
+
+  "infrastructure": {
+    "protected": [
+      "src/app/components/figma/ImageWithFallback.tsx — fallback de imagem. PROTEGIDO (nao editar). Nao importado por nenhum componente."
+    ]
+  }
+}
