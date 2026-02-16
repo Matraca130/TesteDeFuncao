@@ -2,20 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '@/app/context/AppContext';
 import { AxonPageHeader } from '@/app/components/shared/AxonPageHeader';
-import { headingStyle, colors, components } from '@/app/design-system';
+import { headingStyle, colors } from '@/app/design-system';
 import * as api from '@/app/services/studentApi';
 import { courses } from '@/app/data/courses';
 import type { StudySummary } from '@/app/types/student';
 import clsx from 'clsx';
 import {
   Search, Clock, Tag, Bookmark, BookmarkCheck,
-  Edit3, FileText, Loader2,
+  FileText, Loader2,
   AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { CanvasBlocksRenderer } from './CanvasBlocksRenderer';
 
 // ══════════════════════════════════════════════
-// RESUMOS VIEW — Visualização de Estudante (somente leitura)
+// RESUMOS VIEW — Visualizacao de Estudante (somente leitura)
 // Para criar/editar/deletar, use o AdminPanel.
 // ══════════════════════════════════════════════
 
@@ -228,9 +228,9 @@ function KPICard({ icon, label, value, trend, color }: { icon: React.ReactNode; 
   );
 }
 
-// ═════════════════════════════════════════════
+// ==============================================
 // Summary Row — Read-only (no edit/delete)
-// ═════════════════════════════════════════════
+// ==============================================
 function SummaryRow({ summary, onOpen, onToggleBookmark }: {
   summary: StudySummary; onOpen: () => void; onToggleBookmark: () => void;
 }) {
