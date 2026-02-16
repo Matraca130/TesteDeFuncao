@@ -66,7 +66,7 @@ export function PreviewBlock({ block }: { block: CanvasBlock }) {
     const isNumbered = block.meta?.listStyle === 'numbered';
     const tag = isNumbered ? 'ol' : 'ul';
     const listCls = isNumbered ? 'list-decimal' : 'list-disc';
-    const stripPrefix = (l: string) => l.replace(/^[\\d]+[.)]\\s*/, '').replace(/^[-*]\\s*/, '').trim();
+    const stripPrefix = (l: string) => l.replace(/^[\d]+[.)]\s*/, '').replace(/^[-*]\s*/, '').trim();
     const html = block.content.includes('<li>') ? block.content
       : `<${tag} class="${listCls} ml-5 space-y-1.5">${block.content.split('\n').filter(l => l.trim()).map(l => `<li class="text-[15px] text-gray-700 leading-[1.75]">${stripPrefix(l)}</li>`).join('')}</${tag}>`;
     return <div className="my-3 text-[15px] text-gray-700 leading-[1.75] [&_ul]:list-disc [&_ul]:ml-5 [&_ul]:space-y-1.5 [&_ol]:list-decimal [&_ol]:ml-5 [&_ol]:space-y-1.5" dangerouslySetInnerHTML={{ __html: html }} />;
