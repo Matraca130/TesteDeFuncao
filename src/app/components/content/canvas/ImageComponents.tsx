@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // IMAGE COMPONENTS — ImagePickerModal, ImageResizeHandle, ColumnResizeHandle
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
