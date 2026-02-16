@@ -13,9 +13,11 @@ import {
   AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { CanvasBlocksRenderer } from './CanvasBlocksRenderer';
+import { findKeyword, masteryConfig } from '@/app/data/keywords';
+import type { MasteryLevel } from '@/app/data/keywords';
 
 // ══════════════════════════════════════════════
-// RESUMOS VIEW — Visualizacao de Estudante (somente leitura)
+// RESUMOS VIEW — Visualização de Estudante (somente leitura)
 // Para criar/editar/deletar, use o AdminPanel.
 // ══════════════════════════════════════════════
 
@@ -228,14 +230,14 @@ function KPICard({ icon, label, value, trend, color }: { icon: React.ReactNode; 
   );
 }
 
-// ==============================================
+// ═════════════════════════════════════════════
 // Summary Row — Read-only (no edit/delete)
-// ==============================================
+// ═════════════════════════════════════════════
 function SummaryRow({ summary, onOpen, onToggleBookmark }: {
   summary: StudySummary; onOpen: () => void; onToggleBookmark: () => void;
 }) {
   const preview = summary.content
-    ? summary.content.replace(/[#*_\[\]`>-]/g, '').slice(0, 160) + (summary.content.length > 160 ? '...' : '')
+    ? summary.content.replace(/[#*_\\[\\]`>-]/g, '').slice(0, 160) + (summary.content.length > 160 ? '...' : '')
     : 'Sem conteudo ainda...';
 
   const accentColor = colors.courseAccents[summary.courseId] || colors.courseAccents.anatomy;
@@ -341,6 +343,44 @@ function SummaryDetail({ summary, onToggleBookmark }: {
           </div>
         )}
       </div>
+
+      {/* Keyword Mastery summary */}
+      {summary.keywordMastery && Object.keys(summary.keywordMastery).length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className={CARD}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900" style={headingStyle}>Palavras-chave</h3>
+              <p className="text-sm text-gray-500">{Object.keys(summary.keywordMastery).length} termos rastreados</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(summary.keywordMastery).map(([kw, level]) => {
+              const kwData = findKeyword(kw);
+              const config = masteryConfig[level as MasteryLevel] || masteryConfig.green;
+              return (
+                <div key={kw} className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium', config.bgLight, config.borderColor, config.textColor)}>
+                  <div className={clsx('w-2 h-2 rounded-full', config.bgDot)} />
+                  <span className="capitalize">{kwData?.term || kw}</span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Keyword notes */}
+          {summary.keywordNotes && Object.keys(summary.keywordNotes).length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Notas por palavra-chave</p>
+              {Object.entries(summary.keywordNotes).map(([kw, notes]) => (
+                <div key={kw} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <p className="text-xs font-semibold text-teal-700 capitalize mb-1.5">{findKeyword(kw)?.term || kw}</p>
+                  {notes.map((note, i) => (
+                    <p key={i} className="text-[11px] text-gray-600 leading-relaxed ml-2 border-l-2 border-gray-200 pl-2 mb-1">{note}</p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Content */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={CARD}>

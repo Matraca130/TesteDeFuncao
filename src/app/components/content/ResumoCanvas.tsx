@@ -36,6 +36,7 @@ import { PdfBlocksRenderer } from './canvas/PdfRenderer';
 import { ImagePickerModal, ColumnResizeHandle } from './canvas/ImageComponents';
 import { KeywordPicker } from './canvas/KeywordPicker';
 import { KeywordPopoverProvider } from './canvas/KeywordPopover';
+import { AnnotationPanel } from './canvas/AnnotationPanel';
 import { ReorderBlockWrapper } from './canvas/ReorderBlockWrapper';
 
 // Re-export types so other files (AdminPanel, CanvasBlocksRenderer) can import from here
@@ -44,9 +45,9 @@ export type { BlockType } from './canvas/types';
 
 const allTopics = getAllTopics();
 
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // MAIN CANVAS EDITOR
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 interface ResumoCanvasProps {
   existing: StudySummary | null;
   onSaved: (s: StudySummary) => void;
@@ -112,6 +113,39 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
   const [generating, setGenerating] = useState(false);
   const [showMetaPanel, setShowMetaPanel] = useState(true);
   const [exporting, setExporting] = useState(false);
+
+  // ── Annotations & keyword context state ──
+  const [showAnnotations, setShowAnnotations] = useState(false);
+  const [selectedText, setSelectedText] = useState('');
+  const [annotations, setAnnotations] = useState<import('@/app/types/student').SummaryAnnotation[]>(existing?.annotations || []);
+  const [keywordMastery, setKeywordMastery] = useState<Record<string, string>>(existing?.keywordMastery || {});
+  const [keywordNotes, setKeywordNotes] = useState<Record<string, string[]>>(existing?.keywordNotes || {});
+
+  // Track selected text for annotations
+  useEffect(() => {
+    const handler = () => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) {
+        setSelectedText(sel.toString().trim());
+      }
+    };
+    document.addEventListener('mouseup', handler);
+    return () => document.removeEventListener('mouseup', handler);
+  }, []);
+
+  // Build summaryContext for KeywordPopover
+  const summaryKeywordContext = useMemo(() => ({
+    courseId,
+    topicId,
+    keywordMastery,
+    keywordNotes,
+    onUpdateMastery: (kw: string, mastery: string) => {
+      setKeywordMastery(prev => ({ ...prev, [kw]: mastery }));
+    },
+    onAddNote: (kw: string, note: string) => {
+      setKeywordNotes(prev => ({ ...prev, [kw]: [...(prev[kw] || []), note] }));
+    },
+  }), [courseId, topicId, keywordMastery, keywordNotes]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -260,6 +294,9 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
         courseName: selectedTopic?.courseName || courseId,
         topicTitle: selectedTopic?.topicTitle || topicId,
         editTimeMinutes: prevEditTime + sessionMinutes,
+        annotations,
+        keywordMastery,
+        keywordNotes,
       });
       onSaved(saved);
     } catch (err: any) {
@@ -268,7 +305,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
     } finally {
       setSaving(false);
     }
-  }, [courseId, topicId, tags, selectedTopic, onSaved, canvasOpenedAt, existing, getSyncedBlocks, setBlocks]);
+  }, [courseId, topicId, tags, selectedTopic, onSaved, canvasOpenedAt, existing, getSyncedBlocks, setBlocks, annotations, keywordMastery, keywordNotes]);
 
   // ── Generate AI Content ──
   const handleGenerateAI = useCallback(async () => {
@@ -621,6 +658,18 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
             </AnimatePresence>
           </div>
 
+          <div className="h-5 w-px bg-gray-200 mx-1" />
+
+          {/* Annotations */}
+          <AnnotationPanel
+            annotations={annotations}
+            onAdd={(ann) => setAnnotations(prev => [...prev, ann])}
+            onRemove={(id) => setAnnotations(prev => prev.filter(a => a.id !== id))}
+            isOpen={showAnnotations}
+            onToggle={() => setShowAnnotations(!showAnnotations)}
+            selectedText={selectedText}
+          />
+
           {/* Spacer + Zoom */}
           <div className="flex-1" />
           <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -654,7 +703,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
             ))}
 
             {viewMode === 'edit' ? (
-              <KeywordPopoverProvider>
+              <KeywordPopoverProvider summaryContext={summaryKeywordContext}>
               <div className="space-y-2.5">
                 <AnimatePresence>
                 {rows.map((row) => {
@@ -764,7 +813,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
               </KeywordPopoverProvider>
             ) : (
               /* Preview mode */
-              <KeywordPopoverProvider>
+              <KeywordPopoverProvider summaryContext={summaryKeywordContext}>
               <div className="space-y-5">
                 {rows.map((row) => {
                   if (row.groupId) {
