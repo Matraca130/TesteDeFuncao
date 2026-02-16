@@ -1,20 +1,21 @@
 // ══════════════════════════════════════════════════════════════
-// AXON — Quiz Session Screen (student-facing)
+// AXON — Quiz Session Screen Orchestrator (student-facing)
+// Sub-components: QuizResultsScreen, QuizQuestionWidgets
 // ══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import {
-  CheckCircle2, XCircle, ChevronLeft, Trophy, RotateCw,
-  Lightbulb, ChevronDown, BookOpen, X,
-  PenLine, TextCursorInput, ListChecks,
+  CheckCircle2, ChevronLeft, Lightbulb, ChevronDown, BookOpen, X,
 } from 'lucide-react';
-import type { Topic, QuizQuestion } from '@/app/data/courses';
+import type { Topic } from '@/app/data/courses';
 import {
-  LETTERS, getQuestionType, checkWriteInAnswer, checkFillBlankAnswer,
+  getQuestionType, checkWriteInAnswer, checkFillBlankAnswer,
   type SavedAnswer,
 } from './quiz-helpers';
+import { QuizResultsScreen } from './QuizResultsScreen';
+import { QuestionTypeBadge, MultipleChoiceOptions, WriteInField, FillBlankField } from './QuizQuestionWidgets';
 
 export function QuizSessionScreen({ topic, onBack }: { topic: Topic | null; onBack: () => void }) {
   const questions = topic?.quizzes || [];
@@ -27,13 +28,8 @@ export function QuizSessionScreen({ topic, onBack }: { topic: Topic | null; onBa
   const [navDirection, setNavDirection] = useState<'forward' | 'back'>('forward');
 
   useEffect(() => {
-    setSavedAnswers({});
-    setCurrentIdx(0);
-    setIsComplete(false);
-    setShowHint(false);
-    setLiveSelectedOption(null);
-    setLiveTextInput('');
-    setNavDirection('forward');
+    setSavedAnswers({}); setCurrentIdx(0); setIsComplete(false);
+    setShowHint(false); setLiveSelectedOption(null); setLiveTextInput(''); setNavDirection('forward');
   }, [topic]);
 
   if (!topic || questions.length === 0) {
@@ -93,11 +89,8 @@ export function QuizSessionScreen({ topic, onBack }: { topic: Topic | null; onBa
   };
 
   const handleNext = () => {
-    if (currentIdx < questions.length - 1) {
-      goToQuestion(currentIdx + 1, 'forward');
-    } else {
-      setIsComplete(true);
-    }
+    if (currentIdx < questions.length - 1) goToQuestion(currentIdx + 1, 'forward');
+    else setIsComplete(true);
   };
 
   const handlePrev = () => {
@@ -105,55 +98,18 @@ export function QuizSessionScreen({ topic, onBack }: { topic: Topic | null; onBa
   };
 
   const handleRestart = () => {
-    setSavedAnswers({});
-    setCurrentIdx(0);
-    setIsComplete(false);
-    setShowHint(false);
-    setLiveSelectedOption(null);
-    setLiveTextInput('');
-    setNavDirection('forward');
+    setSavedAnswers({}); setCurrentIdx(0); setIsComplete(false);
+    setShowHint(false); setLiveSelectedOption(null); setLiveTextInput(''); setNavDirection('forward');
   };
 
   // ── Results screen ──
   if (isComplete) {
-    const score = correctCount;
-    const pct = questions.length > 0 ? (score / questions.length) * 100 : 0;
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full items-center justify-center p-8 bg-white">
-        <div className="text-center max-w-lg">
-          <div className="w-24 h-24 rounded-full bg-teal-600 flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <Trophy size={48} className="text-white" />
-          </div>
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">Quiz Concluido!</h2>
-          <p className="text-xl text-gray-600 mb-8">
-            Voce acertou <span className="font-bold text-gray-900">{score}</span> de <span className="font-bold text-gray-900">{questions.length}</span> questoes
-          </p>
-          <div className="relative w-56 h-56 mx-auto mb-8">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="112" cy="112" r="100" stroke="#f1f5f9" strokeWidth="14" fill="none" />
-              <motion.circle cx="112" cy="112" r="100" stroke="#0d9488" strokeWidth="14" fill="none" strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 100}
-                initial={{ strokeDashoffset: 2 * Math.PI * 100 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 100 * (1 - pct / 100) }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-5xl font-bold text-gray-900">{pct.toFixed(0)}%</span>
-              <span className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Aproveitamento</span>
-            </div>
-          </div>
-          <button onClick={() => { setIsComplete(false); goToQuestion(0, 'back'); }} className="text-sm text-teal-600 hover:text-teal-800 font-semibold mb-6 block mx-auto">
-            Revisar respostas
-          </button>
-          <div className="flex gap-4 justify-center">
-            <button onClick={onBack} className="px-6 py-3 rounded-xl font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors">Voltar ao Menu</button>
-            <button onClick={handleRestart} className="px-8 py-3 rounded-xl text-white font-bold shadow-lg hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-3 bg-teal-600 hover:bg-teal-700">
-              <RotateCw size={20} /> Tentar Novamente
-            </button>
-          </div>
-        </div>
-      </motion.div>
+      <QuizResultsScreen
+        score={correctCount} total={questions.length}
+        onReview={() => { setIsComplete(false); goToQuestion(0, 'back'); }}
+        onBack={onBack} onRestart={handleRestart}
+      />
     );
   }
 
@@ -294,167 +250,5 @@ export function QuizSessionScreen({ topic, onBack }: { topic: Topic | null; onBa
         </div>
       </div>
     </motion.div>
-  );
-}
-
-// ── Sub-components ──
-
-function QuestionTypeBadge({ qType, isReviewing }: { qType: string; isReviewing: boolean }) {
-  return (
-    <div className="mb-4 flex items-center gap-2 flex-wrap">
-      {qType === 'write-in' && (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-          <PenLine size={10} /> Escrever por extenso
-        </span>
-      )}
-      {qType === 'fill-blank' && (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
-          <TextCursorInput size={10} /> Completar a palavra
-        </span>
-      )}
-      {qType === 'multiple-choice' && (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-          <ListChecks size={10} /> Multipla escolha
-        </span>
-      )}
-      {isReviewing && (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">Respondida</span>
-      )}
-    </div>
-  );
-}
-
-function MultipleChoiceOptions({ question, selectedAnswer, showResult, isReviewing, onSelect }: {
-  question: QuizQuestion; selectedAnswer: number | null; showResult: boolean; isReviewing: boolean;
-  onSelect: (idx: number) => void;
-}) {
-  return (
-    <div className="space-y-3 mb-6">
-      {question.options!.map((option, idx) => {
-        const isSelected = selectedAnswer === idx;
-        const isCorrectOption = idx === question.correctAnswer;
-        const wasSelectedWrong = showResult && isSelected && !isCorrectOption;
-        const wasCorrect = showResult && isCorrectOption;
-
-        return (
-          <button key={idx} onClick={() => !isReviewing && onSelect(idx)} disabled={isReviewing}
-            className={clsx("w-full text-left rounded-xl border-2 transition-all overflow-hidden",
-              !showResult && !isSelected && "border-gray-200 hover:border-gray-300 bg-white",
-              !showResult && isSelected && "border-teal-500 bg-teal-50/30",
-              wasCorrect && "border-emerald-400 bg-emerald-50",
-              wasSelectedWrong && "border-rose-300 bg-rose-50",
-              showResult && !isCorrectOption && !isSelected && "border-gray-200 bg-white opacity-50"
-            )}>
-            <div className="px-5 py-4 flex items-start gap-3">
-              <span className={clsx("text-sm font-semibold shrink-0 mt-0.5",
-                wasCorrect ? "text-emerald-600" : wasSelectedWrong ? "text-rose-500" : isSelected ? "text-teal-600" : "text-gray-400"
-              )}>{LETTERS[idx]}.</span>
-              <span className={clsx("text-sm",
-                wasCorrect ? "text-gray-800" : wasSelectedWrong ? "text-gray-700" : isSelected ? "text-gray-800" : "text-gray-600"
-              )}>{option}</span>
-            </div>
-            {wasSelectedWrong && (
-              <div className="px-5 pb-4 pt-0">
-                <div className="flex items-start gap-2">
-                  <XCircle size={14} className="text-rose-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-rose-600 mb-1">Nao exatamente</p>
-                    {question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
-            {wasCorrect && showResult && (
-              <div className="px-5 pb-4 pt-0">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-emerald-600 mb-1">Resposta correta</p>
-                    {question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function WriteInField({ question, textAnswer, showResult, isCorrectResult, isReviewing, onChangeText, onSubmit }: {
-  question: QuizQuestion; textAnswer: string; showResult: boolean; isCorrectResult: boolean; isReviewing: boolean;
-  onChangeText: (v: string) => void; onSubmit: () => void;
-}) {
-  return (
-    <div className="mb-6">
-      <div className={clsx("rounded-xl border-2 overflow-hidden transition-all",
-        showResult && isCorrectResult && "border-emerald-400 bg-emerald-50",
-        showResult && !isCorrectResult && "border-rose-300 bg-rose-50",
-        !showResult && "border-gray-200 bg-white"
-      )}>
-        <textarea value={textAnswer} onChange={(e) => onChangeText(e.target.value)} disabled={isReviewing}
-          placeholder="Escreva sua resposta aqui..."
-          className="w-full px-5 py-4 text-sm text-gray-800 bg-transparent resize-none outline-none placeholder:text-gray-400 min-h-[100px]"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isReviewing) { e.preventDefault(); onSubmit(); } }}
-        />
-        {showResult && (
-          <div className="px-5 pb-4">
-            <div className="flex items-start gap-2">
-              {isCorrectResult ? (
-                <><CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-emerald-600 mb-1">Resposta correta</p>{question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}</div></>
-              ) : (
-                <><XCircle size={14} className="text-rose-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-rose-600 mb-1">Nao exatamente</p><p className="text-xs text-gray-600 mb-1">Resposta esperada: <span className="font-semibold text-gray-800">{question.correctText}</span></p>{question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}</div></>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FillBlankField({ question, textAnswer, showResult, isCorrectResult, isReviewing, onChangeText, onSubmit }: {
-  question: QuizQuestion; textAnswer: string; showResult: boolean; isCorrectResult: boolean; isReviewing: boolean;
-  onChangeText: (v: string) => void; onSubmit: () => void;
-}) {
-  return (
-    <div className="mb-6">
-      <div className={clsx("rounded-xl border-2 px-5 py-5 transition-all",
-        showResult && isCorrectResult && "border-emerald-400 bg-emerald-50",
-        showResult && !isCorrectResult && "border-rose-300 bg-rose-50",
-        !showResult && "border-gray-200 bg-gray-50/50"
-      )}>
-        <p className="text-sm text-gray-700 leading-relaxed mb-4">
-          {question.blankSentence!.split('___').map((part, i, arr) => (
-            <React.Fragment key={i}>
-              {part}
-              {i < arr.length - 1 && (
-                <span className="inline-block align-bottom mx-1">
-                  <input type="text" value={textAnswer} onChange={(e) => onChangeText(e.target.value)} disabled={isReviewing}
-                    placeholder="________"
-                    className={clsx("border-b-2 bg-transparent outline-none text-center px-2 py-0.5 min-w-[120px] text-sm font-semibold",
-                      showResult && isCorrectResult && "border-emerald-500 text-emerald-700",
-                      showResult && !isCorrectResult && "border-rose-400 text-rose-600",
-                      !showResult && "border-teal-400 text-gray-800 placeholder:text-gray-300"
-                    )}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !isReviewing) { e.preventDefault(); onSubmit(); } }}
-                  />
-                </span>
-              )}
-            </React.Fragment>
-          ))}
-        </p>
-        {showResult && (
-          <div className="flex items-start gap-2 mt-3 pt-3 border-t border-gray-200/50">
-            {isCorrectResult ? (
-              <><CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-emerald-600 mb-1">Resposta correta</p>{question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}</div></>
-            ) : (
-              <><XCircle size={14} className="text-rose-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-rose-600 mb-1">Nao exatamente</p><p className="text-xs text-gray-600 mb-1">Palavra correta: <span className="font-semibold text-gray-800">{question.blankAnswer}</span></p>{question.explanation && <p className="text-xs text-gray-500 leading-relaxed">{question.explanation}</p>}</div></>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
