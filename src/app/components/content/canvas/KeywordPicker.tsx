@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // KEYWORD PICKER — Popup para inserir palavras-chave do banco
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 import React from 'react';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
@@ -44,7 +44,7 @@ export function KeywordPicker({ search, onSearchChange, onSelect }: KeywordPicke
           />
         </div>
         <p className="text-[10px] text-gray-400 mt-1.5 px-1">
-          {keywordsDatabase.length} termos dispon\u00edveis &middot; Clique para inserir
+          {keywordsDatabase.length} termos disponiveis &middot; Clique para inserir
         </p>
       </div>
 

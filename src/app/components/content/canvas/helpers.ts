@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // CANVAS HELPERS
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 import { courses } from '@/app/data/courses';
 import type { BlockType, CanvasBlock, TopicOption, RowGroup, ColumnSlotData } from './types';
 
@@ -128,11 +128,11 @@ export function contentToBlocks(text: string): CanvasBlock[] {
       if (currentListItems.length > 0 && currentListIsNumbered) flushList();
       const itemText = trimmed.slice(2).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       currentListItems.push(itemText);
-    } else if (/^\d+[\\.\\)]\s/.test(trimmed)) {
+    } else if (/^\d+[\.\\)]\s/.test(trimmed)) {
       flushParagraph();
       if (currentListItems.length > 0 && !currentListIsNumbered) flushList();
       currentListIsNumbered = true;
-      const itemText = trimmed.replace(/^\d+[\\.\\)]\s*/, '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      const itemText = trimmed.replace(/^\d+[\.\\)]\s*/, '').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       currentListItems.push(itemText);
     } else if (trimmed.startsWith('> ')) {
       flushParagraph(); flushList();

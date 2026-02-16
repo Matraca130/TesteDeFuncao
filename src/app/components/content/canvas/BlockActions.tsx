@@ -1,6 +1,6 @@
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // BLOCK ACTIONS — QuickDeleteButton, DragHandle, BlockActions
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'motion/react';
 import clsx from 'clsx';
