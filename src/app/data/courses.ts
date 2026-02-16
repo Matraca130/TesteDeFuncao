@@ -1,21 +1,30 @@
+// ══════════════════════════════════════════════════════════════
+// AXON — Course Data Model
+// Hierarchy: Course → Semester (with year) → Section (with region) → Topic
+// ══════════════════════════════════════════════════════════════
+
 export type QuizQuestionType = 'multiple-choice' | 'write-in' | 'fill-blank';
 
 export interface QuizQuestion {
   id: number;
-  type?: QuizQuestionType; // default 'multiple-choice'
+  type?: QuizQuestionType;
   question: string;
-  // multiple-choice
   options?: string[];
   correctAnswer?: number;
-  // write-in
-  correctText?: string; // accepted answer text
-  acceptedVariations?: string[]; // alternative accepted answers
-  // fill-blank
-  blankSentence?: string; // sentence with ___ as placeholder
-  blankAnswer?: string; // the word that fills the blank
-  // shared
+  correctText?: string;
+  acceptedVariations?: string[];
+  blankSentence?: string;
+  blankAnswer?: string;
   hint?: string;
   explanation?: string;
+}
+
+export interface Flashcard {
+  id: number;
+  question: string;
+  answer: string;
+  mastery: number;
+  image?: string;
 }
 
 export interface Model3D {
@@ -23,18 +32,6 @@ export interface Model3D {
   name: string;
   description: string;
   available: boolean;
-}
-
-export interface Lesson {
-  id: string;
-  title: string;
-  duration: string;
-  thumbnailUrl: string;
-  completed: boolean;
-  hasVideo: boolean;
-  hasSummary: boolean;
-  sectionIndex?: number;
-  alsoAppearsIn?: string[];
 }
 
 export interface Topic {
@@ -45,12 +42,13 @@ export interface Topic {
   flashcards?: Flashcard[];
   quizzes?: QuizQuestion[];
   model3D?: Model3D;
-  lessons?: Lesson[];
+  subtopics?: Topic[];  // Nested sub-topics (folders within folders)
 }
 
 export interface Section {
   id: string;
   title: string;
+  region?: string;   // Grouping: "Membro Superior", "Membro Inferior", "Torax", etc.
   imageUrl?: string;
   topics: Topic[];
 }
@@ -58,6 +56,7 @@ export interface Section {
 export interface Semester {
   id: string;
   title: string;
+  year?: number;      // 1 = 1o Ano, 2 = 2o Ano, etc.
   sections: Section[];
 }
 
@@ -69,6 +68,11 @@ export interface Course {
   semesters: Semester[];
 }
 
+// ══════════════════════════════════════════════════════════════
+// STANDARD ANATOMY TOPIC PATTERN
+// Each sub-region follows: Visao Geral, Artrologia, Musculatura, Vascularizacao, Inervacao
+// ══════════════════════════════════════════════════════════════
+
 export const courses: Course[] = [
   {
     id: 'anatomy',
@@ -76,352 +80,813 @@ export const courses: Course[] = [
     color: 'bg-rose-400',
     accentColor: 'text-rose-400',
     semesters: [
+      // ════════════════════════════════════════
+      // 1o ANO · 1o SEMESTRE
+      // ════════════════════════════════════════
       {
         id: 'sem1',
-        title: '1º Semestre',
+        title: '1o Ano · 1o Semestre',
+        year: 1,
         sections: [
+          // ── MEMBRO SUPERIOR ─────────────────────
+          // Ombro
           {
-            id: 'upper-limb',
-            title: 'Membro Superior',
-            imageUrl: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmF0b215JTIwdXBwZXIlMjBsaW1ifGVufDF8fHx8MTY5OTY1NTYyMXww&ixlib=rb-4.1.0&q=80&w=1080',
+            id: 'shoulder-section',
+            title: 'Ombro',
+            region: 'Membro Superior',
             topics: [
-              { 
-                id: 'shoulder', 
-                title: 'Ombro e Axila', 
-                summary: 'A articulação do ombro é uma das mais móveis do corpo humano, formada pela cabeça do úmero e a cavidade glenoidal da escápula.',
-                videoUrl: '#',
+              {
+                id: 'shoulder',
+                title: 'Visao Geral do Ombro',
+                summary: 'A articulacao do ombro e uma das mais moveis do corpo humano.',
                 flashcards: [
-                  { id: 1, question: 'Quais ossos formam a articulação do ombro?', answer: 'Úmero e escápula (cavidade glenoidal)', mastery: 4, image: 'https://images.unsplash.com/photo-1715111641804-f8af88e93b01?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaG91bGRlciUyMGFuYXRvbXklMjBib25lcyUyMG11c2NsZXN8ZW58MXx8fHwxNzcwNTExOTA1fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral' },
-                  { id: 2, question: 'Qual é o principal músculo abdutor do ombro?', answer: 'Músculo deltoide (auxiliado pelo supraespinal)', mastery: 3 },
-                  { id: 3, question: 'Quais músculos formam o manguito rotador?', answer: 'Supraespinal, Infraespinal, Redondo menor e Subescapular (SITS)', mastery: 2 },
-                  { id: 4, question: 'Qual nervo pode ser lesado em fraturas do colo cirúrgico do úmero?', answer: 'Nervo axilar', mastery: 5 },
-                  { id: 5, question: 'O que é a axila?', answer: 'Espaço piramidal entre o braço e a parede torácica, com importantes estruturas neurovasculares', mastery: 3 },
+                  { id: 1, question: 'Quais ossos formam a articulacao do ombro?', answer: 'Umero e escapula (cavidade glenoidal)', mastery: 4 },
+                  { id: 2, question: 'Qual e o principal musculo abdutor do ombro?', answer: 'Musculo deltoide (auxiliado pelo supraespinal)', mastery: 3 },
+                  { id: 3, question: 'Quais musculos formam o manguito rotador?', answer: 'Supraespinal, Infraespinal, Redondo menor e Subescapular (SITS)', mastery: 2 },
+                  { id: 4, question: 'Qual nervo pode ser lesado em fraturas do colo cirurgico do umero?', answer: 'Nervo axilar', mastery: 5 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual músculo NÃO faz parte do manguito rotador?', 
-                    options: ['Supraespinal', 'Infraespinal', 'Deltoide', 'Subescapular'],
-                    correctAnswer: 2,
-                    explanation: 'O deltoide é o principal abdutor do ombro, mas não faz parte do manguito rotador. O manguito é formado por SITS: Supraespinal, Infraespinal, Redondo menor e Subescapular.'
-                  },
-                  { 
-                    id: 2, 
-                    question: 'A artéria axilar é continuação de qual artéria?', 
-                    options: ['Artéria subclávia', 'Artéria braquial', 'Artéria carótida', 'Artéria torácica'],
-                    correctAnswer: 0,
-                    explanation: 'A artéria subclávia passa a ser chamada de artéria axilar após cruzar a primeira costela.'
-                  },
-                  {
-                    id: 3,
-                    type: 'write-in',
-                    question: 'Cite os quatro músculos que formam o manguito rotador (use a sigla mnemônica).',
-                    correctText: 'SITS',
-                    acceptedVariations: ['Supraespinal, Infraespinal, Redondo menor, Subescapular', 'supraespinal infraespinal redondo menor subescapular'],
-                    hint: 'A sigla é formada pelas iniciais em inglês: S___, I___, T___, S___.',
-                    explanation: 'SITS: Supraespinal (Supraspinatus), Infraespinal (Infraspinatus), Redondo menor (Teres minor) e Subescapular (Subscapularis). Esses quatro músculos estabilizam dinamicamente a articulação glenoumeral.'
-                  },
-                  {
-                    id: 4,
-                    type: 'fill-blank',
-                    question: 'Complete a frase sobre a inervação do ombro.',
-                    blankSentence: 'O nervo ___ pode ser lesado em fraturas do colo cirúrgico do úmero, comprometendo a abdução do braço.',
-                    blankAnswer: 'axilar',
-                    hint: 'Este nervo inerva o músculo deltoide e o redondo menor.',
-                    explanation: 'O nervo axilar (C5-C6) circunda o colo cirúrgico do úmero e é vulnerável a fraturas nessa região. Sua lesão causa paralisia do deltoide.'
-                  },
-                  {
-                    id: 5,
-                    type: 'write-in',
-                    question: 'Qual é o nome da articulação formada entre a cabeça do úmero e a cavidade glenoidal da escápula?',
-                    correctText: 'glenoumeral',
-                    acceptedVariations: ['articulação glenoumeral', 'glenohumeral', 'articulação glenohumeral'],
-                    hint: 'O nome combina "gleno" (cavidade) + "umeral" (úmero).',
-                    explanation: 'A articulação glenoumeral é uma articulação sinovial do tipo esferoide (bola e soquete), sendo a mais móvel do corpo humano.'
-                  },
-                  {
-                    id: 6,
-                    type: 'fill-blank',
-                    question: 'Complete sobre a axila.',
-                    blankSentence: 'A axila é um espaço ___ entre o braço e a parede torácica, contendo artéria axilar, plexo braquial e linfonodos.',
-                    blankAnswer: 'piramidal',
-                    hint: 'Refere-se a uma forma geométrica tridimensional com base e ápice.',
-                    explanation: 'A axila tem formato piramidal com 4 paredes, uma base e um ápice (canal cervicoaxilar).'
-                  },
+                  { id: 1, question: 'Qual musculo NAO faz parte do manguito rotador?', options: ['Supraespinal', 'Infraespinal', 'Deltoide', 'Subescapular'], correctAnswer: 2, explanation: 'O deltoide e o principal abdutor do ombro, mas nao faz parte do manguito rotador.' },
                 ],
-                model3D: {
-                  id: 'shoulder-joint-3d',
-                  name: 'Articulação do Ombro',
-                  description: 'Modelo 3D interativo mostrando os ossos, músculos e ligamentos da articulação glenoumeral',
-                  available: true
-                }
-              },
-              { 
-                id: 'arm', 
-                title: 'Braço', 
-                summary: 'O braço contém o úmero e compartimentos musculares anterior (flexores) e posterior (extensores), além de importantes estruturas neurovasculares.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Qual a principal artéria do braço?', answer: 'Artéria braquial', mastery: 5 },
-                  { id: 2, question: 'Qual nervo inerva o compartimento anterior do braço?', answer: 'Nervo musculocutâneo', mastery: 2 },
-                  { id: 3, question: 'Quais músculos formam o compartimento anterior do braço?', answer: 'Bíceps braquial, braquial e coracobraquial', mastery: 3 },
-                  { id: 4, question: 'Qual nervo passa no sulco do nervo radial?', answer: 'Nervo radial', mastery: 4 },
-                ],
-                quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual músculo é inervado pelo nervo radial?', 
-                    options: ['Bíceps braquial', 'Braquial', 'Tríceps braquial', 'Coracobraquial'],
-                    correctAnswer: 2,
-                    explanation: 'O tríceps braquial é o único extensor do braço e é inervado pelo nervo radial.'
-                  },
-                ],
-                model3D: {
-                  id: 'arm-muscles-3d',
-                  name: 'Músculos do Braço',
-                  description: 'Visualização dos compartimentos anterior e posterior do braço',
-                  available: true
-                }
-              },
-              { 
-                id: 'forearm', 
-                title: 'Antebraço', 
-                summary: 'O antebraço é composto pelo rádio e ulna, com músculos organizados em compartimentos anterior (flexores e pronadores) e posterior (extensores e supinadores).',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Quais ossos formam o antebraço?', answer: 'Rádio (lateral) e Ulna (medial)', mastery: 5 },
-                  { id: 2, question: 'Qual nervo inerva a maior parte dos flexores do antebraço?', answer: 'Nervo mediano', mastery: 3 },
-                  { id: 3, question: 'Qual músculo faz pronação do antebraço?', answer: 'Pronador redondo e pronador quadrado', mastery: 2 },
-                  { id: 4, question: 'Onde passa o nervo ulnar no antebraço?', answer: 'No túnel cubital (sulco do nervo ulnar no cotovelo)', mastery: 4 },
-                ],
-                quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual estrutura NÃO passa pela fossa cubital?', 
-                    options: ['Tendão do bíceps', 'Artéria braquial', 'Nervo mediano', 'Nervo ulnar'],
-                    correctAnswer: 3,
-                    explanation: 'O nervo ulnar passa posteriormente ao epicôndilo medial, não pela fossa cubital.'
-                  },
-                ],
-                model3D: {
-                  id: 'forearm-bones-3d',
-                  name: 'Ossos do Antebraço',
-                  description: 'Rádio e ulna com suas articulações',
-                  available: true
-                }
               },
               {
-                id: 'elbow',
-                title: 'Cotovelo',
-                summary: 'A articulação do cotovelo é uma articulação sinovial do tipo gínglimo que conecta o braço ao antebraço, permitindo flexão e extensão.',
-                videoUrl: '#',
+                id: 'shoulder-artrologia',
+                title: 'Artrologia do Ombro',
+                summary: 'Articulacoes da cintura escapular e complexo do ombro.',
                 flashcards: [
-                  { id: 1, question: 'Quais ossos formam a articulação do cotovelo?', answer: 'Úmero, rádio e ulna', mastery: 4 },
-                  { id: 2, question: 'Qual tipo de articulação é o cotovelo?', answer: 'Articulação sinovial do tipo gínglimo (dobradiça)', mastery: 3 },
-                  { id: 3, question: 'Qual nervo passa posterior ao epicôndilo medial?', answer: 'Nervo ulnar', mastery: 5 },
+                  { id: 1, question: 'Quais articulacoes compoe a cintura escapular?', answer: 'Esternoclavicular, acromioclavicular, glenoumeral e escapulotoracica (funcional)', mastery: 3 },
+                  { id: 2, question: 'Qual tipo de articulacao e a glenoumeral?', answer: 'Sinovial esferoidea (enartrosis)', mastery: 2 },
+                  { id: 3, question: 'Qual estrutura aprofunda a cavidade glenoidal?', answer: 'Labro glenoidal (labrum)', mastery: 3 },
+                  { id: 4, question: 'Quais ligamentos estabilizam a articulacao glenoumeral?', answer: 'Ligamentos glenoumerais (superior, medio e inferior) e coracoumeral', mastery: 2 },
                 ],
                 quizzes: [
-                  {
-                    id: 1,
-                    question: 'Qual movimento principal ocorre na articulação do cotovelo?',
-                    options: ['Rotação', 'Flexão e extensão', 'Abdução e adução', 'Circundução'],
-                    correctAnswer: 1,
-                    explanation: 'O cotovelo é uma articulação gínglimo que permite principalmente flexão e extensão do antebraço.'
-                  },
+                  { id: 1, question: 'Qual articulacao da cintura escapular e funcional (nao anatomica)?', options: ['Esternoclavicular', 'Acromioclavicular', 'Glenoumeral', 'Escapulotoracica'], correctAnswer: 3, explanation: 'A escapulotoracica nao possui capsula articular.' },
                 ],
-                model3D: {
-                  id: 'elbow-joint-3d',
-                  name: 'Articulação do Cotovelo',
-                  description: 'Modelo 3D da articulação do cotovelo com ligamentos',
-                  available: true
-                }
               },
-              { 
-                id: 'hand', 
-                title: 'Mão', 
-                summary: 'A mão possui ossos do carpo (8), metacarpos (5) e falanges (14), com musculatura intrínseca complexa para movimentos finos.',
-                videoUrl: '#',
+              {
+                id: 'shoulder-musculatura',
+                title: 'Musculatura do Ombro',
+                summary: 'Musculos da cintura escapular, manguito rotador e movimentos.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam o manguito rotador (SITS)?', answer: 'Supraespinal, Infraespinal, Redondo menor (Teres minor), Subescapular', mastery: 3 },
+                  { id: 2, question: 'Qual a acao do musculo supraespinal?', answer: 'Abducao do braco (primeiros 15 graus) e estabilizacao da cabeca umeral', mastery: 2 },
+                  { id: 3, question: 'Qual musculo e o principal rotador lateral do ombro?', answer: 'Infraespinal', mastery: 2 },
+                  { id: 4, question: 'Quais musculos fazem aducao do ombro?', answer: 'Peitoral maior, latissimo do dorso e redondo maior', mastery: 3 },
+                  { id: 5, question: 'Qual musculo e o unico rotador medial do manguito?', answer: 'Subescapular', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo do manguito rotador e mais frequentemente lesionado?', options: ['Infraespinal', 'Supraespinal', 'Redondo menor', 'Subescapular'], correctAnswer: 1, explanation: 'O supraespinal e o mais lesionado por sua posicao sob o arco coracoacromial.' },
+                  { id: 2, type: 'fill-blank', question: 'Complete sobre o manguito rotador.', blankSentence: 'O manguito rotador e formado por 4 musculos cuja sigla e ___.', blankAnswer: 'SITS', hint: 'Supraespinal, Infraespinal, Teres minor, Subescapular.', explanation: 'SITS = Supraespinal, Infraespinal, Teres minor, Subescapular.' },
+                ],
+              },
+              {
+                id: 'shoulder-vasc',
+                title: 'Vascularizacao do Ombro',
+                summary: 'Irrigacao arterial e drenagem venosa da regiao do ombro.',
+                flashcards: [
+                  { id: 1, question: 'Qual arteria irriga principalmente o ombro?', answer: 'Arteria axilar e seus ramos', mastery: 3 },
+                  { id: 2, question: 'Quais sao as 3 partes da arteria axilar?', answer: '1a parte (acima do peitoral menor), 2a parte (posterior), 3a parte (abaixo)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'shoulder-nerves',
+                title: 'Inervacao do Ombro',
+                summary: 'Nervos do plexo braquial que inervam a regiao do ombro.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo inerva o musculo deltoide?', answer: 'Nervo axilar (C5-C6)', mastery: 4 },
+                  { id: 2, question: 'Qual nervo inerva o supraespinal e infraespinal?', answer: 'Nervo supraescapular (C5-C6)', mastery: 3 },
+                  { id: 3, question: 'Qual e a raiz do plexo braquial?', answer: 'Ramos ventrais de C5-T1', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, type: 'write-in', question: 'Qual nervo e lesionado em luxacoes anteriores do ombro?', correctText: 'axilar', acceptedVariations: ['nervo axilar', 'n. axilar'], hint: 'Circunda o colo cirurgico do umero.', explanation: 'O nervo axilar (C5-C6) e vulneravel em luxacoes anteriores.' },
+                ],
+              },
+            ],
+          },
+          // Axila
+          {
+            id: 'axilla-section',
+            title: 'Axila',
+            region: 'Membro Superior',
+            topics: [
+              {
+                id: 'axilla',
+                title: 'Visao Geral da Axila',
+                summary: 'Espaco piramidal entre o braco e a parede toracica com estruturas neurovasculares.',
+                flashcards: [
+                  { id: 1, question: 'O que e a axila?', answer: 'Espaco piramidal entre o braco e a parede toracica, com importantes estruturas neurovasculares', mastery: 3 },
+                  { id: 2, question: 'Quais sao os limites da axila?', answer: 'Anterior: peitorais; Posterior: subescapular e latissimo; Medial: serrátil anterior; Lateral: umero', mastery: 2 },
+                  { id: 3, question: 'Qual e o conteudo principal da axila?', answer: 'Arteria e veia axilar, plexo braquial, linfonodos axilares', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo forma a parede medial da axila?', options: ['Peitoral maior', 'Subescapular', 'Serratil anterior', 'Latissimo do dorso'], correctAnswer: 2, explanation: 'O serratil anterior reveste a parede toracica e forma a parede medial da axila.' },
+                ],
+              },
+              {
+                id: 'axilla-artrologia',
+                title: 'Artrologia da Axila',
+                summary: 'Relacoes articulares e espacos da regiao axilar.',
+                flashcards: [
+                  { id: 1, question: 'Qual articulacao esta relacionada ao apice da axila?', answer: 'Articulacao esternoclavicular (via abertura cervico-axilar)', mastery: 2 },
+                  { id: 2, question: 'Qual espaco conecta o pescoco a axila?', answer: 'Abertura cervico-axilar (inlet toracico)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'axilla-musculatura',
+                title: 'Musculatura da Axila',
+                summary: 'Musculos que formam as paredes da axila.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam a parede anterior da axila?', answer: 'Peitoral maior e peitoral menor', mastery: 3 },
+                  { id: 2, question: 'Quais musculos formam a parede posterior da axila?', answer: 'Subescapular, latissimo do dorso e redondo maior', mastery: 2 },
+                  { id: 3, question: 'O que e o espaco quadrangular?', answer: 'Espaco limitado pelo redondo menor, redondo maior, cabeca longa do triceps e umero — passa o nervo axilar', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual estrutura passa pelo espaco quadrangular?', options: ['Nervo radial', 'Nervo axilar', 'Nervo mediano', 'Nervo ulnar'], correctAnswer: 1, explanation: 'O nervo axilar e a arteria circunflexa posterior passam pelo espaco quadrangular.' },
+                ],
+              },
+              {
+                id: 'axilla-vasc',
+                title: 'Vascularizacao da Axila',
+                summary: 'Arteria axilar, seus ramos e drenagem venosa axilar.',
+                flashcards: [
+                  { id: 1, question: 'A arteria axilar e continuacao de qual arteria?', answer: 'Arteria subclavia (apos cruzar a 1a costela)', mastery: 3 },
+                  { id: 2, question: 'Quais sao os ramos da 2a parte da arteria axilar?', answer: 'Arteria toracoacromial e arteria toracica lateral', mastery: 2 },
+                  { id: 3, question: 'Qual grupo de linfonodos drena o membro superior?', answer: 'Linfonodos axilares (grupos: peitoral, subescapular, umeral, central, apical)', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'A arteria axilar e continuacao de qual arteria?', options: ['Arteria subclavia', 'Arteria braquial', 'Arteria carotida', 'Arteria toracica'], correctAnswer: 0, explanation: 'A arteria subclavia passa a ser chamada de arteria axilar apos cruzar a primeira costela.' },
+                ],
+              },
+              {
+                id: 'axilla-nerves',
+                title: 'Inervacao da Axila',
+                summary: 'Plexo braquial e suas divisoes na regiao axilar.',
+                flashcards: [
+                  { id: 1, question: 'Quais sao os troncos do plexo braquial?', answer: 'Superior (C5-C6), medio (C7) e inferior (C8-T1)', mastery: 3 },
+                  { id: 2, question: 'Quais sao os fasciculos do plexo braquial?', answer: 'Lateral, posterior e medial (nomeados pela relacao com a arteria axilar)', mastery: 2 },
+                  { id: 3, question: 'Qual nervo origina do fasciculo posterior?', answer: 'Nervos axilar, radial e subescapulares', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, type: 'write-in', question: 'Qual fasciculo do plexo braquial da origem ao nervo mediano (parcialmente)?', correctText: 'lateral', acceptedVariations: ['fasciculo lateral', 'lateral e medial'], hint: 'Recebe contribuicao de dois fasciculos.', explanation: 'O nervo mediano recebe raizes dos fasciculos lateral e medial.' },
+                ],
+              },
+            ],
+          },
+          // Braco
+          {
+            id: 'arm-section',
+            title: 'Braco',
+            region: 'Membro Superior',
+            topics: [
+              {
+                id: 'arm',
+                title: 'Visao Geral do Braco',
+                summary: 'O braco contem o umero e compartimentos musculares.',
+                flashcards: [
+                  { id: 1, question: 'Qual a principal arteria do braco?', answer: 'Arteria braquial', mastery: 5 },
+                  { id: 2, question: 'Qual nervo inerva o compartimento anterior do braco?', answer: 'Nervo musculocutaneo', mastery: 2 },
+                  { id: 3, question: 'Quais musculos formam o compartimento anterior do braco?', answer: 'Biceps braquial, braquial e coracobraquial', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo e inervado pelo nervo radial?', options: ['Biceps braquial', 'Braquial', 'Triceps braquial', 'Coracobraquial'], correctAnswer: 2, explanation: 'O triceps braquial e inervado pelo nervo radial.' },
+                ],
+              },
+              {
+                id: 'arm-artrologia',
+                title: 'Artrologia do Braco',
+                summary: 'Articulacao glenoumeral e suas relacoes com o umero.',
+                flashcards: [
+                  { id: 1, question: 'Qual osso forma o esqueleto do braco?', answer: 'Umero', mastery: 5 },
+                  { id: 2, question: 'Quais sao as tuberosidades do umero proximal?', answer: 'Tuberculo maior (lateral) e tuberculo menor (anterior), separados pelo sulco intertubercular', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'arm-musculatura',
+                title: 'Musculatura do Braco',
+                summary: 'Compartimentos anterior e posterior do braco.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam o compartimento anterior do braco?', answer: 'Biceps braquial (cabeca curta e longa), braquial e coracobraquial', mastery: 3 },
+                  { id: 2, question: 'Qual musculo forma o compartimento posterior do braco?', answer: 'Triceps braquial (cabecas longa, lateral e medial)', mastery: 4 },
+                  { id: 3, question: 'Qual e a acao principal do biceps braquial?', answer: 'Flexao do cotovelo e supinacao do antebraco', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo do braco tambem faz supinacao?', options: ['Braquial', 'Coracobraquial', 'Biceps braquial', 'Triceps'], correctAnswer: 2, explanation: 'O biceps braquial e flexor do cotovelo e supinador potente.' },
+                ],
+              },
+              {
+                id: 'arm-vasc',
+                title: 'Vascularizacao do Braco',
+                summary: 'Arteria braquial, seus ramos e drenagem venosa.',
+                flashcards: [
+                  { id: 1, question: 'A arteria braquial e continuacao de qual arteria?', answer: 'Arteria axilar (apos a margem inferior do redondo maior)', mastery: 3 },
+                  { id: 2, question: 'Onde a arteria braquial se bifurca?', answer: 'Na fossa cubital, em arterias radial e ulnar', mastery: 3 },
+                  { id: 3, question: 'Qual arteria acompanha o nervo radial no sulco do nervo radial?', answer: 'Arteria braquial profunda (profunda do braco)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'arm-nerves',
+                title: 'Inervacao do Braco',
+                summary: 'Nervos do plexo braquial que transitam pelo braco.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo pode ser lesado em fraturas da diafise do umero?', answer: 'Nervo radial (no sulco do nervo radial)', mastery: 4 },
+                  { id: 2, question: 'Qual nervo inerva o compartimento anterior do braco?', answer: 'Nervo musculocutaneo (C5-C7)', mastery: 3 },
+                  { id: 3, question: 'Apos inervar o braco, o nervo musculocutaneo continua como qual nervo?', answer: 'Nervo cutaneo lateral do antebraco', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, type: 'write-in', question: 'Qual nervo e vulneravel em fraturas do meio da diafise do umero?', correctText: 'radial', acceptedVariations: ['nervo radial', 'n. radial'], hint: 'Percorre o sulco espiral do umero.', explanation: 'O nervo radial percorre o sulco do nervo radial na face posterior do umero.' },
+                ],
+              },
+            ],
+          },
+          // Cotovelo e Antebraco
+          {
+            id: 'elbow-forearm-section',
+            title: 'Cotovelo e Antebraco',
+            region: 'Membro Superior',
+            topics: [
+              {
+                id: 'elbow',
+                title: 'Visao Geral do Cotovelo',
+                summary: 'A articulacao do cotovelo conecta o braco ao antebraco.',
+                flashcards: [
+                  { id: 1, question: 'Quais ossos formam a articulacao do cotovelo?', answer: 'Umero, radio e ulna', mastery: 4 },
+                  { id: 2, question: 'Qual tipo de articulacao e o cotovelo?', answer: 'Articulacao sinovial do tipo ginglimo (dobradica)', mastery: 3 },
+                  { id: 3, question: 'Qual nervo passa posterior ao epicondilo medial?', answer: 'Nervo ulnar', mastery: 5 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual movimento principal ocorre na articulacao do cotovelo?', options: ['Rotacao', 'Flexao e extensao', 'Abducao e aducao', 'Circunducao'], correctAnswer: 1, explanation: 'O cotovelo e uma articulacao ginglimo.' },
+                ],
+              },
+              {
+                id: 'forearm',
+                title: 'Visao Geral do Antebraco',
+                summary: 'O antebraco e composto pelo radio e ulna.',
+                flashcards: [
+                  { id: 1, question: 'Quais ossos formam o antebraco?', answer: 'Radio (lateral) e Ulna (medial)', mastery: 5 },
+                  { id: 2, question: 'Qual nervo inerva a maior parte dos flexores do antebraco?', answer: 'Nervo mediano', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'elbow-artrologia',
+                title: 'Artrologia do Cotovelo',
+                summary: 'Articulacoes do complexo do cotovelo e ligamentos.',
+                flashcards: [
+                  { id: 1, question: 'Quais articulacoes formam o complexo do cotovelo?', answer: 'Umeroulnar (ginglimo), umerorradial (esferoidea) e radioulnar proximal (trocoide)', mastery: 3 },
+                  { id: 2, question: 'Qual ligamento estabiliza o cotovelo medialmente?', answer: 'Ligamento colateral ulnar (medial)', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual articulacao do cotovelo permite pronacao e supinacao?', options: ['Umeroulnar', 'Umerorradial', 'Radioulnar proximal', 'Todas'], correctAnswer: 2, explanation: 'A radioulnar proximal (trocoide) permite rotacao do radio sobre a ulna.' },
+                ],
+              },
+              {
+                id: 'elbow-musculatura',
+                title: 'Musculatura do Cotovelo e Antebraco',
+                summary: 'Musculos flexores, extensores, pronadores e supinadores.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos flexionam o cotovelo?', answer: 'Biceps braquial, braquial e braquiorradial', mastery: 3 },
+                  { id: 2, question: 'Qual musculo faz extensao do cotovelo?', answer: 'Triceps braquial (e anconeo como acessorio)', mastery: 4 },
+                  { id: 3, question: 'Quais musculos fazem pronacao?', answer: 'Pronador redondo e pronador quadrado', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'forearm-compartments',
+                title: 'Compartimentos do Antebraco',
+                summary: 'Compartimentos anterior e posterior, musculos e inervacao.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo inerva a maioria dos flexores do antebraco?', answer: 'Nervo mediano (exceto flexor ulnar do carpo e metade do FPD)', mastery: 3 },
+                  { id: 2, question: 'Qual nervo inerva todos os extensores do antebraco?', answer: 'Nervo radial (ramo interosseo posterior)', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+            ],
+          },
+          // Mao
+          {
+            id: 'hand-section',
+            title: 'Mao',
+            region: 'Membro Superior',
+            topics: [
+              {
+                id: 'hand',
+                title: 'Visao Geral da Mao',
+                summary: 'A mao possui ossos do carpo, metacarpos e falanges.',
                 flashcards: [
                   { id: 1, question: 'Quantos ossos do carpo existem?', answer: '8 ossos do carpo organizados em duas fileiras', mastery: 4 },
-                  { id: 2, question: 'Qual nervo inerva os músculos da eminência tenar?', answer: 'Nervo mediano (exceto adutor do polegar)', mastery: 3 },
-                  { id: 3, question: 'Qual é a função dos músculos interósseos?', answer: 'Abdução (dorsais) e adução (palmares) dos dedos', mastery: 2 },
-                  { id: 4, question: 'O que é o túnel do carpo?', answer: 'Passagem osteofibrosa por onde passam os tendões flexores e o nervo mediano', mastery: 5 },
+                  { id: 2, question: 'O que e o tunel do carpo?', answer: 'Passagem osteofibrosa por onde passam os tendoes flexores e o nervo mediano', mastery: 5 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual nervo é afetado na síndrome do túnel do carpo?', 
-                    options: ['Nervo radial', 'Nervo mediano', 'Nervo ulnar', 'Nervo musculocutâneo'],
-                    correctAnswer: 1,
-                    explanation: 'A compressão do nervo mediano no túnel do carpo causa a síndrome do túnel do carpo.'
-                  },
+                  { id: 1, question: 'Qual nervo e afetado na sindrome do tunel do carpo?', options: ['Nervo radial', 'Nervo mediano', 'Nervo ulnar', 'Nervo musculocutaneo'], correctAnswer: 1, explanation: 'Compressao do nervo mediano no tunel do carpo.' },
                 ],
-                model3D: {
-                  id: 'hand-bones-3d',
-                  name: 'Esqueleto da Mão',
-                  description: 'Ossos do carpo, metacarpos e falanges',
-                  available: true
-                }
               },
-            ]
+              {
+                id: 'hand-artrologia',
+                title: 'Artrologia do Punho e Mao',
+                summary: 'Articulacoes do punho, carpometacarpais e interfalangicas.',
+                flashcards: [
+                  { id: 1, question: 'Qual articulacao permite a oposicao do polegar?', answer: 'Carpometacarpal do polegar (selar/em sela)', mastery: 3 },
+                  { id: 2, question: 'Quais ossos do carpo formam a fileira proximal?', answer: 'Escafoide, semilunar, piramidal e pisiforme', mastery: 2 },
+                  { id: 3, question: 'Quais ossos do carpo formam a fileira distal?', answer: 'Trapezio, trapezoide, capitato e hamato', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'hand-musculatura',
+                title: 'Musculatura Intrinseca da Mao',
+                summary: 'Musculos tenares, hipotenares, lumbricais e interosseos.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam a eminencia tenar?', answer: 'Abdutor curto do polegar, oponente do polegar e flexor curto do polegar', mastery: 3 },
+                  { id: 2, question: 'Qual a funcao dos lumbricais?', answer: 'Flexao das MCF e extensao das IF', mastery: 2 },
+                  { id: 3, question: 'Qual nervo inerva os musculos hipotenares?', answer: 'Nervo ulnar', mastery: 4 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'hand-vasc',
+                title: 'Vascularizacao da Mao',
+                summary: 'Arcos palmares e irrigacao dos dedos.',
+                flashcards: [
+                  { id: 1, question: 'Quais sao os dois arcos arteriais da mao?', answer: 'Arco palmar superficial (ramo da ulnar) e arco palmar profundo (ramo da radial)', mastery: 2 },
+                  { id: 2, question: 'Qual arteria forma principalmente o arco palmar superficial?', answer: 'Arteria ulnar', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'hand-nerves',
+                title: 'Inervacao da Mao',
+                summary: 'Territorios sensitivos e motores dos nervos mediano, ulnar e radial na mao.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo inerva os 2 lumbricais laterais?', answer: 'Nervo mediano', mastery: 2 },
+                  { id: 2, question: 'Qual nervo inerva todos os interosseos da mao?', answer: 'Nervo ulnar (ramo profundo)', mastery: 3 },
+                  { id: 3, question: 'Qual a area sensitiva exclusiva do nervo mediano na mao?', answer: 'Polpa do indicador', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual nervo e responsavel pela garra ulnar?', options: ['Nervo mediano', 'Nervo radial', 'Nervo ulnar', 'Nervo musculocutaneo'], correctAnswer: 2, explanation: 'A lesao do nervo ulnar causa a mao em garra pela perda dos interosseos e lumbricais mediais.' },
+                ],
+              },
+            ],
           },
+
+          // ── MEMBRO INFERIOR ─────────────────────
+          // Quadril
           {
-            id: 'lower-limb',
-            title: 'Membro Inferior',
-            imageUrl: 'https://images.unsplash.com/photo-1559757175-5700dde675bc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsZWdzJTIwYW5hdG9teXxlbnwxfHx8fDE2OTk2NTU2NTV8MA&ixlib=rb-4.1.0&q=80&w=1080',
+            id: 'hip-section',
+            title: 'Quadril',
+            region: 'Membro Inferior',
             topics: [
-              { 
-                id: 'thigh', 
-                title: 'Coxa', 
-                summary: 'A coxa contém o fêmur e grandes grupos musculares organizados em compartimentos anterior, medial e posterior.',
-                videoUrl: '#',
+              {
+                id: 'hip',
+                title: 'Visao Geral do Quadril',
+                summary: 'A articulacao do quadril conecta o membro inferior ao tronco.',
                 flashcards: [
-                  { id: 1, question: 'Qual é o osso da coxa?', answer: 'Fêmur (osso mais longo e forte do corpo)', mastery: 5 },
-                  { id: 2, question: 'Quais músculos formam o quadríceps femoral?', answer: 'Reto femoral, vasto lateral, vasto medial e vasto intermédio', mastery: 3 },
+                  { id: 1, question: 'Quais ossos formam a articulacao do quadril?', answer: 'Femur (cabeca) e osso do quadril (acetabulo)', mastery: 3 },
+                  { id: 2, question: 'Qual tipo de articulacao e o quadril?', answer: 'Sinovial esferoidea (enartrose) — mais estavel que o ombro', mastery: 3 },
+                  { id: 3, question: 'Qual estrutura aprofunda o acetabulo?', answer: 'Labro acetabular', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual articulacao e mais estavel: ombro ou quadril?', options: ['Ombro', 'Quadril', 'Sao iguais', 'Depende da idade'], correctAnswer: 1, explanation: 'O quadril e mais estavel pelo encaixe profundo do acetabulo e ligamentos fortes.' },
+                ],
+              },
+              {
+                id: 'hip-artrologia',
+                title: 'Artrologia do Quadril',
+                summary: 'Ligamentos, capsula articular e biomecanica do quadril.',
+                flashcards: [
+                  { id: 1, question: 'Qual e o ligamento mais forte do corpo humano?', answer: 'Ligamento iliofemoral (de Bigelow)', mastery: 3 },
+                  { id: 2, question: 'Quais ligamentos estabilizam o quadril anteriormente?', answer: 'Iliofemoral e pubofemoral', mastery: 2 },
+                  { id: 3, question: 'Qual ligamento estabiliza o quadril posteriormente?', answer: 'Isquiofemoral', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual ligamento limita a hiperextensao do quadril?', options: ['Pubofemoral', 'Isquiofemoral', 'Iliofemoral', 'Ligamento da cabeca do femur'], correctAnswer: 2, explanation: 'O iliofemoral (Y de Bigelow) e o principal limitador da hiperextensao.' },
+                ],
+              },
+              {
+                id: 'hip-musculatura',
+                title: 'Musculatura do Quadril',
+                summary: 'Musculos gluteos, rotadores e flexores do quadril.',
+                flashcards: [
+                  { id: 1, question: 'Qual e o principal extensor do quadril?', answer: 'Gluteo maximo', mastery: 4 },
+                  { id: 2, question: 'Qual e o principal abdutor do quadril?', answer: 'Gluteo medio (e gluteo minimo)', mastery: 3 },
+                  { id: 3, question: 'Quais sao os rotadores laterais profundos do quadril?', answer: 'Piriforme, obturador interno/externo, gemelo superior/inferior, quadrado femoral', mastery: 2 },
+                  { id: 4, question: 'Qual e o principal flexor do quadril?', answer: 'Iliopsoas (iliaco + psoas maior)', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo e o principal abdutor do quadril?', options: ['Gluteo maximo', 'Gluteo medio', 'Piriforme', 'Tensor da fascia lata'], correctAnswer: 1, explanation: 'O gluteo medio e o principal abdutor — sua fraqueza causa o sinal de Trendelenburg.' },
+                  { id: 2, type: 'fill-blank', question: 'Complete sobre a marcha.', blankSentence: 'A fraqueza do gluteo medio causa o sinal de ___.', blankAnswer: 'Trendelenburg', hint: 'A pelve cai para o lado nao apoiado.', explanation: 'O sinal de Trendelenburg indica fraqueza dos abdutores do quadril.' },
+                ],
+              },
+              {
+                id: 'hip-vasc',
+                title: 'Vascularizacao do Quadril',
+                summary: 'Irrigacao arterial da articulacao do quadril e regiao glutea.',
+                flashcards: [
+                  { id: 1, question: 'Quais arterias irrigam a cabeca do femur?', answer: 'Arterias circunflexas femorais medial e lateral (ramos da femoral profunda)', mastery: 2 },
+                  { id: 2, question: 'Qual arteria irriga a regiao glutea?', answer: 'Arterias gluteas superior e inferior (ramos da iliaca interna)', mastery: 2 },
+                  { id: 3, question: 'Por que fraturas do colo do femur podem causar necrose?', answer: 'Porque interrompem as arterias circunflexas que irrigam a cabeca femoral', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'hip-nerves',
+                title: 'Inervacao do Quadril',
+                summary: 'Nervos do plexo lombar e sacral na regiao do quadril.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo inerva o gluteo maximo?', answer: 'Nervo gluteo inferior (L5-S2)', mastery: 3 },
+                  { id: 2, question: 'Qual nervo inerva o gluteo medio e minimo?', answer: 'Nervo gluteo superior (L4-S1)', mastery: 3 },
+                  { id: 3, question: 'Qual nervo pode ser comprimido pelo piriforme?', answer: 'Nervo isquiatico (ciatico)', mastery: 4 },
+                ],
+                quizzes: [
+                  { id: 1, type: 'write-in', question: 'Qual nervo e o maior do corpo humano?', correctText: 'isquiatico', acceptedVariations: ['nervo isquiatico', 'ciatico', 'nervo ciatico', 'n. isquiatico'], hint: 'Passa pela regiao glutea profundamente.', explanation: 'O nervo isquiatico (L4-S3) e o maior nervo do corpo.' },
+                ],
+              },
+            ],
+          },
+          // Coxa
+          {
+            id: 'thigh-section',
+            title: 'Coxa',
+            region: 'Membro Inferior',
+            topics: [
+              {
+                id: 'thigh',
+                title: 'Visao Geral da Coxa',
+                summary: 'A coxa contem o femur e grandes grupos musculares.',
+                flashcards: [
+                  { id: 1, question: 'Qual e o osso da coxa?', answer: 'Femur (osso mais longo e forte do corpo)', mastery: 5 },
+                  { id: 2, question: 'Quais musculos formam o quadriceps femoral?', answer: 'Reto femoral, vasto lateral, vasto medial e vasto intermedio', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual musculo NAO faz parte do quadriceps?', options: ['Reto femoral', 'Vasto lateral', 'Sartorio', 'Vasto medial'], correctAnswer: 2, explanation: 'O sartorio nao faz parte do quadriceps.' },
+                ],
+              },
+              {
+                id: 'thigh-artrologia',
+                title: 'Artrologia da Coxa',
+                summary: 'Relacoes osseas e topografia do femur.',
+                flashcards: [
+                  { id: 1, question: 'Quais sao as partes do femur proximal?', answer: 'Cabeca, colo, trocanter maior e trocanter menor', mastery: 3 },
+                  { id: 2, question: 'Qual o angulo normal de inclinacao do colo do femur?', answer: 'Aproximadamente 125 graus (coxa valga > 135, coxa vara < 120)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'thigh-musculatura',
+                title: 'Musculatura da Coxa',
+                summary: 'Compartimentos anterior, medial e posterior da coxa.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam os isquiotibiais?', answer: 'Biceps femoral, semitendinoso e semimembranoso', mastery: 3 },
+                  { id: 2, question: 'Quais musculos formam o compartimento medial (adutor)?', answer: 'Adutor longo, adutor curto, adutor magno, gracil e pectíneo', mastery: 2 },
                   { id: 3, question: 'Qual nervo inerva o compartimento anterior da coxa?', answer: 'Nervo femoral', mastery: 4 },
-                  { id: 4, question: 'Qual é a função dos músculos adutores?', answer: 'Adução da coxa (aproximar a perna da linha média)', mastery: 2 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual músculo NÃO faz parte do quadríceps femoral?', 
-                    options: ['Reto femoral', 'Vasto lateral', 'Sartório', 'Vasto medial'],
-                    correctAnswer: 2,
-                    explanation: 'O sartório é um músculo da coxa, mas não faz parte do quadríceps. É o músculo mais longo do corpo.'
-                  },
+                  { id: 1, question: 'Qual musculo cruza tanto o quadril quanto o joelho?', options: ['Vasto lateral', 'Reto femoral', 'Vasto intermedio', 'Vasto medial'], correctAnswer: 1, explanation: 'O reto femoral e biarticular: flexiona o quadril e estende o joelho.' },
                 ],
-                model3D: {
-                  id: 'thigh-muscles-3d',
-                  name: 'Músculos da Coxa',
-                  description: 'Compartimentos anterior, medial e posterior',
-                  available: true
-                }
               },
-              { 
-                id: 'leg', 
-                title: 'Perna', 
-                summary: 'A perna é formada pela tíbia e fíbula, com compartimentos anterior, lateral e posterior.',
-                videoUrl: '#',
+              {
+                id: 'thigh-vasc',
+                title: 'Vascularizacao da Coxa',
+                summary: 'Arteria femoral, femoral profunda e triangulo femoral.',
                 flashcards: [
-                  { id: 1, question: 'Quais ossos formam a perna?', answer: 'Tíbia (medial, suporta peso) e Fíbula (lateral)', mastery: 5 },
-                  { id: 2, question: 'Qual músculo forma o tendão calcâneo?', answer: 'Tríceps sural (gastrocnêmio e sóleo)', mastery: 4 },
-                  { id: 3, question: 'Qual nervo inerva o compartimento anterior da perna?', answer: 'Nervo fibular profundo', mastery: 2 },
+                  { id: 1, question: 'A arteria femoral e continuacao de qual arteria?', answer: 'Arteria iliaca externa (apos o ligamento inguinal)', mastery: 3 },
+                  { id: 2, question: 'O que e o triangulo femoral?', answer: 'Espaco limitado pelo ligamento inguinal, sartorio e adutor longo — contem a. femoral, v. femoral e n. femoral', mastery: 2 },
+                  { id: 3, question: 'Qual arteria e o principal ramo da femoral para irrigar a coxa?', answer: 'Arteria femoral profunda (profunda da coxa)', mastery: 3 },
                 ],
-                quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual é a principal função do compartimento posterior da perna?', 
-                    options: ['Dorsiflexão', 'Flexão plantar', 'Eversão', 'Inversão'],
-                    correctAnswer: 1,
-                    explanation: 'O compartimento posterior da perna contém os flexores plantares, como o gastrocnêmio e o sóleo.'
-                  },
-                ],
-                model3D: {
-                  id: 'leg-bones-3d',
-                  name: 'Ossos da Perna',
-                  description: 'Tíbia e fíbula com articulações',
-                  available: true
-                }
+                quizzes: [],
               },
-              { 
-                id: 'foot', 
-                title: 'Pé', 
-                summary: 'O pé suporta o peso e auxilia na locomoção, com arcos longitudinal e transversal importantes para absorção de impacto.',
-                videoUrl: '#',
+              {
+                id: 'thigh-nerves',
+                title: 'Inervacao da Coxa',
+                summary: 'Nervos femoral, obturatorio e isquiatico na coxa.',
                 flashcards: [
-                  { id: 1, question: 'Quantos ossos do tarso existem?', answer: '7 ossos do tarso (calcâneo, tálus, navicular, cuboide e 3 cuneiformes)', mastery: 3 },
-                  { id: 2, question: 'Qual osso do tarso se articula com a tíbia?', answer: 'Tálus', mastery: 4 },
-                  { id: 3, question: 'Qual é o maior osso do pé?', answer: 'Calcâneo', mastery: 5 },
+                  { id: 1, question: 'Qual nervo inerva o quadriceps femoral?', answer: 'Nervo femoral (L2-L4)', mastery: 4 },
+                  { id: 2, question: 'Qual nervo inerva o compartimento medial (adutores)?', answer: 'Nervo obturatorio (L2-L4)', mastery: 3 },
+                  { id: 3, question: 'O nervo isquiatico se divide em quais nervos?', answer: 'Nervo tibial e nervo fibular comum (geralmente na fossa poplitea)', mastery: 3 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual nervo é responsável pela sensibilidade da planta do pé?', 
-                    options: ['Nervo fibular superficial', 'Nervo tibial', 'Nervo sural', 'Nervo safeno'],
-                    correctAnswer: 1,
-                    explanation: 'O nervo tibial divide-se em nervos plantares medial e lateral que inervam a planta do pé.'
-                  },
+                  { id: 1, question: 'Qual nervo inerva os isquiotibiais?', options: ['Nervo femoral', 'Nervo obturatorio', 'Porcao tibial do isquiatico', 'Nervo gluteo inferior'], correctAnswer: 2, explanation: 'Os isquiotibiais sao inervados pela porcao tibial do nervo isquiatico (exceto cabeca curta do biceps — fibular).' },
                 ],
-                model3D: {
-                  id: 'foot-bones-3d',
-                  name: 'Esqueleto do Pé',
-                  description: 'Ossos do tarso, metatarsos e falanges',
-                  available: true
-                }
               },
-            ]
-          }
-        ]
+            ],
+          },
+          // Joelho
+          {
+            id: 'knee-section',
+            title: 'Joelho',
+            region: 'Membro Inferior',
+            topics: [
+              {
+                id: 'knee',
+                title: 'Visao Geral do Joelho',
+                summary: 'A maior e mais complexa articulacao do corpo humano.',
+                flashcards: [
+                  { id: 1, question: 'Quais ossos formam a articulacao do joelho?', answer: 'Femur, tibia e patela', mastery: 3 },
+                  { id: 2, question: 'Qual a funcao dos meniscos?', answer: 'Absorver impacto, distribuir carga e estabilizar o joelho', mastery: 3 },
+                  { id: 3, question: 'Quais sao os ligamentos cruzados do joelho?', answer: 'Ligamento cruzado anterior (LCA) e ligamento cruzado posterior (LCP)', mastery: 4 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual ligamento impede a translacao anterior da tibia?', options: ['LCP', 'LCA', 'Colateral medial', 'Colateral lateral'], correctAnswer: 1, explanation: 'O LCA impede que a tibia deslize anteriormente em relacao ao femur.' },
+                ],
+              },
+              {
+                id: 'knee-artrologia',
+                title: 'Artrologia do Joelho',
+                summary: 'Ligamentos, meniscos e biomecanica do joelho.',
+                flashcards: [
+                  { id: 1, question: 'Qual tipo de articulacao e o joelho?', answer: 'Sinovial condilar modificada (permite flexao, extensao e leve rotacao)', mastery: 3 },
+                  { id: 2, question: 'Qual menisco e mais frequentemente lesionado?', answer: 'Menisco medial (menos movel, aderido ao lig. colateral medial)', mastery: 3 },
+                  { id: 3, question: 'Qual e a triade infeliz (O\'Donoghue)?', answer: 'Lesao de LCA + menisco medial + ligamento colateral medial', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual estrutura NAO faz parte da triade infeliz?', options: ['LCA', 'Menisco medial', 'Lig. colateral medial', 'LCP'], correctAnswer: 3, explanation: 'A triade infeliz envolve LCA, menisco medial e colateral medial.' },
+                ],
+              },
+              {
+                id: 'knee-musculatura',
+                title: 'Musculatura do Joelho',
+                summary: 'Musculos extensores, flexores e estabilizadores do joelho.',
+                flashcards: [
+                  { id: 1, question: 'Qual musculo e o principal extensor do joelho?', answer: 'Quadriceps femoral (via tendao patelar)', mastery: 4 },
+                  { id: 2, question: 'Quais musculos flexionam o joelho?', answer: 'Isquiotibiais, gastrocnemio, gracil, sartorio e popliteo', mastery: 3 },
+                  { id: 3, question: 'Qual musculo "destrava" o joelho na posicao estendida?', answer: 'Popliteo (rotacao medial da tibia)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'knee-vasc',
+                title: 'Vascularizacao do Joelho',
+                summary: 'Rede articular do joelho e arteria poplitea.',
+                flashcards: [
+                  { id: 1, question: 'Qual arteria principal irriga o joelho?', answer: 'Arteria poplitea (continuacao da femoral na fossa poplitea)', mastery: 3 },
+                  { id: 2, question: 'Quais sao os ramos geniculares da arteria poplitea?', answer: 'Geniculares superior e inferior (medial e lateral) e genicular media', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'knee-nerves',
+                title: 'Inervacao do Joelho',
+                summary: 'Nervos que inervam a articulacao e regiao do joelho.',
+                flashcards: [
+                  { id: 1, question: 'Quais nervos inervam a articulacao do joelho?', answer: 'Ramos do femoral, obturatorio, tibial e fibular comum', mastery: 2 },
+                  { id: 2, question: 'Onde o nervo fibular comum e mais vulneravel?', answer: 'Na cabeca da fibula (subcutaneo — risco em fraturas)', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, type: 'write-in', question: 'Lesao de qual nervo causa pe caido (foot drop)?', correctText: 'fibular comum', acceptedVariations: ['nervo fibular comum', 'fibular', 'n. fibular comum', 'peroneo comum'], hint: 'Passa na cabeca da fibula.', explanation: 'O nervo fibular comum inerva os dorsiflexores do tornozelo.' },
+                ],
+              },
+            ],
+          },
+          // Perna
+          {
+            id: 'leg-section',
+            title: 'Perna',
+            region: 'Membro Inferior',
+            topics: [
+              {
+                id: 'leg',
+                title: 'Visao Geral da Perna',
+                summary: 'A perna e formada pela tibia e fibula.',
+                flashcards: [
+                  { id: 1, question: 'Quais ossos formam a perna?', answer: 'Tibia (medial) e Fibula (lateral)', mastery: 5 },
+                  { id: 2, question: 'Qual musculo forma o tendao calcaneo?', answer: 'Triceps sural (gastrocnemio e soleo)', mastery: 4 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'leg-artrologia',
+                title: 'Artrologia da Perna',
+                summary: 'Articulacoes tibiofibulares e membrana interossea.',
+                flashcards: [
+                  { id: 1, question: 'Quais articulacoes existem entre tibia e fibula?', answer: 'Tibiofibular proximal (sinovial plana) e tibiofibular distal (sindesmose)', mastery: 2 },
+                  { id: 2, question: 'O que e a membrana interossea da perna?', answer: 'Membrana fibrosa entre tibia e fibula que separa compartimentos e transmite forcas', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'leg-musculatura',
+                title: 'Musculatura da Perna',
+                summary: 'Compartimentos anterior, lateral e posterior da perna.',
+                flashcards: [
+                  { id: 1, question: 'Quais musculos formam o compartimento anterior da perna?', answer: 'Tibial anterior, extensor longo dos dedos, extensor longo do halux e fibular terceiro', mastery: 3 },
+                  { id: 2, question: 'Quais musculos formam o triceps sural?', answer: 'Gastrocnemio (2 cabecas) e soleo', mastery: 4 },
+                  { id: 3, question: 'Quais musculos formam o compartimento lateral?', answer: 'Fibular longo e fibular curto', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual compartimento e mais afetado na sindrome compartimental?', options: ['Anterior', 'Lateral', 'Posterior superficial', 'Posterior profundo'], correctAnswer: 0, explanation: 'O compartimento anterior e o mais frequentemente afetado pela sindrome compartimental.' },
+                ],
+              },
+              {
+                id: 'leg-vasc',
+                title: 'Vascularizacao da Perna',
+                summary: 'Arterias tibiais, fibular e drenagem venosa profunda.',
+                flashcards: [
+                  { id: 1, question: 'Em quais arterias a poplitea se divide?', answer: 'Arteria tibial anterior e tronco tibiofibular (que da a tibial posterior e fibular)', mastery: 2 },
+                  { id: 2, question: 'Qual arteria se torna a dorsalis pedis no pe?', answer: 'Arteria tibial anterior', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'leg-nerves',
+                title: 'Inervacao da Perna',
+                summary: 'Nervos tibial e fibulares na perna.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo inerva o compartimento posterior da perna?', answer: 'Nervo tibial', mastery: 3 },
+                  { id: 2, question: 'Qual nervo inerva o compartimento anterior da perna?', answer: 'Nervo fibular profundo', mastery: 3 },
+                  { id: 3, question: 'Qual nervo inerva o compartimento lateral da perna?', answer: 'Nervo fibular superficial', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual nervo inerva os fibulares longo e curto?', options: ['Tibial', 'Fibular profundo', 'Fibular superficial', 'Sural'], correctAnswer: 2, explanation: 'O nervo fibular superficial inerva o compartimento lateral (eversores).' },
+                ],
+              },
+            ],
+          },
+          // Tornozelo
+          {
+            id: 'ankle-section',
+            title: 'Tornozelo',
+            region: 'Membro Inferior',
+            topics: [
+              {
+                id: 'ankle',
+                title: 'Visao Geral do Tornozelo',
+                summary: 'A articulacao do tornozelo conecta a perna ao pe.',
+                flashcards: [
+                  { id: 1, question: 'Quais ossos formam a articulacao do tornozelo?', answer: 'Tibia, fibula e talus', mastery: 3 },
+                  { id: 2, question: 'Qual tipo de articulacao e o tornozelo?', answer: 'Sinovial ginglimo (dobradica) — dorsiflexao e flexao plantar', mastery: 3 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual e o tipo de entorse mais comum do tornozelo?', options: ['Eversao', 'Inversao', 'Dorsiflexao forcada', 'Rotacao'], correctAnswer: 1, explanation: 'A inversao forcada lesiona os ligamentos laterais (especialmente talofibular anterior).' },
+                ],
+              },
+              {
+                id: 'ankle-artrologia',
+                title: 'Artrologia do Tornozelo',
+                summary: 'Ligamentos e estabilidade da articulacao talocrural.',
+                flashcards: [
+                  { id: 1, question: 'Qual ligamento e mais frequentemente lesionado no tornozelo?', answer: 'Ligamento talofibular anterior (em entorses por inversao)', mastery: 3 },
+                  { id: 2, question: 'Qual ligamento estabiliza o tornozelo medialmente?', answer: 'Ligamento deltoide (forte, raramente lesionado)', mastery: 3 },
+                  { id: 3, question: 'Quais ligamentos compoe o complexo lateral?', answer: 'Talofibular anterior, calcaneofibular e talofibular posterior', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'ankle-musculatura',
+                title: 'Musculatura do Tornozelo',
+                summary: 'Musculos dorsiflexores, plantarflexores e eversores.',
+                flashcards: [
+                  { id: 1, question: 'Qual musculo e o principal dorsiflexor?', answer: 'Tibial anterior', mastery: 4 },
+                  { id: 2, question: 'Qual musculo e o principal plantiflexor?', answer: 'Triceps sural (gastrocnemio + soleo) via tendao calcaneo', mastery: 4 },
+                  { id: 3, question: 'Quais musculos fazem eversao do pe?', answer: 'Fibulares longo e curto', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'ankle-vasc',
+                title: 'Vascularizacao do Tornozelo',
+                summary: 'Rede maleolar e retinaculos.',
+                flashcards: [
+                  { id: 1, question: 'Quais arterias participam da rede maleolar?', answer: 'Ramos maleolares das arterias tibial anterior, tibial posterior e fibular', mastery: 2 },
+                  { id: 2, question: 'Qual arteria passa posterior ao maleolo medial?', answer: 'Arteria tibial posterior', mastery: 3 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'ankle-nerves',
+                title: 'Inervacao do Tornozelo',
+                summary: 'Nervos que transitam pela regiao do tornozelo.',
+                flashcards: [
+                  { id: 1, question: 'Qual nervo passa no tunel do tarso?', answer: 'Nervo tibial (posterior ao maleolo medial)', mastery: 3 },
+                  { id: 2, question: 'Qual nervo inerva a sensibilidade do dorso do pe?', answer: 'Nervo fibular superficial (exceto 1o espaco — fibular profundo)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+            ],
+          },
+          // Pe
+          {
+            id: 'foot-section',
+            title: 'Pe',
+            region: 'Membro Inferior',
+            topics: [
+              {
+                id: 'foot',
+                title: 'Visao Geral do Pe',
+                summary: 'O pe suporta o peso e auxilia na locomocao.',
+                flashcards: [
+                  { id: 1, question: 'Quantos ossos do tarso existem?', answer: '7 ossos do tarso', mastery: 3 },
+                  { id: 2, question: 'Qual e o maior osso do pe?', answer: 'Calcaneo', mastery: 5 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'foot-artrologia',
+                title: 'Artrologia do Pe',
+                summary: 'Articulacoes intertarsais, tarsometatarsais e arcos plantares.',
+                flashcards: [
+                  { id: 1, question: 'Quais sao os arcos do pe?', answer: 'Arco longitudinal medial, longitudinal lateral e arco transverso', mastery: 3 },
+                  { id: 2, question: 'Qual articulacao e conhecida como Chopart?', answer: 'Articulacao mediotarsal (talonavicular + calcaneocuboidea)', mastery: 2 },
+                  { id: 3, question: 'Qual articulacao e conhecida como Lisfranc?', answer: 'Articulacao tarsometatarsal', mastery: 2 },
+                ],
+                quizzes: [
+                  { id: 1, question: 'Qual osso e a chave do arco longitudinal medial?', options: ['Calcaneo', 'Talus', 'Navicular', 'Cuboide'], correctAnswer: 2, explanation: 'O navicular e a pedra angular do arco longitudinal medial.' },
+                ],
+              },
+              {
+                id: 'foot-musculatura',
+                title: 'Musculatura do Pe',
+                summary: 'Musculos intrinsecos do pe e camadas plantares.',
+                flashcards: [
+                  { id: 1, question: 'Quantas camadas de musculos tem a planta do pe?', answer: '4 camadas de musculos intrinsecos', mastery: 2 },
+                  { id: 2, question: 'Qual a funcao da fascia plantar (aponevrose)?', answer: 'Sustentacao do arco longitudinal e transmissao de forca durante a marcha', mastery: 3 },
+                  { id: 3, question: 'O que e a fascite plantar?', answer: 'Inflamacao da aponevrose plantar, causa dor no calcaneo', mastery: 4 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'foot-vasc',
+                title: 'Vascularizacao do Pe',
+                summary: 'Arterias dorsalis pedis, plantar medial e lateral.',
+                flashcards: [
+                  { id: 1, question: 'Qual arteria forma o pulso pedioso?', answer: 'Arteria dorsalis pedis (continuacao da tibial anterior)', mastery: 3 },
+                  { id: 2, question: 'Quais arterias irrigam a planta do pe?', answer: 'Arterias plantar medial e plantar lateral (ramos da tibial posterior)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+              {
+                id: 'foot-nerves',
+                title: 'Inervacao do Pe',
+                summary: 'Nervos plantares e sensibilidade do pe.',
+                flashcards: [
+                  { id: 1, question: 'Quais nervos inervam a planta do pe?', answer: 'Nervo plantar medial e plantar lateral (ramos do tibial)', mastery: 2 },
+                  { id: 2, question: 'Qual nervo inerva o dorso do pe?', answer: 'Nervo fibular superficial (maioria) e fibular profundo (1o espaco)', mastery: 2 },
+                ],
+                quizzes: [],
+              },
+            ],
+          },
+        ],
       },
+      // ════════════════════════════════════════
+      // 1o ANO · 2o SEMESTRE
+      // ════════════════════════════════════════
       {
         id: 'sem2',
-        title: '2º Semestre',
+        title: '1o Ano · 2o Semestre',
+        year: 1,
         sections: [
           {
-            id: 'thorax',
-            title: 'Tórax',
-            imageUrl: 'https://images.unsplash.com/photo-1530210124550-912dc1381cb8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGVzdCUyMHkrayUyMGFuYXRvbXl8ZW58MXx8fHwxNjk5NjU1NzA2fDA&ixlib=rb-4.1.0&q=80&w=1080',
+            id: 'heart-section',
+            title: 'Coracao',
+            region: 'Torax',
             topics: [
-              { 
-                id: 'heart', 
-                title: 'Coração', 
-                summary: 'O coração bombeia sangue para todo o corpo através da circulação sistêmica e pulmonar.',
-                videoUrl: '#',
+              {
+                id: 'heart',
+                title: 'Coracao',
+                summary: 'O coracao bombeia sangue para todo o corpo.',
                 flashcards: [
-                  { id: 1, question: 'Quantas câmaras tem o coração?', answer: '4 câmaras: 2 átrios e 2 ventrículos', mastery: 5, image: 'https://images.unsplash.com/photo-1650562373852-04c5682ec2e7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxodW1hbiUyMGhlYXJ0JTIwYW5hdG9teSUyMG1lZGljYWx8ZW58MXx8fHwxNzcwNTAwMDM0fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral' },
-                  { id: 2, question: 'O que caracteriza a sístole ventricular?', answer: 'Contração dos ventrículos e ejeção de sangue para as grandes artérias', mastery: 4 },
-                  { id: 3, question: 'Qual valva separa o átrio esquerdo do ventrículo esquerdo?', answer: 'Valva mitral (bicúspide)', mastery: 3 },
-                  { id: 4, question: 'Qual artéria irriga o músculo cardíaco?', answer: 'Artérias coronárias (direita e esquerda)', mastery: 4 },
+                  { id: 1, question: 'Quantas camaras tem o coracao?', answer: '4 camaras: 2 atrios e 2 ventriculos', mastery: 5 },
+                  { id: 2, question: 'O que caracteriza a sistole ventricular?', answer: 'Contracao dos ventriculos e ejecao de sangue para as grandes arterias', mastery: 4 },
+                  { id: 3, question: 'Qual valva separa o atrio esquerdo do ventriculo esquerdo?', answer: 'Valva mitral (bicuspide)', mastery: 3 },
+                  { id: 4, question: 'Qual arteria irriga o musculo cardiaco?', answer: 'Arterias coronarias (direita e esquerda)', mastery: 4 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual câmara do coração possui a parede mais espessa?', 
-                    options: ['Átrio direito', 'Átrio esquerdo', 'Ventrículo direito', 'Ventrículo esquerdo'],
-                    correctAnswer: 3,
-                    explanation: 'O ventrículo esquerdo possui a parede mais espessa pois precisa gerar pressão suficiente para bombear sangue para todo o corpo.'
-                  },
+                  { id: 1, question: 'Qual camara do coracao possui a parede mais espessa?', options: ['Atrio direito', 'Atrio esquerdo', 'Ventriculo direito', 'Ventriculo esquerdo'], correctAnswer: 3, explanation: 'O ventriculo esquerdo precisa gerar pressao para bombear sangue para todo o corpo.' },
                 ],
-                model3D: {
-                  id: 'heart-3d',
-                  name: 'Coração Anatômico',
-                  description: 'Câmaras, valvas e grandes vasos',
-                  available: true
-                }
               },
-              { 
-                id: 'lungs', 
-                title: 'Pulmões', 
-                summary: 'Os pulmões são responsáveis pelas trocas gasosas (hematose) através dos alvéolos.',
-                videoUrl: '#',
+            ],
+          },
+          {
+            id: 'lungs-section',
+            title: 'Pulmoes',
+            region: 'Torax',
+            topics: [
+              {
+                id: 'lungs',
+                title: 'Pulmoes',
+                summary: 'Os pulmoes realizam as trocas gasosas.',
                 flashcards: [
-                  { id: 1, question: 'Quantos lobos tem o pulmão direito?', answer: '3 lobos: superior, médio e inferior', mastery: 5 },
-                  { id: 2, question: 'Quantos lobos tem o pulmão esquerdo?', answer: '2 lobos: superior e inferior', mastery: 5 },
-                  { id: 3, question: 'Qual a função dos alvéolos pulmonares?', answer: 'Realizar as trocas gasosas (hematose) entre o ar e o sangue', mastery: 4 },
-                  { id: 4, question: 'O que é a pleura?', answer: 'Membrana serosa que reveste os pulmões (visceral) e a cavidade torácica (parietal)', mastery: 3 },
+                  { id: 1, question: 'Quantos lobos tem o pulmao direito?', answer: '3 lobos: superior, medio e inferior', mastery: 5 },
+                  { id: 2, question: 'Quantos lobos tem o pulmao esquerdo?', answer: '2 lobos: superior e inferior', mastery: 5 },
+                  { id: 3, question: 'Qual a funcao dos alveolos pulmonares?', answer: 'Realizar as trocas gasosas (hematose)', mastery: 4 },
+                  { id: 4, question: 'O que e a pleura?', answer: 'Membrana serosa que reveste os pulmoes e a cavidade toracica', mastery: 3 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Por que o pulmão esquerdo é menor que o direito?', 
-                    options: ['Presença do fígado', 'Presença do coração', 'Presença do estômago', 'Presença do baço'],
-                    correctAnswer: 1,
-                    explanation: 'O pulmão esquerdo é menor para acomodar o coração, que está ligeiramente desviado para a esquerda.'
-                  },
+                  { id: 1, question: 'Por que o pulmao esquerdo e menor que o direito?', options: ['Presenca do figado', 'Presenca do coracao', 'Presenca do estomago', 'Presenca do baco'], correctAnswer: 1, explanation: 'O pulmao esquerdo e menor para acomodar o coracao.' },
                 ],
-                model3D: {
-                  id: 'lungs-3d',
-                  name: 'Pulmões e Árvore Brônquica',
-                  description: 'Lobos pulmonares e segmentação broncopulmonar',
-                  available: true
-                }
               },
-            ]
-          }
-        ]
-      }
-    ]
+            ],
+          },
+        ],
+      },
+    ],
   },
+  // ══════════════════════════════════════════════════════════════
+  // HISTOLOGIA
+  // ══════════════════════════════════════════════════════════════
   {
     id: 'histology',
     name: 'Histologia',
@@ -430,209 +895,103 @@ export const courses: Course[] = [
     semesters: [
       {
         id: 'sem1',
-        title: 'Tecidos Básicos',
+        title: '1o Ano · 1o Semestre',
+        year: 1,
         sections: [
           {
             id: 'epithelial',
             title: 'Tecido Epitelial',
-            imageUrl: 'https://images.unsplash.com/photo-1716833322987-bfef9f913822?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoaXN0b2xvZ3klMjBlcGl0aGVsaWFsJTIwdGlzc3VlJTIwY2VsbHN8ZW58MXx8fHwxNzY5MTI4Mzc4fDA&ixlib=rb-4.1.0&q=80&w=1080',
             topics: [
-              { 
-                id: 'simple', 
-                title: 'Epitélio Simples', 
-                summary: 'Camada única de células com funções de absorção, secreção e filtração.',
-                videoUrl: '#',
+              {
+                id: 'simple',
+                title: 'Epitelio Simples',
+                summary: 'Camada unica de celulas com funcoes de absorcao e secrecao.',
                 flashcards: [
-                  { id: 1, question: 'O que caracteriza o epitélio simples?', answer: 'Uma única camada de células apoiadas na lâmina basal', mastery: 5 },
-                  { id: 2, question: 'Onde é encontrado o epitélio simples pavimentoso?', answer: 'Alvéolos pulmonares, endotélio vascular e mesotélio', mastery: 3 },
-                  { id: 3, question: 'Qual é a função do epitélio simples cúbico?', answer: 'Secreção e absorção (ex: túbulos renais)', mastery: 4 },
+                  { id: 1, question: 'O que caracteriza o epitelio simples?', answer: 'Uma unica camada de celulas apoiadas na lamina basal', mastery: 5 },
+                  { id: 2, question: 'Onde e encontrado o epitelio simples pavimentoso?', answer: 'Alveolos pulmonares, endotelio vascular e mesotelio', mastery: 3 },
+                  { id: 3, question: 'Qual e a funcao do epitelio simples cubico?', answer: 'Secrecao e absorcao (ex: tubulos renais)', mastery: 4 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual tipo de epitélio simples reveste os intestinos?', 
-                    options: ['Pavimentoso', 'Cúbico', 'Colunar', 'Pseudoestratificado'],
-                    correctAnswer: 2,
-                    explanation: 'O epitélio simples colunar com microvilosidades reveste o intestino para aumentar a absorção.'
-                  },
+                  { id: 1, question: 'Qual tipo de epitelio simples reveste os intestinos?', options: ['Pavimentoso', 'Cubico', 'Colunar', 'Pseudoestratificado'], correctAnswer: 2, explanation: 'O epitelio simples colunar com microvilosidades reveste o intestino.' },
                 ],
-                model3D: {
-                  id: 'simple-epithelium-3d',
-                  name: 'Epitélio Simples',
-                  description: 'Visualização 3D dos diferentes tipos de epitélio simples',
-                  available: false
-                }
               },
-              { 
-                id: 'stratified', 
-                title: 'Epitélio Estratificado', 
-                summary: 'Múltiplas camadas de células com função primária de proteção contra agressões mecânicas.',
-                videoUrl: '#',
+              {
+                id: 'stratified',
+                title: 'Epitelio Estratificado',
+                summary: 'Multiplas camadas de celulas com funcao de protecao.',
                 flashcards: [
-                  { id: 1, question: 'O que caracteriza o epitélio estratificado?', answer: 'Múltiplas camadas de células sobrepostas', mastery: 5 },
-                  { id: 2, question: 'Onde é encontrado o epitélio estratificado pavimentoso queratinizado?', answer: 'Pele (epiderme)', mastery: 5 },
-                  { id: 3, question: 'Qual é a função principal do epitélio estratificado?', answer: 'Proteção contra agressões mecânicas e químicas', mastery: 4 },
+                  { id: 1, question: 'O que caracteriza o epitelio estratificado?', answer: 'Multiplas camadas de celulas sobrepostas', mastery: 5 },
+                  { id: 2, question: 'Onde e encontrado o epitelio estratificado pavimentoso queratinizado?', answer: 'Pele (epiderme)', mastery: 5 },
+                  { id: 3, question: 'Qual e a funcao principal do epitelio estratificado?', answer: 'Protecao contra agressoes mecanicas e quimicas', mastery: 4 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual estrutura possui epitélio estratificado pavimentoso não-queratinizado?', 
-                    options: ['Pele', 'Esôfago', 'Intestino', 'Traqueia'],
-                    correctAnswer: 1,
-                    explanation: 'O esôfago é revestido por epitélio estratificado pavimentoso não-queratinizado para proteção contra abrasão alimentar.'
-                  },
+                  { id: 1, question: 'Qual estrutura possui epitelio estratificado pavimentoso nao-queratinizado?', options: ['Pele', 'Esofago', 'Intestino', 'Traqueia'], correctAnswer: 1, explanation: 'O esofago e revestido por epitelio estratificado pavimentoso nao-queratinizado.' },
                 ],
-                model3D: {
-                  id: 'stratified-epithelium-3d',
-                  name: 'Epitélio Estratificado',
-                  description: 'Camadas celulares em 3D',
-                  available: false
-                }
               },
-            ]
+            ],
           },
           {
             id: 'connective',
             title: 'Tecido Conjuntivo',
-            imageUrl: 'https://images.unsplash.com/photo-1588665306984-d5c6f62224aa?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoaXN0b2xvZ3klMjBjb25uZWN0aXZlJTIwdGlzc3VlJTIwbWljcm9zY29wZXxlbnwxfHx8fDE3NjkxMjgzNzN8MA&ixlib=rb-4.1.0&q=80&w=1080',
             topics: [
               {
                 id: 'proper',
                 title: 'Conjuntivo Propriamente Dito',
-                summary: 'O tecido mais abundante, preenchendo espaços e sustentando epitélios.',
-                videoUrl: '#',
+                summary: 'O tecido mais abundante.',
                 flashcards: [
-                  { id: 1, question: 'Quais são os dois tipos de tecido conjuntivo propriamente dito?', answer: 'Frouxo (areolar) e denso (modelado e não modelado)', mastery: 3 },
-                  { id: 2, question: 'Qual é a célula mais abundante do tecido conjuntivo?', answer: 'Fibroblasto — responsável pela síntese de fibras e substância fundamental', mastery: 4 },
-                  { id: 3, question: 'Quais são os três tipos de fibras do conjuntivo?', answer: 'Colágenas (resistência), elásticas (elasticidade) e reticulares (sustentação)', mastery: 2 },
-                  { id: 4, question: 'O que é a substância fundamental amorfa?', answer: 'Gel hidratado de glicosaminoglicanos e proteoglicanos que preenche espaços entre células e fibras', mastery: 3 },
+                  { id: 1, question: 'Quais sao os dois tipos de tecido conjuntivo propriamente dito?', answer: 'Frouxo (areolar) e denso (modelado e nao modelado)', mastery: 3 },
+                  { id: 2, question: 'Qual e a celula mais abundante do tecido conjuntivo?', answer: 'Fibroblasto', mastery: 4 },
+                  { id: 3, question: 'Quais sao os tres tipos de fibras do conjuntivo?', answer: 'Colagenas, elasticas e reticulares', mastery: 2 },
                 ],
-                quizzes: []
-              },
-              {
-                id: 'adipose',
-                title: 'Tecido Adiposo',
-                summary: 'Especializado no armazenamento de energia e isolamento térmico.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Quais são os dois tipos de tecido adiposo?', answer: 'Unilocular (branco) e multilocular (marrom/pardo)', mastery: 4 },
-                  { id: 2, question: 'Qual a principal função do tecido adiposo branco?', answer: 'Armazenamento de energia na forma de triglicerídeos, isolamento térmico e proteção mecânica', mastery: 5 },
-                  { id: 3, question: 'Por que o tecido adiposo marrom é pardo?', answer: 'Grande quantidade de mitocôndrias com citocromo (rico em ferro), produzindo calor por termogênese', mastery: 2 },
-                  { id: 4, question: 'Qual hormônio é produzido pelo tecido adiposo?', answer: 'Leptina — sinaliza saciedade ao hipotálamo', mastery: 3 },
-                ],
-                quizzes: []
+                quizzes: [],
               },
               {
                 id: 'cartilage',
                 title: 'Tecido Cartilaginoso',
-                summary: 'Tecido rígido mas flexível, sem vasos sanguíneos.',
-                videoUrl: '#',
+                summary: 'Tecido rigido mas flexivel, sem vasos sanguineos.',
                 flashcards: [
-                  { id: 1, question: 'Quais são os três tipos de cartilagem?', answer: 'Hialina, elástica e fibrocartilagem', mastery: 4 },
-                  { id: 2, question: 'Onde encontramos cartilagem hialina?', answer: 'Traqueia, brônquios, nariz, costelas e superfícies articulares', mastery: 3 },
-                  { id: 3, question: 'Por que a cartilagem se regenera lentamente?', answer: 'É avascular — nutrição ocorre por difusão a partir do pericôndrio', mastery: 2 },
-                  { id: 4, question: 'Como se chamam as células maduras da cartilagem?', answer: 'Condrócitos — alojados em lacunas na matriz cartilaginosa', mastery: 5 },
+                  { id: 1, question: 'Quais sao os tres tipos de cartilagem?', answer: 'Hialina, elastica e fibrocartilagem', mastery: 4 },
+                  { id: 2, question: 'Onde encontramos cartilagem hialina?', answer: 'Traqueia, bronquios, nariz, costelas e superficies articulares', mastery: 3 },
+                  { id: 3, question: 'Por que a cartilagem se regenera lentamente?', answer: 'E avascular', mastery: 2 },
                 ],
-                quizzes: []
+                quizzes: [],
               },
-              {
-                id: 'bone',
-                title: 'Tecido Ósseo',
-                summary: 'Matriz calcificada que forma o esqueleto e protege órgãos vitais.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Quais são os dois tipos de tecido ósseo?', answer: 'Compacto (cortical) e esponjoso (trabecular)', mastery: 4 },
-                  { id: 2, question: 'O que é o sistema de Havers (ósteon)?', answer: 'Unidade estrutural do osso compacto: canal central com lamelas concêntricas ao redor', mastery: 2 },
-                  { id: 3, question: 'Qual a função dos osteoclastos?', answer: 'Reabsorção óssea — células multinucleadas que degradam a matriz mineralizada', mastery: 3 },
-                  { id: 4, question: 'O que é o periósteo?', answer: 'Membrana conjuntiva que reveste a superfície externa do osso, essencial para crescimento e reparo', mastery: 5 },
-                ],
-                quizzes: []
-              }
-            ]
+            ],
           },
           {
             id: 'muscle',
             title: 'Tecido Muscular',
-            imageUrl: 'https://images.unsplash.com/photo-1647083701139-3930542304cf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoaXN0b2xvZ3klMjBtdXNjbGUlMjB0aXNzdWUlMjBtaWNyb3Njb3BlfGVufDF8fHx8MTc2OTEyODM3M3ww&ixlib=rb-4.1.0&q=80&w=1080',
             topics: [
               {
                 id: 'skeletal',
-                title: 'Muscular Estriado Esquelético',
-                summary: 'Músculos voluntários ligados aos ossos responsáveis pelo movimento.',
-                videoUrl: '#',
+                title: 'Muscular Estriado Esqueletico',
+                summary: 'Musculos voluntarios ligados aos ossos.',
                 flashcards: [
-                  { id: 1, question: 'Qual a característica histológica marcante do músculo esquelético?', answer: 'Fibras multinucleadas com estriações transversais (bandas A e I)', mastery: 4 },
-                  { id: 2, question: 'O que é o sarcômero?', answer: 'Unidade contrátil do músculo estriado, delimitada por duas linhas Z', mastery: 3 },
-                  { id: 3, question: 'Qual proteína forma os filamentos grossos?', answer: 'Miosina', mastery: 5 },
-                  { id: 4, question: 'Qual a função do retículo sarcoplasmático?', answer: 'Armazenar e liberar cálcio (Ca²⁺) para a contração muscular', mastery: 2 },
+                  { id: 1, question: 'Qual a caracteristica histologica marcante do musculo esqueletico?', answer: 'Fibras multinucleadas com estriacoes transversais', mastery: 4 },
+                  { id: 2, question: 'O que e o sarcomero?', answer: 'Unidade contratil delimitada por duas linhas Z', mastery: 3 },
+                  { id: 3, question: 'Qual proteina forma os filamentos grossos?', answer: 'Miosina', mastery: 5 },
                 ],
-                quizzes: []
+                quizzes: [],
               },
               {
                 id: 'cardiac',
-                title: 'Muscular Estriado Cardíaco',
-                summary: 'Músculo involuntário do coração com discos intercalares.',
-                videoUrl: '#',
+                title: 'Muscular Estriado Cardiaco',
+                summary: 'Musculo involuntario do coracao.',
                 flashcards: [
-                  { id: 1, question: 'O que são discos intercalares?', answer: 'Junções especializadas entre cardiomiócitos com desmossomos e junções comunicantes (gap junctions)', mastery: 3 },
-                  { id: 2, question: 'Quantos núcleos tem o cardiomiócito?', answer: 'Um ou dois núcleos centrais (diferente do esquelético que é multinucleado periférico)', mastery: 4 },
-                  { id: 3, question: 'Qual a função das junções gap no músculo cardíaco?', answer: 'Permitir a propagação rápida do impulso elétrico entre as células (sincício funcional)', mastery: 2 },
-                  { id: 4, question: 'O músculo cardíaco é voluntário ou involuntário?', answer: 'Involuntário — controlado pelo sistema nervoso autônomo e sistema de condução próprio', mastery: 5 },
+                  { id: 1, question: 'O que sao discos intercalares?', answer: 'Juncoes especializadas entre cardiomiocitos', mastery: 3 },
+                  { id: 2, question: 'Quantos nucleos tem o cardiomiocito?', answer: 'Um ou dois nucleos centrais', mastery: 4 },
                 ],
-                quizzes: []
+                quizzes: [],
               },
-              {
-                id: 'smooth',
-                title: 'Muscular Liso',
-                summary: 'Músculo involuntário das vísceras e vasos sanguíneos.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Onde encontramos músculo liso?', answer: 'Parede de vísceras (intestino, bexiga, útero), vasos sanguíneos e vias aéreas', mastery: 5 },
-                  { id: 2, question: 'Por que o músculo liso não apresenta estriações?', answer: 'Os filamentos de actina e miosina não estão organizados em sarcômeros regulares', mastery: 3 },
-                  { id: 3, question: 'Como é o núcleo da célula muscular lisa?', answer: 'Único, central e fusiforme (formato de charuto)', mastery: 4 },
-                  { id: 4, question: 'Qual a velocidade de contração do músculo liso comparado ao esquelético?', answer: 'Mais lenta, porém sustentada por longos períodos (contração tônica)', mastery: 2 },
-                ],
-                quizzes: []
-              }
-            ]
+            ],
           },
-          {
-            id: 'nervous',
-            title: 'Tecido Nervoso',
-            imageUrl: 'https://images.unsplash.com/photo-1716833322990-acbeae5cc3eb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoaXN0b2xvZ3klMjBuZXJ2b3VzJTIwbmV1cm9uJTIwbWljcm9zY29wZXxlbnwxfHx8fDE3NjkxMjgzNzh8MA&ixlib=rb-4.1.0&q=80&w=1080',
-            topics: [
-              {
-                id: 'neurons',
-                title: 'Neurônios',
-                summary: 'Unidades funcionais responsáveis pela transmissão de impulsos nervosos.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Quais são as três partes principais de um neurônio?', answer: 'Corpo celular (soma), dendritos (recebem sinais) e axônio (transmite sinais)', mastery: 5 },
-                  { id: 2, question: 'O que é a bainha de mielina?', answer: 'Camada lipídica que envolve o axônio, aumentando a velocidade de condução do impulso nervoso', mastery: 3 },
-                  { id: 3, question: 'O que são os nódulos de Ranvier?', answer: 'Intervalos entre as células de Schwann onde ocorre a condução saltatória do impulso', mastery: 2 },
-                  { id: 4, question: 'Quais são os tipos de neurônios por número de prolongamentos?', answer: 'Unipolar, bipolar, pseudounipolar e multipolar', mastery: 4 },
-                ],
-                quizzes: []
-              },
-              {
-                id: 'glia',
-                title: 'Células da Glia',
-                summary: 'Células de suporte, nutrição e proteção do sistema nervoso.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'Qual célula da glia forma a mielina no SNC?', answer: 'Oligodendrócito', mastery: 4 },
-                  { id: 2, question: 'Qual célula da glia forma a mielina no SNP?', answer: 'Célula de Schwann', mastery: 5 },
-                  { id: 3, question: 'Qual a função dos astrócitos?', answer: 'Sustentação, nutrição, regulação do microambiente neuronal e formação da barreira hematoencefálica', mastery: 2 },
-                  { id: 4, question: 'Qual célula da glia atua como macrófago no SNC?', answer: 'Micróglia — defesa imunológica, fagocitando restos celulares e patógenos', mastery: 3 },
-                ],
-                quizzes: []
-              }
-            ]
-          }
-        ]
-      }
-    ]
+        ],
+      },
+    ],
   },
+  // ══════════════════════════════════════════════════════════════
+  // BIOLOGIA
+  // ══════════════════════════════════════════════════════════════
   {
     id: 'biology',
     name: 'Biologia',
@@ -641,92 +1000,126 @@ export const courses: Course[] = [
     semesters: [
       {
         id: 'sem1',
-        title: 'Biologia Celular',
+        title: '1o Ano · 1o Semestre',
+        year: 1,
         sections: [
           {
             id: 'cell',
-            title: 'Célula',
-            imageUrl: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGVsbCUyMGJpb2xvZ3l8ZW58MXx8fHwxNjk5NjU1ODMyfDA&ixlib=rb-4.1.0&q=80&w=1080',
+            title: 'Celula',
             topics: [
-              { 
-                id: 'organelles', 
-                title: 'Organelas', 
-                summary: 'Estruturas funcionais da célula responsáveis por processos vitais como produção de energia, síntese de proteínas e digestão celular.',
-                videoUrl: '#',
+              {
+                id: 'organelles',
+                title: 'Organelas',
+                summary: 'Estruturas funcionais da celula.',
                 flashcards: [
-                  { id: 1, question: 'Qual organela produz ATP?', answer: 'Mitocôndria', mastery: 5 },
-                  { id: 2, question: 'Qual é a função do retículo endoplasmático rugoso?', answer: 'Síntese de proteínas (possui ribossomos aderidos)', mastery: 4 },
-                  { id: 3, question: 'Qual organela realiza a digestão intracelular?', answer: 'Lisossomo', mastery: 4 },
-                  { id: 4, question: 'Qual estrutura celular armazena água e íons?', answer: 'Vacúolo (grande em células vegetais)', mastery: 3 },
+                  { id: 1, question: 'Qual organela produz ATP?', answer: 'Mitocondria', mastery: 5 },
+                  { id: 2, question: 'Qual e a funcao do reticulo endoplasmatico rugoso?', answer: 'Sintese de proteinas', mastery: 4 },
+                  { id: 3, question: 'Qual organela realiza a digestao intracelular?', answer: 'Lisossomo', mastery: 4 },
                 ],
                 quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Qual organela é conhecida como a "usina da célula"?', 
-                    options: ['Núcleo', 'Mitocôndria', 'Lisossomo', 'Complexo de Golgi'],
-                    correctAnswer: 1,
-                    explanation: 'A mitocôndria é responsável pela produção de ATP através da respiração celular aeróbica.'
-                  },
+                  { id: 1, question: 'Qual organela e conhecida como a "usina da celula"?', options: ['Nucleo', 'Mitocondria', 'Lisossomo', 'Complexo de Golgi'], correctAnswer: 1, explanation: 'A mitocondria e responsavel pela producao de ATP.' },
                 ],
-                model3D: {
-                  id: 'cell-organelles-3d',
-                  name: 'Célula e Organelas',
-                  description: 'Modelo interativo de célula eucarionte',
-                  available: true
-                }
               },
-            ]
-          }
-        ]
-      }
-    ]
+            ],
+          },
+        ],
+      },
+    ],
   },
-  {
-    id: 'microbiology',
-    name: 'Microbiologia',
-    color: 'bg-cyan-500',
-    accentColor: 'text-cyan-500',
-    semesters: [
-      {
-        id: 'sem1',
-        title: 'Bacteriologia',
-        sections: [
-          {
-            id: 'bacteria',
-            title: 'Bactérias',
-            imageUrl: 'https://images.unsplash.com/photo-1584036561566-b45238f2e26f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiYWN0ZXJpYXxlbnwxfHx8fDE2OTk2NTU4NTB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-            topics: [
-              { 
-                id: 'gram', 
-                title: 'Gram Positivas vs Negativas', 
-                summary: 'Classificação baseada na estrutura da parede celular bacteriana, fundamental para identificação e tratamento.',
-                videoUrl: '#',
-                flashcards: [
-                  { id: 1, question: 'O que diferencia bactérias Gram+ de Gram-?', answer: 'Espessura da camada de peptideoglicano na parede celular', mastery: 4 },
-                  { id: 2, question: 'Qual cor ficam as bactérias Gram+ após coloração?', answer: 'Roxo/azul (retém o cristal violeta)', mastery: 5 },
-                  { id: 3, question: 'Qual estrutura está presente apenas em Gram-?', answer: 'Membrana externa com lipopolissacarídeos (LPS)', mastery: 3 },
-                  { id: 4, question: 'Cite um exemplo de bactéria Gram+', answer: 'Staphylococcus aureus, Streptococcus pyogenes', mastery: 4 },
-                ],
-                quizzes: [
-                  { 
-                    id: 1, 
-                    question: 'Por que bactérias Gram-negativas são geralmente mais resistentes a antibióticos?', 
-                    options: ['Têm parede mais grossa', 'Têm membrana externa', 'Não têm parede celular', 'Têm cápsula'],
-                    correctAnswer: 1,
-                    explanation: 'A membrana externa das Gram-negativas atua como barreira adicional, dificultando a penetração de antibióticos.'
-                  },
-                ],
-                model3D: {
-                  id: 'bacteria-cell-wall-3d',
-                  name: 'Parede Celular Bacteriana',
-                  description: 'Comparação entre Gram+ e Gram-',
-                  available: true
-                }
-              },
-            ]
-          }
-        ]
-      }
-    ]
-  }
 ];
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+
+export type TopicSubcategory = 'Visao Geral' | 'Aparelho Locomotor' | 'Neurovascular';
+
+/** Derive a subcategory from a topic's ID/title pattern */
+export function getTopicSubcategory(topic: Topic): TopicSubcategory {
+  const id = topic.id.toLowerCase();
+  const title = topic.title.toLowerCase();
+
+  if (
+    id.includes('artrologia') || id.includes('musculatura') || id.includes('compartment') ||
+    title.includes('artrologia') || title.includes('musculatura') || title.includes('compartimento')
+  ) {
+    return 'Aparelho Locomotor';
+  }
+  if (
+    id.includes('vasc') || id.includes('nerves') || id.includes('inerv') ||
+    title.includes('vasculariz') || title.includes('inervac')
+  ) {
+    return 'Neurovascular';
+  }
+  return 'Visao Geral';
+}
+
+/** Subcategory display config */
+export const SUBCATEGORY_CONFIG: Record<TopicSubcategory, { label: string; color: string; dot: string }> = {
+  'Visao Geral':        { label: 'Visao Geral',        color: 'text-sky-600',    dot: 'bg-sky-400' },
+  'Aparelho Locomotor': { label: 'Aparelho Locomotor',  color: 'text-amber-600',  dot: 'bg-amber-400' },
+  'Neurovascular':      { label: 'Neurovascular',       color: 'text-violet-600', dot: 'bg-violet-400' },
+};
+
+/** Group a section's topics by derived subcategory, preserving order */
+export function groupTopicsBySubcategory(topics: Topic[]): { subcategory: TopicSubcategory; topics: Topic[] }[] {
+  const order: TopicSubcategory[] = ['Visao Geral', 'Aparelho Locomotor', 'Neurovascular'];
+  const groups = new Map<TopicSubcategory, Topic[]>();
+
+  for (const topic of topics) {
+    const sub = getTopicSubcategory(topic);
+    if (!groups.has(sub)) groups.set(sub, []);
+    groups.get(sub)!.push(topic);
+  }
+
+  return order.filter(s => groups.has(s)).map(s => ({ subcategory: s, topics: groups.get(s)! }));
+}
+
+/** Group sections by region for display purposes */
+export function groupSectionsByRegion(sections: Section[]): { region: string; sections: Section[] }[] {
+  const groups: { region: string; sections: Section[] }[] = [];
+  const seen = new Map<string, Section[]>();
+
+  for (const sec of sections) {
+    const region = sec.region || 'Geral';
+    if (!seen.has(region)) {
+      const group = { region, sections: [sec] };
+      groups.push(group);
+      seen.set(region, group.sections);
+    } else {
+      seen.get(region)!.push(sec);
+    }
+  }
+
+  return groups;
+}
+
+/** Flatten all topics from a course (utility) */
+export function getAllTopics(course: Course): Topic[] {
+  return course.semesters.flatMap(sem =>
+    sem.sections.flatMap(sec => sec.topics)
+  );
+}
+
+/** Flatten topics including subtopics into a single list of leaf-level items */
+export function flattenTopicsWithSubtopics(topics: Topic[]): Topic[] {
+  return topics.flatMap(t => t.subtopics && t.subtopics.length > 0 ? t.subtopics : [t]);
+}
+
+/** Find a static topic by ID across all courses (searches subtopics too) */
+export function findStaticTopic(courseId: string, topicId: string): Topic | undefined {
+  const course = courses.find(c => c.id === courseId);
+  if (!course) return undefined;
+  for (const sem of course.semesters) {
+    for (const sec of sem.sections) {
+      for (const t of sec.topics) {
+        if (t.id === topicId) return t;
+        if (t.subtopics) {
+          const sub = t.subtopics.find(st => st.id === topicId);
+          if (sub) return sub;
+        }
+      }
+    }
+  }
+  return undefined;
+}

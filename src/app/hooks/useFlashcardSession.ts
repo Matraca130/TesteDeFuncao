@@ -1,13 +1,6 @@
-// ============================================================
-// useFlashcardSession — Logic hook for FlashcardView
-// Manages: navigation state machine, session cards, ratings
-// ============================================================
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import type { Section, Topic, Flashcard } from '@/app/data/courses';
-
-// ── Types ──
 
 export type FlashcardViewState = 'hub' | 'section' | 'deck' | 'session' | 'summary';
 
@@ -18,8 +11,6 @@ export interface MasteryStats {
   learning: number;
   newCards: number;
 }
-
-// ── Pure utility (exported for reuse) ──
 
 export function getMasteryStats(cards: Flashcard[]): MasteryStats {
   if (cards.length === 0) return { avg: 0, pct: 0, mastered: 0, learning: 0, newCards: 0 };
@@ -33,50 +24,44 @@ export function getMasteryStats(cards: Flashcard[]): MasteryStats {
   };
 }
 
-// ── Constants ──
-
 export const RATINGS = [
-  { value: 1, label: 'N\u00e3o sei', color: 'bg-rose-500', hover: 'hover:bg-rose-600', text: 'text-rose-500', desc: 'Repetir logo' },
-  { value: 2, label: 'Dif\u00edcil', color: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-500', desc: 'Repetir em breve' },
-  { value: 3, label: 'M\u00e9dio', color: 'bg-yellow-400', hover: 'hover:bg-yellow-500', text: 'text-yellow-500', desc: 'D\u00favida razo\u00e1vel' },
-  { value: 4, label: 'F\u00e1cil', color: 'bg-lime-500', hover: 'hover:bg-lime-600', text: 'text-lime-600', desc: 'Entendi bem' },
+  { value: 1, label: 'Nao sei', color: 'bg-rose-500', hover: 'hover:bg-rose-600', text: 'text-rose-500', desc: 'Repetir logo' },
+  { value: 2, label: 'Dificil', color: 'bg-orange-500', hover: 'hover:bg-orange-600', text: 'text-orange-500', desc: 'Repetir em breve' },
+  { value: 3, label: 'Medio', color: 'bg-yellow-400', hover: 'hover:bg-yellow-500', text: 'text-yellow-500', desc: 'Duvida razoavel' },
+  { value: 4, label: 'Facil', color: 'bg-lime-500', hover: 'hover:bg-lime-600', text: 'text-lime-600', desc: 'Entendi bem' },
   { value: 5, label: 'Perfeito', color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', text: 'text-emerald-500', desc: 'Memorizado' },
 ] as const;
-
-// ── Hook ──
 
 export function useFlashcardSession() {
   const { currentCourse, setActiveView, setCurrentTopic } = useApp();
 
-  // View state machine
   const [viewState, setViewState] = useState<FlashcardViewState>('hub');
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [selectedSectionIdx, setSelectedSectionIdx] = useState(0);
 
-  // Session state
   const [isRevealed, setIsRevealed] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [sessionStats, setSessionStats] = useState<number[]>([]);
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
 
-  // Derived data
   const allSections = useMemo(() => {
     return currentCourse.semesters.flatMap(sem => sem.sections);
   }, [currentCourse]);
 
   const allFlashcards = useMemo(() => {
-    return allSections.flatMap(sec => sec.topics.flatMap(t => t.flashcards || []));
+    return allSections.flatMap(sec => sec.topics.flatMap(t => {
+      const topicCards = t.flashcards || [];
+      const subCards = (t.subtopics || []).flatMap(st => st.flashcards || []);
+      return [...topicCards, ...subCards];
+    }));
   }, [allSections]);
 
-  // Reset on course change
   useEffect(() => {
     setViewState('hub');
     setSelectedSection(null);
     setSelectedTopic(null);
   }, [currentCourse]);
-
-  // ── Navigation actions ──
 
   const openSection = useCallback((section: Section, idx: number) => {
     setSelectedSection(section);
@@ -92,10 +77,11 @@ export function useFlashcardSession() {
   const goBack = useCallback(() => {
     if (viewState === 'deck') { setViewState('section'); setSelectedTopic(null); }
     else if (viewState === 'section') { setViewState('hub'); setSelectedSection(null); }
-    else { setActiveView('study'); }
-  }, [viewState, setActiveView]);
-
-  // ── Session actions ──
+    else if (viewState === 'session' || viewState === 'summary') {
+      setViewState(selectedTopic ? 'deck' : selectedSection ? 'section' : 'hub');
+    }
+    else { setViewState('hub'); }
+  }, [viewState, selectedTopic, selectedSection]);
 
   const startSession = useCallback((cards: Flashcard[]) => {
     if (cards.length === 0) return;
@@ -110,16 +96,12 @@ export function useFlashcardSession() {
     setSessionStats(prev => [...prev, rating]);
     setIsRevealed(false);
 
-    const advanceOrFinish = (idx: number) => {
-      if (idx < sessionCards.length - 1) {
-        setTimeout(() => setCurrentIndex(p => p + 1), 200);
+    setCurrentIndex(prev => {
+      if (prev < sessionCards.length - 1) {
+        setTimeout(() => setCurrentIndex(prev + 1), 200);
       } else {
         setTimeout(() => setViewState('summary'), 200);
       }
-    };
-
-    setCurrentIndex(prev => {
-      advanceOrFinish(prev);
       return prev;
     });
   }, [sessionCards.length]);
@@ -135,36 +117,18 @@ export function useFlashcardSession() {
     setViewState(selectedTopic ? 'deck' : selectedSection ? 'section' : 'hub');
   }, [selectedTopic, selectedSection]);
 
-  // ── Study topic action ──
-
   const studySelectedTopic = useCallback(() => {
+    // No study view in this module - just go back to deck
     if (selectedTopic) {
       setCurrentTopic(selectedTopic);
-      setActiveView('study');
     }
-  }, [selectedTopic, setCurrentTopic, setActiveView]);
+  }, [selectedTopic, setCurrentTopic]);
 
   return {
-    viewState,
-    selectedSection,
-    selectedTopic,
-    selectedSectionIdx,
-    isRevealed,
-    setIsRevealed,
-    currentIndex,
-    sessionStats,
-    sessionCards,
-    allSections,
-    allFlashcards,
-    currentCourse,
-    openSection,
-    openDeck,
-    goBack,
-    startSession,
-    handleRate,
-    restartSession,
-    exitSession,
-    studySelectedTopic,
-    setActiveView,
+    viewState, selectedSection, selectedTopic, selectedSectionIdx,
+    isRevealed, setIsRevealed, currentIndex, sessionStats, sessionCards,
+    allSections, allFlashcards, currentCourse,
+    openSection, openDeck, goBack, startSession, handleRate,
+    restartSession, exitSession, studySelectedTopic, setActiveView,
   };
 }
