@@ -6,9 +6,9 @@ import { headingStyle } from '@/app/design-system';
 import { AxonPageHeader } from '@/app/components/shared/AxonPageHeader';
 import { kvFetch } from './admin-api';
 
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 // THEME CONFIG
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 export interface TopicSelectorTheme {
   /** Page header title, e.g. "Admin Quizzes" */
   title: string;
@@ -99,9 +99,9 @@ export const FLASHCARD_THEME: TopicSelectorTheme = {
   staticLabel: 'estaticos',
 };
 
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 // HOOK: useDynamicCurriculum
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 function useDynamicCurriculum(courseId: string, course: Course) {
   const [dynamicSemesters, setDynamicSemesters] = useState<Semester[] | null>(null);
   const [loadingStructure, setLoadingStructure] = useState(true);
@@ -154,9 +154,9 @@ function useDynamicCurriculum(courseId: string, course: Course) {
   };
 }
 
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 // COMPONENT
-// ══════════════════════════════════════════
+// ════════════════════════════════════════
 interface AdminTopicSelectorProps {
   currentCourse: Course;
   savedIndex: Record<string, any>;
