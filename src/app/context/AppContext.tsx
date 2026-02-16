@@ -1,33 +1,16 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
-export type ViewType = 'home' | 'dashboard' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin' | 'flashcard-admin';
-export type ThemeType = 'dark' | 'light';
+export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin';
 
-export interface StudyPlanTask {
-  id: string;
-  date: Date;
-  title: string;
-  subject: string;
-  subjectColor: string;
-  method: string;
-  estimatedMinutes: number;
-  completed: boolean;
-}
-
-export interface StudyPlan {
-  id: string;
-  name: string;
-  subjects: { id: string; name: string; color: string }[];
-  methods: string[];
-  selectedTopics: { courseId: string; courseName: string; sectionTitle: string; topicTitle: string; topicId: string }[];
-  completionDate: Date;
-  weeklyHours: number[]; // [mon, tue, wed, thu, fri, sat, sun]
-  tasks: StudyPlanTask[];
-  createdAt: Date;
-  totalEstimatedHours: number;
-}
+// ════════════════════════════════════════════════════════════════
+// 🔑 ADMIN AUTH — PLACEHOLDER (SUBSTITUIR POR AUTH REAL DEPOIS)
+// Busque "ADMIN_PLACEHOLDER" no código para encontrar todos os
+// pontos que precisam ser atualizados quando implementar Supabase Auth.
+// ════════════════════════════════════════════════════════════════
+// ADMIN_PLACEHOLDER: Senha hardcoded — trocar por Supabase Auth session
+const ADMIN_PASSWORD = 'admin123';
 
 interface AppContextType {
   currentCourse: Course;
@@ -38,100 +21,62 @@ interface AppContextType {
   setActiveView: (view: ViewType) => void;
   isSidebarOpen: boolean;
   setSidebarOpen: (isOpen: boolean) => void;
-  isStudySessionActive: boolean;
-  setStudySessionActive: (active: boolean) => void;
-  studyPlans: StudyPlan[];
-  addStudyPlan: (plan: StudyPlan) => void;
-  toggleTaskComplete: (planId: string, taskId: string) => void;
-  quizAutoStart: boolean;
-  setQuizAutoStart: (v: boolean) => void;
-  flashcardAutoStart: boolean;
-  setFlashcardAutoStart: (v: boolean) => void;
-  theme: ThemeType;
-  setTheme: (theme: ThemeType) => void;
+  // ADMIN_PLACEHOLDER: Admin session state
+  isAdmin: boolean;
+  adminLogin: (password: string) => boolean;
+  adminLogout: () => void;
 }
 
 const noop = () => {};
-
-const defaultContextValue: AppContextType = {
+const AppContext = createContext<AppContextType>({
   currentCourse: courses[0],
   setCurrentCourse: noop,
   currentTopic: courses[0].semesters[0].sections[0].topics[0],
   setCurrentTopic: noop,
-  activeView: 'home',
+  activeView: 'dashboard',
   setActiveView: noop,
   isSidebarOpen: true,
   setSidebarOpen: noop,
-  isStudySessionActive: false,
-  setStudySessionActive: noop,
-  studyPlans: [],
-  addStudyPlan: noop,
-  toggleTaskComplete: noop,
-  quizAutoStart: false,
-  setQuizAutoStart: noop,
-  flashcardAutoStart: false,
-  setFlashcardAutoStart: noop,
-  theme: 'light',
-  setTheme: noop,
-};
-
-const AppContext = createContext<AppContextType>(defaultContextValue);
+  // ADMIN_PLACEHOLDER defaults
+  isAdmin: false,
+  adminLogin: () => false,
+  adminLogout: noop,
+});
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentCourse, setCurrentCourse] = useState<Course>(courses[0]);
-  const defaultTopic = courses[0].semesters[0].sections[0].topics[0];
-  const [currentTopic, setCurrentTopic] = useState<Topic | null>(defaultTopic);
-  const [activeView, setActiveView] = useState<ViewType>('home');
+  const [currentTopic, setCurrentTopic] = useState<Topic | null>(courses[0].semesters[0].sections[0].topics[0]);
+  const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [isStudySessionActive, setStudySessionActive] = useState(false);
-  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
-  const [quizAutoStart, setQuizAutoStart] = useState(false);
-  const [flashcardAutoStart, setFlashcardAutoStart] = useState(false);
-  const [theme, setTheme] = useState<ThemeType>('light');
+  // ADMIN_PLACEHOLDER: simple boolean session (no persistence)
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const addStudyPlan = (plan: StudyPlan) => {
-    setStudyPlans(prev => [...prev, plan]);
-  };
+  const adminLogin = useCallback((password: string): boolean => {
+    // ADMIN_PLACEHOLDER: Comparação com senha hardcoded
+    if (password === ADMIN_PASSWORD) {
+      setIsAdmin(true);
+      return true;
+    }
+    return false;
+  }, []);
 
-  const toggleTaskComplete = (planId: string, taskId: string) => {
-    setStudyPlans(prev => prev.map(plan => {
-      if (plan.id !== planId) return plan;
-      return {
-        ...plan,
-        tasks: plan.tasks.map(task =>
-          task.id === taskId ? { ...task, completed: !task.completed } : task
-        )
-      };
-    }));
-  };
+  const adminLogout = useCallback(() => {
+    // ADMIN_PLACEHOLDER: Limpar sessão admin
+    setIsAdmin(false);
+    setActiveView('dashboard');
+  }, []);
 
   return (
     <AppContext.Provider value={{
-      currentCourse,
-      setCurrentCourse,
-      currentTopic,
-      setCurrentTopic,
-      activeView,
-      setActiveView,
-      isSidebarOpen,
-      setSidebarOpen,
-      isStudySessionActive,
-      setStudySessionActive,
-      studyPlans,
-      addStudyPlan,
-      toggleTaskComplete,
-      quizAutoStart,
-      setQuizAutoStart,
-      flashcardAutoStart,
-      setFlashcardAutoStart,
-      theme,
-      setTheme,
+      currentCourse, setCurrentCourse,
+      currentTopic, setCurrentTopic,
+      activeView, setActiveView,
+      isSidebarOpen, setSidebarOpen,
+      isAdmin, adminLogin, adminLogout,
     }}>
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useApp() {
-  return useContext(AppContext);
-}
+export function useApp() { return useContext(AppContext); }
