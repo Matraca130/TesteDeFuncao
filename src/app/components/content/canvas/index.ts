@@ -12,4 +12,5 @@ export { PdfBlocksRenderer, pdfKeywordHtml } from './PdfRenderer';
 export { ImagePickerModal, ImageResizeHandle, ColumnResizeHandle } from './ImageComponents';
 export { KeywordPicker } from './KeywordPicker';
 export { KeywordPopoverProvider } from './KeywordPopover';
+export { AnnotationPanel } from './AnnotationPanel';
 export { ReorderBlockWrapper } from './ReorderBlockWrapper';
