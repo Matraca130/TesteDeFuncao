@@ -654,7 +654,7 @@ function QuizSession({ topic, onBack }: { topic: Topic | null; onBack: () => voi
                         {isCorrectResult ? (
                           <><CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-emerald-600 mb-1">Resposta correta</p>{currentQ.explanation && <p className="text-xs text-gray-500 leading-relaxed">{currentQ.explanation}</p>}</div></>
                         ) : (
-                          <><XCircle size={14} className="text-rose-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-rose-600 mb-1">Nao exatamente</p><p className="text-xs text-gray-600 mb-1">Palabra correta: <span className="font-semibold text-gray-800">{currentQ.blankAnswer}</span></p>{currentQ.explanation && <p className="text-xs text-gray-500 leading-relaxed">{currentQ.explanation}</p>}</div></>
+                          <><XCircle size={14} className="text-rose-500 mt-0.5 shrink-0" /><div><p className="text-xs font-semibold text-rose-600 mb-1">Nao exatamente</p><p className="text-xs text-gray-600 mb-1">Palavra correta: <span className="font-semibold text-gray-800">{currentQ.blankAnswer}</span></p>{currentQ.explanation && <p className="text-xs text-gray-500 leading-relaxed">{currentQ.explanation}</p>}</div></>
                         )}
                       </div>
                     )}
