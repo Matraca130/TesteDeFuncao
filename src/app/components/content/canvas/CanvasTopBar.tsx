@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
-// CANVAS TOP BAR — Header do editor com acoes principais
-// Extraido de ResumoCanvas para modularizacao
+// CANVAS TOP BAR — Header do editor com ações principais
+// Extraído de ResumoCanvas para modularización
 // ══════════════════════════════════════════════════════════════
 import React from 'react';
 import clsx from 'clsx';

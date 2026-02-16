@@ -44,7 +44,7 @@ export function KeywordPicker({ search, onSearchChange, onSelect }: KeywordPicke
           />
         </div>
         <p className="text-[10px] text-gray-400 mt-1.5 px-1">
-          {keywordsDatabase.length} termos disponiveis &middot; Clique para inserir
+          {keywordsDatabase.length} termos disponíveis &middot; Clique para inserir
         </p>
       </div>
 

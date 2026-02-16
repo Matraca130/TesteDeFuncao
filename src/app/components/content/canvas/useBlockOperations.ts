@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════
 // USE BLOCK OPERATIONS — Hook for block CRUD + undo/redo
-// Extraido de ResumoCanvas para modularizacao
+// Extraído de ResumoCanvas para modularización
 // ══════════════════════════════════════════════════════════════
 import { useState, useCallback } from 'react';
 import type { BlockType, CanvasBlock } from './types';
