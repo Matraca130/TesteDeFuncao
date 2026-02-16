@@ -1,6 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import { headingStyle } from '@/app/design-system';
+import { KeywordPopoverProvider } from './canvas/KeywordPopover';
 
 /**
  * Read-only renderer for canvas blocks saved in a StudySummary.
@@ -100,6 +101,7 @@ export function CanvasBlocksRenderer({ blocksJson }: { blocksJson: string }) {
   const rows = groupBlocksIntoRows(blocks);
 
   return (
+    <KeywordPopoverProvider>
     <div className="space-y-4">
       {rows.map((row) => {
         if (row.groupId) {
@@ -118,6 +120,7 @@ export function CanvasBlocksRenderer({ blocksJson }: { blocksJson: string }) {
         return <RenderBlock key={row.columns[0].blocks[0].id} block={row.columns[0].blocks[0]} />;
       })}
     </div>
+    </KeywordPopoverProvider>
   );
 }
 
