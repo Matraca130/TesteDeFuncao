@@ -4,6 +4,7 @@ import { AppProvider, useApp } from '@/app/context/AppContext';
 import { StudentDataProvider } from '@/app/context/StudentDataContext';
 import { DashboardView } from '@/app/components/content/DashboardView';
 import { ResumosView } from '@/app/components/content/ResumosView';
+import { StudyView } from '@/app/components/content/StudyView';
 import { AdminPanel, AdminLoginGate } from '@/app/components/content/AdminPanel';
 import { Sidebar, SidebarToggle } from '@/app/components/shared/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
@@ -19,6 +20,8 @@ function ViewRouter() {
 
   const renderView = () => {
     switch (activeView) {
+      case 'study':
+        return <StudyView key="study" />;
       case 'resumos':
         return <ResumosView key="resumos" />;
       case 'admin':

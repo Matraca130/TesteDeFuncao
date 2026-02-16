@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Home,
   Shield,
+  Monitor,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -30,11 +31,13 @@ const iconMap: Record<string, React.ElementType> = {
   Settings,
   Users,
   Shield,
+  Monitor,
 };
 
 /** Módulos principales — estos son los 3 módulos independientes del proyecto */
 const moduleItems: { id: ViewType; label: string; icon: string; description: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', description: 'Visao geral' },
+  { id: 'study', label: 'Estudar', icon: 'Monitor', description: 'Sessao de estudos' },
   { id: 'resumos', label: 'Resumos', icon: 'BookOpen', description: 'Resumos de estudo' },
   { id: 'quiz', label: 'Quiz', icon: 'GraduationCap', description: 'Testar conhecimento' },
 ];
