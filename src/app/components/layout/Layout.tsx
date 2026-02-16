@@ -12,7 +12,7 @@ import { StudyView } from '@/app/components/content/StudyView';
 import { FlashcardView } from '@/app/components/content/FlashcardView';
 import { ThreeDView } from '@/app/components/content/ThreeDView';
 import { QuizView } from '@/app/components/content/QuizView';
-import { ScheduleView } from '@/app/components/content/ScheduleView';
+import { ScheduleView } from '@/app/components/content/schedule';
 import { StudyOrganizerWizard } from '@/app/components/content/StudyOrganizerWizard';
 import { ReviewSessionView } from '@/app/components/content/ReviewSessionView';
 import { StudyDashboardsView } from '@/app/components/content/StudyDashboardsView';
