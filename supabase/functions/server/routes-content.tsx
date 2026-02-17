@@ -105,7 +105,7 @@ registerCrudRoutes(content, {
   route: "semesters",
   label: "Semester",
   primaryKey: KV.semester,
-  requiredFields: ["title", "course_id"],
+  requiredFields: ["name", "course_id"],
   optionalDefaults: { year: null, sort_order: 0 },
   parentField: "course_id",
   indexKey: KV.IDX.semesterOfCourse,
@@ -138,7 +138,7 @@ registerCrudRoutes(content, {
   route: "sections",
   label: "Section",
   primaryKey: KV.section,
-  requiredFields: ["title", "semester_id"],
+  requiredFields: ["name", "semester_id"],
   optionalDefaults: { region: null, image_url: null, sort_order: 0 },
   parentField: "semester_id",
   indexKey: KV.IDX.sectionOfSemester,
@@ -166,7 +166,7 @@ registerCrudRoutes(content, {
   route: "topics",
   label: "Topic",
   primaryKey: KV.topic,
-  requiredFields: ["title", "section_id"],
+  requiredFields: ["name", "section_id"],
   optionalDefaults: { description: null, sort_order: 0 },
   parentField: "section_id",
   indexKey: KV.IDX.topicOfSection,
@@ -212,6 +212,7 @@ content.post("/institutions", async (c) => {
 
     // Auto-add creator as admin member
     const membership = {
+      id: crypto.randomUUID(),
       institution_id: id,
       user_id: user.id,
       role: "admin",
@@ -271,6 +272,7 @@ content.post("/institutions/:id/members", async (c) => {
       return validationError(c, "Missing user_id or role");
 
     const membership = {
+      id: crypto.randomUUID(),
       institution_id: instId,
       user_id: body.user_id,
       role: body.role,
@@ -316,16 +318,17 @@ content.post("/summaries", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
-    if (!body.topic_id || !body.institution_id || !body.title)
-      return validationError(c, "Missing topic_id, institution_id or title");
+    if (!body.topic_id || !body.course_id || !body.content_markdown || !body.status)
+      return validationError(c, "Missing topic_id, course_id, content_markdown, or status");
     const id = crypto.randomUUID();
     const summary = {
       id,
       topic_id: body.topic_id,
-      institution_id: body.institution_id,
-      title: body.title,
-      content: body.content ?? "",
-      status: body.status || "draft",
+      course_id: body.course_id,
+      institution_id: body.institution_id || null,
+      title: body.title || null,
+      content_markdown: body.content_markdown,
+      status: body.status,
       source: body.source || "manual",
       created_at: new Date().toISOString(),
       created_by: user.id,
@@ -440,18 +443,19 @@ content.post("/summaries/:id/chunk", async (c) => {
     if (!user) return unauthorized(c);
     const summaryId = c.req.param("id");
     const body = await c.req.json();
-    if (!body.content) return validationError(c, "Missing content");
+    const chunkText = body.chunk_text || body.content;
+    if (!chunkText) return validationError(c, "Missing chunk_text");
     const id = crypto.randomUUID();
-    const sortOrder = body.sort_order ?? 0;
+    const chunkIndex = body.chunk_index ?? body.sort_order ?? 0;
     const chunk = {
       id,
       summary_id: summaryId,
-      content: body.content,
-      sort_order: sortOrder,
+      chunk_text: chunkText,
+      chunk_index: chunkIndex,
       created_at: new Date().toISOString(),
     };
     await kv.mset(
-      [KV.chunk(id), KV.IDX.chunkOfSummary(summaryId, sortOrder)],
+      [KV.chunk(id), KV.IDX.chunkOfSummary(summaryId, id)],
       [chunk, id]
     );
     return c.json({ success: true, data: chunk }, 201);
@@ -764,11 +768,13 @@ content.put("/content/batch-status", async (c) => {
     const valsToWrite: any[] = [];
 
     for (const item of items) {
-      const { entity_type, id, new_status } = item;
+      const entity_type = item.entity_type || item.type;
+      const id = item.id;
+      const new_status = item.new_status || item.status;
       if (!entity_type || !id || !new_status)
         return validationError(
           c,
-          "Invalid item: missing entity_type, id, or new_status"
+          "Invalid item: missing entity_type/type, id, or new_status/status"
         );
       if (!validStatuses.includes(new_status))
         return validationError(

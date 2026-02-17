@@ -53,8 +53,8 @@ export const KV = {
       `idx:section-topics:${secId}:${topicId}`,
     summaryOfTopic: (topicId: string, summaryId: string) =>
       `idx:topic-summaries:${topicId}:${summaryId}`,
-    chunkOfSummary: (summaryId: string, sortOrder: number) =>
-      `idx:summary-chunks:${summaryId}:${String(sortOrder).padStart(6, "0")}`,
+    chunkOfSummary: (summaryId: string, chunkId: string) =>
+      `idx:summary-chunks:${summaryId}:${chunkId}`,
     keywordOfInst: (instId: string, kwId: string) =>
       `idx:inst-kw:${instId}:${kwId}`,
     keywordOfSummary: (summaryId: string, kwId: string) =>
