@@ -1,7 +1,7 @@
 // ============================================================
 // Axon v4.2 — KV Key Builders
 // Matches kv-schema.ts contract (27 primary + 30 indices)
-// Extended by Dev 3 with flashcard/review/session/BKT/FSRS keys
+// + Dev 2: Reading state & Annotation keys
 // ============================================================
 
 export const KV = {
@@ -23,11 +23,10 @@ export const KV = {
   quizQuestion: (id: string) => `quiz-q:${id}`,
   aiDraft: (id: string) => `ai-draft:${id}`,
 
-  // ── Dev 3: Learning state primary keys ──
-  bkt: (userId: string, subtopicId: string) => `bkt:${userId}:${subtopicId}`,
-  fsrs: (userId: string, cardId: string) => `fsrs:${userId}:${cardId}`,
-  review: (id: string) => `review:${id}`,
-  session: (id: string) => `session:${id}`,
+  // ── Dev 2: Reading & Annotation primary keys ──
+  readingState: (studentId: string, summaryId: string) =>
+    `reading:${studentId}:${summaryId}`,
+  annotation: (id: string) => `annotation:${id}`,
 
   // ── Index keys (value = child ID) ──
   IDX: {
@@ -62,23 +61,11 @@ export const KV = {
     quizOfKeyword: (kwId: string, qId: string) =>
       `idx:kw-quiz:${kwId}:${qId}`,
 
-    // ── Dev 3: Flashcard indices ──
-    flashcardOfSummary: (summaryId: string, fcId: string) =>
-      `idx:summary-fc:${summaryId}:${fcId}`,
-
-    // ── Dev 3: Learning state indices ──
-    sessionReview: (sessionId: string, reviewId: string) =>
-      `idx:session-reviews:${sessionId}:${reviewId}`,
-    studentKwBkt: (userId: string, kwId: string, subtopicId: string) =>
-      `idx:student-kw-bkt:${userId}:${kwId}:${subtopicId}`,
-    studentBkt: (userId: string, subtopicId: string) =>
-      `idx:student-bkt:${userId}:${subtopicId}`,
-    studentFsrs: (userId: string, cardId: string) =>
-      `idx:student-fsrs:${userId}:${cardId}`,
-    dueCard: (userId: string, date: string, cardId: string) =>
-      `idx:due:${userId}:${date}:${cardId}`,
-    studentSession: (userId: string, sessionId: string) =>
-      `idx:student-sessions:${userId}:${sessionId}`,
+    // ── Dev 2: Reading & Annotation indices ──
+    readingOfStudent: (studentId: string, summaryId: string) =>
+      `idx:student-reading:${studentId}:${summaryId}`,
+    annotationOfStudent: (studentId: string, summaryId: string, annotationId: string) =>
+      `idx:student-annotations:${studentId}:${summaryId}:${annotationId}`,
   },
 
   // ── Prefix queries (for getByPrefix) ──
@@ -99,15 +86,10 @@ export const KV = {
     flashcardsOfKeyword: (kwId: string) => `idx:kw-fc:${kwId}:`,
     quizOfKeyword: (kwId: string) => `idx:kw-quiz:${kwId}:`,
 
-    // ── Dev 3: Flashcard prefixes ──
-    flashcardsOfSummary: (summaryId: string) => `idx:summary-fc:${summaryId}:`,
-
-    // ── Dev 3: Learning state prefixes ──
-    reviewsOfSession: (sessionId: string) => `idx:session-reviews:${sessionId}:`,
-    bktOfStudentKw: (userId: string, kwId: string) => `idx:student-kw-bkt:${userId}:${kwId}:`,
-    bktOfStudent: (userId: string) => `idx:student-bkt:${userId}:`,
-    fsrsOfStudent: (userId: string) => `idx:student-fsrs:${userId}:`,
-    dueCardsOfStudent: (userId: string) => `idx:due:${userId}:`,
-    sessionsOfStudent: (userId: string) => `idx:student-sessions:${userId}:`,
+    // ── Dev 2: Reading & Annotation prefixes ──
+    readingsOfStudent: (studentId: string) =>
+      `idx:student-reading:${studentId}:`,
+    annotationsOfStudentSummary: (studentId: string, summaryId: string) =>
+      `idx:student-annotations:${studentId}:${summaryId}:`,
   },
 };
