@@ -18,6 +18,9 @@ export const KV = {
   keywordInstance: (id: string) => `kw-inst:${id}`,
   subtopic: (id: string) => `subtopic:${id}`,
   connection: (id: string) => `conn:${id}`,
+  flashcard: (id: string) => `fc:${id}`,
+  quizQuestion: (id: string) => `quiz-q:${id}`,
+  aiDraft: (id: string) => `ai-draft:${id}`,
 
   // ── Index keys (value = child ID) ──
   IDX: {
@@ -47,6 +50,10 @@ export const KV = {
       `idx:kw-subtopics:${kwId}:${stId}`,
     connectionOfKeyword: (kwId: string, connId: string) =>
       `idx:kw-conn:${kwId}:${connId}`,
+    flashcardOfKeyword: (kwId: string, fcId: string) =>
+      `idx:kw-fc:${kwId}:${fcId}`,
+    quizOfKeyword: (kwId: string, qId: string) =>
+      `idx:kw-quiz:${kwId}:${qId}`,
   },
 
   // ── Prefix queries (for getByPrefix) ──
@@ -64,5 +71,7 @@ export const KV = {
     summariesOfKeyword: (kwId: string) => `idx:kw-summaries:${kwId}:`,
     subtopicsOfKeyword: (kwId: string) => `idx:kw-subtopics:${kwId}:`,
     connectionsOfKeyword: (kwId: string) => `idx:kw-conn:${kwId}:`,
+    flashcardsOfKeyword: (kwId: string) => `idx:kw-fc:${kwId}:`,
+    quizOfKeyword: (kwId: string) => `idx:kw-quiz:${kwId}:`,
   },
 };
