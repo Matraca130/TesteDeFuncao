@@ -1,6 +1,7 @@
 import React from 'react';
 // @refresh reset
 import { AppProvider, useApp } from '@/app/context/AppContext';
+import { AdminProvider, useAdmin } from '@/app/context/AdminContext';
 import { StudentDataProvider } from '@/app/context/StudentDataContext';
 import { DashboardView } from '@/app/components/content/DashboardView';
 import { ResumosView } from '@/app/components/content/ResumosView';
@@ -16,7 +17,8 @@ import { AnimatePresence, motion } from 'motion/react';
  * 2. El resto del routing funciona igual
  */
 function ViewRouter() {
-  const { activeView, isAdmin } = useApp();
+  const { activeView } = useApp();
+  const { isAdmin } = useAdmin();
 
   const renderView = () => {
     switch (activeView) {
@@ -25,7 +27,7 @@ function ViewRouter() {
       case 'resumos':
         return <ResumosView key="resumos" />;
       case 'admin':
-        // ADMIN_PLACEHOLDER: Si no está autenticado, muestra login; si sí, muestra panel
+        // Admin session is managed by AdminContext (independent module)
         return isAdmin ? <AdminPanel key="admin" /> : <AdminLoginGate key="admin-login" />;
       case 'quiz':
         return <div key="quiz" className="h-full flex items-center justify-center bg-[#f5f2ea] text-gray-400 text-sm">Módulo Quiz — em desenvolvimento em outra instância</div>;
@@ -66,9 +68,11 @@ function AppShell() {
 export default function App() {
   return (
     <AppProvider>
-      <StudentDataProvider>
-        <AppShell />
-      </StudentDataProvider>
+      <AdminProvider>
+        <StudentDataProvider>
+          <AppShell />
+        </StudentDataProvider>
+      </AdminProvider>
     </AppProvider>
   );
 }

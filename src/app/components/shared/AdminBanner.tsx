@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '@/app/context/AppContext';
+import { useAdmin } from '@/app/context/AdminContext';
 import { Shield, ArrowRight, Lock, Wrench, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -8,6 +9,9 @@ import clsx from 'clsx';
 // 
 // Uso: Colocar em qualquer módulo/view para indicar que
 // o conteúdo é gerenciado pelo painel Administrador.
+//
+// Auth: useAdmin() (AdminContext — nucleo independiente)
+// Navegacao: useApp() (AppContext — setActiveView)
 // 
 // Variantes:
 //   'banner'   — faixa completa com descrição e botão
@@ -49,7 +53,8 @@ export function AdminBanner({
   showAction = true,
   className,
 }: AdminBannerProps) {
-  const { setActiveView, isAdmin } = useApp();
+  const { setActiveView } = useApp();
+  const { isAdmin } = useAdmin();
 
   const goToAdmin = () => setActiveView('admin');
 
