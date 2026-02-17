@@ -171,7 +171,7 @@ export function Sidebar() {
             {/* Separador AI */}
             <div className="mx-5 my-4 border-t border-white/[0.06]" />
 
-            {/* Dev 6 — AI Section */}
+            {/* Dev 6 — AI Section (same styling as other sections) */}
             <div className="px-3 mb-2">
               <p className={components.sidebar.sectionLabel}>Inteligencia Artificial</p>
             </div>
@@ -186,19 +186,12 @@ export function Sidebar() {
                     className={clsx(
                       components.sidebar.navItem.base,
                       isActive
-                        ? 'bg-purple-500/20 text-purple-300 font-semibold'
-                        : 'text-purple-400/60 hover:text-purple-300 hover:bg-purple-500/10'
+                        ? components.sidebar.navItem.active
+                        : components.sidebar.navItem.inactive
                     )}
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="sidebar-ai-dot"
-                        className="w-1.5 h-1.5 rounded-full bg-purple-400"
-                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      />
-                    )}
                   </button>
                 );
               })}
