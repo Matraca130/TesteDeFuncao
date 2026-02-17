@@ -21,6 +21,10 @@ export async function kvFetch<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}/${path}`, {
     headers: { 'Authorization': `Bearer ${publicAnonKey}` },
   });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`kvFetch ${path} failed: HTTP ${res.status}${errBody ? ` — ${errBody}` : ''}`);
+  }
   return res.json();
 }
 

@@ -95,8 +95,10 @@ export function ContentBadges({ topicId, quizIndex, flashcardIndex, staticTopic 
   const adminQuizzes = quizIndex[topicId]?.questionCount || 0;
   const staticFlashcards = staticTopic?.flashcards?.length || 0;
   const adminFlashcards = flashcardIndex[topicId]?.flashcardCount || 0;
-  const totalQ = staticQuizzes + adminQuizzes;
-  const totalF = staticFlashcards + adminFlashcards;
+
+  // Admin data REPLACES static data — don't add them together
+  const totalQ = adminQuizzes > 0 ? adminQuizzes : staticQuizzes;
+  const totalF = adminFlashcards > 0 ? adminFlashcards : staticFlashcards;
 
   return (
     <div className="flex items-center gap-1.5 shrink-0">
