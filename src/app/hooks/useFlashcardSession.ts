@@ -1,3 +1,7 @@
+// ══════════════════════════════════════════════════════════════
+// AXON — Flashcard Session Hook (pure frontend — no backend)
+// ══════════════════════════════════════════════════════════════
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import type { Section, Topic, Flashcard } from '@/app/data/courses';
@@ -96,14 +100,17 @@ export function useFlashcardSession() {
     setSessionStats(prev => [...prev, rating]);
     setIsRevealed(false);
 
-    setCurrentIndex(prev => {
-      if (prev < sessionCards.length - 1) {
-        setTimeout(() => setCurrentIndex(prev + 1), 200);
-      } else {
-        setTimeout(() => setViewState('summary'), 200);
-      }
-      return prev;
-    });
+    // Advance to next card or show summary after a brief delay
+    setTimeout(() => {
+      setCurrentIndex(prev => {
+        if (prev < sessionCards.length - 1) {
+          return prev + 1;
+        } else {
+          setViewState('summary');
+          return prev;
+        }
+      });
+    }, 200);
   }, [sessionCards.length]);
 
   const restartSession = useCallback(() => {

@@ -154,7 +154,7 @@ export function DiagnosticView() {
                       { label: 'Secao', value: q.sectionTitle },
                       { label: 'Semestre', value: q.semesterTitle },
                       { label: 'Questoes', value: String(q.questionCount), highlight: true },
-                      { label: 'Salvo em', value: q.updatedAt ? new Date(q.updatedAt).toLocaleString('pt-BR') : '\u2014' },
+                      { label: 'Salvo em', value: q.updatedAt ? new Date(q.updatedAt).toLocaleString('pt-BR') : '—' },
                     ]} />
                   ))}
                 </div>
@@ -182,7 +182,7 @@ export function DiagnosticView() {
                       { label: 'Secao', value: f.sectionTitle },
                       { label: 'Semestre', value: f.semesterTitle },
                       { label: 'Flashcards', value: String(f.flashcardCount), highlight: true },
-                      { label: 'Salvo em', value: f.updatedAt ? new Date(f.updatedAt).toLocaleString('pt-BR') : '\u2014' },
+                      { label: 'Salvo em', value: f.updatedAt ? new Date(f.updatedAt).toLocaleString('pt-BR') : '—' },
                     ]} />
                   ))}
                 </div>
@@ -235,24 +235,34 @@ function SummaryCard({ icon, label, count, color, subtext }: {
   icon: React.ReactNode; label: string; count: number; color: string; subtext?: string;
 }) {
   const hasData = count > 0;
+
+  // Tailwind can't detect dynamically-constructed class names (e.g. `bg-${color}-50`).
+  // We must use a static map of complete class names.
+  const colorMap: Record<string, { bg50: string; border: string; text700: string; bg100: string; icon500: string }> = {
+    amber:  { bg50: 'bg-amber-50/50',  border: 'border-amber-200',  text700: 'text-amber-700',  bg100: 'bg-amber-100',  icon500: 'text-amber-500' },
+    violet: { bg50: 'bg-violet-50/50', border: 'border-violet-200', text700: 'text-violet-700', bg100: 'bg-violet-100', icon500: 'text-violet-500' },
+    teal:   { bg50: 'bg-teal-50/50',   border: 'border-teal-200',   text700: 'text-teal-700',   bg100: 'bg-teal-100',   icon500: 'text-teal-500' },
+  };
+  const c = colorMap[color] || colorMap.teal;
+
   return (
     <div className={clsx(
       "rounded-2xl border p-5 flex items-center gap-4",
-      hasData ? `bg-${color}-50/50 border-${color}-200` : "bg-gray-50 border-gray-200"
+      hasData ? `${c.bg50} ${c.border}` : "bg-gray-50 border-gray-200"
     )}>
       <div className={clsx("w-12 h-12 rounded-xl flex items-center justify-center",
-        hasData ? `bg-${color}-100` : "bg-gray-100"
+        hasData ? c.bg100 : "bg-gray-100"
       )}>
         {icon}
       </div>
       <div>
-        <p className={clsx("text-2xl font-bold", hasData ? `text-${color}-700` : "text-gray-400")}>{count}</p>
+        <p className={clsx("text-2xl font-bold", hasData ? c.text700 : "text-gray-400")}>{count}</p>
         <p className="text-xs text-gray-500 font-medium">{label}</p>
         {subtext && <p className="text-[10px] text-gray-400">{subtext}</p>}
       </div>
       <div className="ml-auto">
         {hasData ? (
-          <CheckCircle2 size={20} className={`text-${color}-500`} />
+          <CheckCircle2 size={20} className={c.icon500} />
         ) : (
           <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-2 py-1 rounded-full">Vazio</span>
         )}
@@ -296,16 +306,24 @@ function EmptyBadge({ text }: { text: string }) {
 }
 
 function DataRow({ color, items }: { color: string; items: { label: string; value: string; highlight?: boolean }[] }) {
+  const rowColorMap: Record<string, { border: string; bg: string; highlightText: string }> = {
+    amber:  { border: 'border-amber-100',  bg: 'bg-amber-50/30',  highlightText: 'text-amber-700' },
+    violet: { border: 'border-violet-100', bg: 'bg-violet-50/30', highlightText: 'text-violet-700' },
+    teal:   { border: 'border-teal-100',   bg: 'bg-teal-50/30',   highlightText: 'text-teal-700' },
+    gray:   { border: 'border-gray-100',   bg: 'bg-gray-50/30',   highlightText: 'text-gray-700' },
+  };
+  const c = rowColorMap[color] || rowColorMap.gray;
+
   return (
-    <div className={clsx("rounded-xl border px-4 py-3", `border-${color}-100 bg-${color}-50/30`)}>
+    <div className={clsx("rounded-xl border px-4 py-3", c.border, c.bg)}>
       <div className="flex flex-wrap gap-x-6 gap-y-1">
         {items.map((item, i) => (
           <div key={i} className="flex items-baseline gap-1.5">
             <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">{item.label}:</span>
             <span className={clsx(
               "text-xs font-medium",
-              item.highlight ? `text-${color}-700 font-bold` : "text-gray-700"
-            )}>{item.value || '\u2014'}</span>
+              item.highlight ? `${c.highlightText} font-bold` : "text-gray-700"
+            )}>{item.value || '—'}</span>
           </div>
         ))}
       </div>
@@ -327,8 +345,8 @@ function CurriculumDetail({ item }: { item: any }) {
           <p className="text-sm font-bold text-gray-900">{val.courseName || val.courseId || item.key}</p>
           <p className="text-[10px] text-gray-400">
             Key: <code className="bg-white/60 px-1 rounded">{item.key}</code>
-            {' \u00b7 '}{semesters.length} semestre(s)
-            {val.updatedAt && ` \u00b7 Salvo: ${new Date(val.updatedAt).toLocaleString('pt-BR')}`}
+            {' · '}{semesters.length} semestre(s)
+            {val.updatedAt && ` · Salvo: ${new Date(val.updatedAt).toLocaleString('pt-BR')}`}
           </p>
         </div>
         <ChevronRight size={14} className={clsx("text-gray-400 transition-transform", expanded && "rotate-90")} />
