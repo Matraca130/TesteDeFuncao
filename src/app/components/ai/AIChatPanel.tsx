@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Send, Loader2, Bot, User, Sparkles, Trash2 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 interface AIChatMessage {
   role: 'user' | 'assistant';
@@ -14,6 +15,12 @@ interface AIChatPanelProps {
   context?: { courseName?: string; topicTitle?: string };
   initialMessages?: AIChatMessage[];
 }
+
+// Strict DOMPurify config: only tags produced by formatContent()
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: ['strong', 'code', 'li', 'blockquote', 'br'],
+  ALLOWED_ATTR: ['class'],
+};
 
 export function AIChatPanel({ keywordId, keywordTerm, context, initialMessages }: AIChatPanelProps) {
   const { apiFetch, isAuthenticated } = useAuth();
@@ -54,13 +61,25 @@ export function AIChatPanel({ keywordId, keywordTerm, context, initialMessages }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  function formatContent(content: string) {
-    return content
+  /**
+   * Formats plain-text AI output to basic HTML.
+   * Defense in depth: input is first stripped of any HTML tags,
+   * then formatted, then sanitized again via DOMPurify.
+   */
+  function formatContent(raw: string): string {
+    // Step 1: Strip any existing HTML from AI response (defense in depth)
+    const stripped = raw.replace(/<[^>]*>/g, '');
+
+    // Step 2: Apply markdown-like formatting
+    const html = stripped
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>')
-      .replace(/^- (.*)$/gm, '<li class="ml-4">$1</li>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-200 px-1.5 py-0.5 rounded text-sm font-mono">$1</code>')
+      .replace(/^- (.*)$/gm, '<li class="ml-4 list-disc">$1</li>')
       .replace(/^> (.*)$/gm, '<blockquote class="border-l-3 border-indigo-300 pl-3 italic text-gray-600">$1</blockquote>')
       .replace(/\n/g, '<br/>');
+
+    // Step 3: Sanitize with strict whitelist
+    return DOMPurify.sanitize(html, SANITIZE_CONFIG);
   }
 
   return (
@@ -93,7 +112,10 @@ export function AIChatPanel({ keywordId, keywordTerm, context, initialMessages }
               {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
             </div>
             <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'}`}>
-              {msg.role === 'assistant' ? <div dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} /> : msg.content}
+              {msg.role === 'assistant'
+                ? <div dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} />
+                : msg.content
+              }
             </div>
           </div>
         ))}
