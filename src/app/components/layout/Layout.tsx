@@ -12,7 +12,7 @@ import { StudyView } from '@/app/components/content/StudyView';
 import { FlashcardView } from '@/app/components/content/FlashcardView';
 import { ThreeDView } from '@/app/components/content/ThreeDView';
 import { QuizView } from '@/app/components/content/QuizView';
-import { ScheduleView } from '@/app/components/content/ScheduleView';
+import { ScheduleView } from '@/app/components/content/schedule';
 import { StudyOrganizerWizard } from '@/app/components/content/StudyOrganizerWizard';
 import { ReviewSessionView } from '@/app/components/content/ReviewSessionView';
 import { StudyDashboardsView } from '@/app/components/content/StudyDashboardsView';
@@ -21,6 +21,8 @@ import { MasteryDashboardView } from '@/app/components/content/MasteryDashboardV
 import { StudentDataPanel } from '@/app/components/content/StudentDataPanel';
 import { QuizAdminView } from '@/app/components/admin/QuizAdminView';
 import { FlashcardAdminView } from '@/app/components/admin/FlashcardAdminView';
+import { CurriculumAdminView } from '@/app/components/admin/CurriculumAdminView';
+import { DiagnosticView } from '@/app/components/admin/DiagnosticView';
 import { UserProfileDropdown } from '@/app/components/layout/UserProfileDropdown';
 import { AxonAIAssistant } from '@/app/components/ai/AxonAIAssistant';
 import { components, animation } from '@/app/design-system';
@@ -51,6 +53,8 @@ export function Layout() {
       case 'student-data': return <StudentDataPanel />;
       case 'admin': return <QuizAdminView />;
       case 'flashcard-admin': return <FlashcardAdminView />;
+      case 'curriculum-admin': return <CurriculumAdminView />;
+      case 'diagnostic': return <DiagnosticView />;
       default: return <WelcomeView />;
     };
   };

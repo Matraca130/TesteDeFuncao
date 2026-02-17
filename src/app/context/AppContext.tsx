@@ -2,8 +2,21 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
-export type ViewType = 'home' | 'dashboard' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin' | 'flashcard-admin' | 'curriculum-admin' | 'diagnostic';
+export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin' | 'flashcard-admin' | 'curriculum-admin' | 'diagnostic';
 export type ThemeType = 'dark' | 'light';
+
+// ════════════════════════════════════════════════════════════════
+// APP CONTEXT — Estado do aluno e navegacao
+//
+// Este contexto gerencia APENAS:
+//   - Curso e topico selecionado pelo aluno
+//   - View ativa (routing manual por ViewType)
+//   - Estado do sidebar
+//
+// A sessao admin foi extraida para AdminContext.tsx
+// (nucleo independente). Busque "useAdmin" nos componentes
+// que precisam do estado admin.
+// ════════════════════════════════════════════════════════════════
 
 export interface StudyPlanTask {
   id: string;
