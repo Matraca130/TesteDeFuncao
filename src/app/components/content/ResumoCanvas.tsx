@@ -313,7 +313,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
     setGenerating(true);
     try {
       const { projectId, publicAnonKey } = await import('/utils/supabase/info');
-      const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-3d98c276`;
+      const BASE = `https://${projectId}.supabase.co/functions/v1/make-server-0c4f6a3c`;
       const res = await fetch(`${BASE}/ai/explain`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
