@@ -5,7 +5,7 @@ import {
   BookOpen, HelpCircle, Link2, Tag, FileText
 } from 'lucide-react';
 
-// ── Typed interfaces for AI-generated content ──────────────
+// -- Typed interfaces for AI-generated content --
 
 interface GeneratedSubtopic {
   id: string;
@@ -60,7 +60,7 @@ interface GeneratedDraft {
   suggested_connections: GeneratedConnection[];
 }
 
-// ── Component ──────────────────────────────────────────────
+// -- Component --
 
 interface AIGeneratePanelProps {
   courseId?: string;
