@@ -25,6 +25,38 @@ import {
 
 const content = new Hono();
 
+// ── Cascade helper: collect summary + chunk + kw-xref keys ────
+// Reused by topic, section, semester, and course cascade deletes.
+// For each summary under the given topic, collects:
+//   - summary primary key + topic→summary index
+//   - all chunk primary keys (index keys can’t be reconstructed
+//     without sort_order, but chunks become orphans and are
+//     harmless — getChildren filters with Boolean)
+//   - keyword cross-reference indices (both directions)
+async function collectSummaryCascadeKeys(
+  topicId: string
+): Promise<string[]> {
+  const summaryIds = await kv.getByPrefix(
+    KV.PREFIX.summariesOfTopic(topicId)
+  );
+  const keys: string[] = [];
+  for (const sId of summaryIds) {
+    keys.push(KV.summary(sId), KV.IDX.summaryOfTopic(topicId, sId));
+    // Chunks
+    const chunkIds = await kv.getByPrefix(KV.PREFIX.chunksOfSummary(sId));
+    for (const cId of chunkIds) keys.push(KV.chunk(cId));
+    // Keyword cross-references (both directions)
+    const kwIds = await kv.getByPrefix(KV.PREFIX.keywordsOfSummary(sId));
+    for (const kwId of kwIds) {
+      keys.push(
+        KV.IDX.keywordOfSummary(sId, kwId),
+        KV.IDX.summaryOfKeyword(kwId, sId)
+      );
+    }
+  }
+  return keys;
+}
+
 // ================================================================
 // FACTORY-REGISTERED ENTITIES
 // 5 configs × 5 handlers each = 25 routes generated automatically
@@ -45,8 +77,9 @@ registerCrudRoutes(content, {
   indexKey: KV.IDX.courseOfInst,
   parentQueryParam: "institution_id",
   listPrefix: KV.PREFIX.coursesOfInst,
-  cascadeDelete: (id) =>
-    cascadeCollect(id, [
+  cascadeDelete: async (courseId) => {
+    // Level 0-2: semesters → sections → topics
+    const keys = await cascadeCollect(courseId, [
       {
         childPrefix: KV.PREFIX.semestersOfCourse,
         childPrimaryKey: KV.semester,
@@ -62,7 +95,16 @@ registerCrudRoutes(content, {
         childPrimaryKey: KV.topic,
         childIndexKey: KV.IDX.topicOfSection,
       },
-    ]),
+    ]);
+    // Level 3+: summaries → chunks + keyword cross-refs
+    const topicIds = keys
+      .filter((k) => k.startsWith("topic:"))
+      .map((k) => k.slice(6));
+    for (const tid of topicIds) {
+      keys.push(...(await collectSummaryCascadeKeys(tid)));
+    }
+    return keys;
+  },
 });
 
 registerCrudRoutes(content, {
@@ -75,8 +117,8 @@ registerCrudRoutes(content, {
   indexKey: KV.IDX.semesterOfCourse,
   parentQueryParam: "course_id",
   listPrefix: KV.PREFIX.semestersOfCourse,
-  cascadeDelete: (id) =>
-    cascadeCollect(id, [
+  cascadeDelete: async (semesterId) => {
+    const keys = await cascadeCollect(semesterId, [
       {
         childPrefix: KV.PREFIX.sectionsOfSemester,
         childPrimaryKey: KV.section,
@@ -87,7 +129,15 @@ registerCrudRoutes(content, {
         childPrimaryKey: KV.topic,
         childIndexKey: KV.IDX.topicOfSection,
       },
-    ]),
+    ]);
+    const topicIds = keys
+      .filter((k) => k.startsWith("topic:"))
+      .map((k) => k.slice(6));
+    for (const tid of topicIds) {
+      keys.push(...(await collectSummaryCascadeKeys(tid)));
+    }
+    return keys;
+  },
 });
 
 registerCrudRoutes(content, {
@@ -100,14 +150,22 @@ registerCrudRoutes(content, {
   indexKey: KV.IDX.sectionOfSemester,
   parentQueryParam: "semester_id",
   listPrefix: KV.PREFIX.sectionsOfSemester,
-  cascadeDelete: (id) =>
-    cascadeCollect(id, [
+  cascadeDelete: async (sectionId) => {
+    const keys = await cascadeCollect(sectionId, [
       {
         childPrefix: KV.PREFIX.topicsOfSection,
         childPrimaryKey: KV.topic,
         childIndexKey: KV.IDX.topicOfSection,
       },
-    ]),
+    ]);
+    const topicIds = keys
+      .filter((k) => k.startsWith("topic:"))
+      .map((k) => k.slice(6));
+    for (const tid of topicIds) {
+      keys.push(...(await collectSummaryCascadeKeys(tid)));
+    }
+    return keys;
+  },
 });
 
 registerCrudRoutes(content, {
@@ -120,18 +178,7 @@ registerCrudRoutes(content, {
   indexKey: KV.IDX.topicOfSection,
   parentQueryParam: "section_id",
   listPrefix: KV.PREFIX.topicsOfSection,
-  cascadeDelete: async (id) => {
-    // Topics cascade to summaries → chunks (custom logic because
-    // chunk index keys use sort_order, not chunk ID)
-    const summaryIds = await kv.getByPrefix(KV.PREFIX.summariesOfTopic(id));
-    const keys: string[] = [];
-    for (const sId of summaryIds) {
-      keys.push(KV.summary(sId), KV.IDX.summaryOfTopic(id, sId));
-      const chunkIds = await kv.getByPrefix(KV.PREFIX.chunksOfSummary(sId));
-      for (const cId of chunkIds) keys.push(KV.chunk(cId));
-    }
-    return keys;
-  },
+  cascadeDelete: (topicId) => collectSummaryCascadeKeys(topicId),
 });
 
 registerCrudRoutes(content, {
@@ -703,6 +750,7 @@ content.delete("/connections/:id", async (c) => {
 // ================================================================
 // BATCH CONTENT APPROVAL (D20)
 // PUT /content/batch-status
+// Supports: keyword, subtopic, summary, flashcard, quiz_question
 // ================================================================
 
 content.put("/content/batch-status", async (c) => {
@@ -719,6 +767,8 @@ content.put("/content/batch-status", async (c) => {
       keyword: KV.keyword,
       subtopic: KV.subtopic,
       summary: KV.summary,
+      flashcard: KV.flashcard,
+      quiz_question: KV.quizQuestion,
     };
 
     const results: any[] = [];
@@ -741,7 +791,7 @@ content.put("/content/batch-status", async (c) => {
       if (!keyFn)
         return validationError(
           c,
-          `Unsupported entity_type: ${entity_type}`
+          `Unsupported entity_type: ${entity_type}. Must be one of: ${Object.keys(entityKeyFns).join(", ")}`
         );
 
       const existing = await kv.get(keyFn(id));
@@ -759,7 +809,7 @@ content.put("/content/batch-status", async (c) => {
         status: new_status,
         reviewed_at: new Date().toISOString(),
         reviewed_by: user.id,
-        reviewer_note: body.reviewer_note || null,
+        reviewer_note: item.reviewer_note || body.reviewer_note || null,
       };
       keysToWrite.push(keyFn(id));
       valsToWrite.push(updated);
