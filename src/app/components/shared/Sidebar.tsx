@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp, ViewType } from '@/app/context/AppContext';
 import { useAdmin } from '@/app/context/AdminContext';
+import { useAuth } from '@/app/context/AuthContext';
 import { AxonLogo } from '@/app/components/shared/AxonLogo';
 import { components } from '@/app/design-system';
 import {
@@ -18,6 +19,10 @@ import {
   Home,
   Shield,
   Monitor,
+  Sparkles,
+  MessageCircle,
+  ClipboardCheck,
+  LogOut,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -33,9 +38,12 @@ const iconMap: Record<string, React.ElementType> = {
   Users,
   Shield,
   Monitor,
+  Sparkles,
+  MessageCircle,
+  ClipboardCheck,
 };
 
-/** Módulos principales — estos son los 3 módulos independientes del proyecto */
+/** Modulos principales — estos son los 3 modulos independientes del proyecto */
 const moduleItems: { id: ViewType; label: string; icon: string; description: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', description: 'Visao geral' },
   { id: 'study', label: 'Estudar', icon: 'Monitor', description: 'Sessao de estudos' },
@@ -43,16 +51,24 @@ const moduleItems: { id: ViewType; label: string; icon: string; description: str
   { id: 'quiz', label: 'Quiz', icon: 'GraduationCap', description: 'Testar conhecimento' },
 ];
 
-/** Items secundarios de navegación */
+/** Items secundarios de navegacion */
 const secondaryItems: { id: ViewType; label: string; icon: string }[] = [
   { id: 'flashcards', label: 'Flashcards', icon: 'Layers' },
   { id: 'schedule', label: 'Cronograma', icon: 'Calendar' },
   { id: 'student-data', label: 'Meus Dados', icon: 'Database' },
 ];
 
+/** Dev 6 — AI section items */
+const aiItems: { id: ViewType; label: string; icon: string }[] = [
+  { id: 'ai-generate', label: 'Gerar Conteudo', icon: 'Sparkles' },
+  { id: 'ai-approval', label: 'Aprovacao IA', icon: 'ClipboardCheck' },
+  { id: 'ai-chat', label: 'Chat IA', icon: 'MessageCircle' },
+];
+
 export function Sidebar() {
   const { activeView, setActiveView, isSidebarOpen, setSidebarOpen } = useApp();
   const { isAdmin } = useAdmin();
+  const { user, logout } = useAuth();
 
   return (
     <AnimatePresence initial={false}>
@@ -83,7 +99,7 @@ export function Sidebar() {
               </button>
             </div>
 
-            {/* Módulos principales */}
+            {/* Modulos principales */}
             <div className="px-3 mb-2">
               <p className={components.sidebar.sectionLabel}>Modulos</p>
             </div>
@@ -152,6 +168,42 @@ export function Sidebar() {
               })}
             </nav>
 
+            {/* Separador AI */}
+            <div className="mx-5 my-4 border-t border-white/[0.06]" />
+
+            {/* Dev 6 — AI Section */}
+            <div className="px-3 mb-2">
+              <p className={components.sidebar.sectionLabel}>Inteligencia Artificial</p>
+            </div>
+            <nav className="px-3 space-y-1">
+              {aiItems.map((item) => {
+                const Icon = iconMap[item.icon] || Sparkles;
+                const isActive = activeView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveView(item.id)}
+                    className={clsx(
+                      components.sidebar.navItem.base,
+                      isActive
+                        ? 'bg-purple-500/20 text-purple-300 font-semibold'
+                        : 'text-purple-400/60 hover:text-purple-300 hover:bg-purple-500/10'
+                    )}
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebar-ai-dot"
+                        className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
             {/* Footer */}
             <div className="mt-auto px-3 pb-4 space-y-1">
               <div className="mx-2 mb-3 border-t border-white/[0.06]" />
@@ -185,15 +237,36 @@ export function Sidebar() {
                 )}
               </button>
 
-              {/* Módulo badge */}
-              <div className="mx-2 mt-4 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              {/* User info + Logout */}
+              {user && (
+                <div className="mx-2 mt-4 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                  <p className="text-xs text-gray-300 font-medium truncate" title={user.email}>
+                    {user.name || user.email}
+                  </p>
+                  <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                    {user.email}
+                  </p>
+                  <button
+                    onClick={logout}
+                    className="mt-2 flex items-center gap-1.5 text-[11px] text-red-400/70 hover:text-red-400 transition-colors"
+                  >
+                    <LogOut size={12} />
+                    Sair
+                  </button>
+                </div>
+              )}
+
+              {/* Modulo badge */}
+              <div className="mx-2 mt-2 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1">
                   Modulo Ativo
                 </p>
                 <p className="text-xs text-sky-400 font-semibold">
                   {activeView === 'admin'
                     ? 'Administrador'
-                    : (moduleItems.find((m) => m.id === activeView)?.label ?? 'Dashboard')}
+                    : activeView.startsWith('ai-')
+                      ? aiItems.find((a) => a.id === activeView)?.label ?? 'IA'
+                      : (moduleItems.find((m) => m.id === activeView)?.label ?? 'Dashboard')}
                 </p>
               </div>
             </div>
@@ -204,7 +277,7 @@ export function Sidebar() {
   );
 }
 
-/** Mini botón flotante para abrir el sidebar cuando está cerrado */
+/** Mini boton flotante para abrir el sidebar cuando esta cerrado */
 export function SidebarToggle() {
   const { isSidebarOpen, setSidebarOpen } = useApp();
   if (isSidebarOpen) return null;
