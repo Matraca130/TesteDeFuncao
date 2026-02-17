@@ -5,11 +5,7 @@
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import {
-  getAuthUser,
-  unauthorized,
-  serverError,
-} from "./crud-factory.tsx";
+import { getUserIdFromToken } from "./auth.tsx";
 
 const ai = new Hono();
 
@@ -67,7 +63,7 @@ async function callGemini(
   throw new Error("Gemini API rate limit exceeded. Try again later.");
 }
 
-// ── Error message extractor (type-safe) ────────────────────
+// ── Error message extractor (type-safe) ──────────────────────
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -77,9 +73,11 @@ function errMsg(err: unknown): string {
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/generate", async (c) => {
   try {
-    const user = await getAuthUser(c);
-    if (!user) return unauthorized(c);
-    const userId = user.id;
+    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
+    if ("error" in authResult) {
+      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
+    }
+    const userId = authResult.userId;
 
     const body = await c.req.json();
     const { summary_id, content, course_id } = body;
@@ -187,8 +185,10 @@ ${content}`;
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/generate/approve", async (c) => {
   try {
-    const user = await getAuthUser(c);
-    if (!user) return unauthorized(c);
+    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
+    if ("error" in authResult) {
+      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
+    }
 
     const body = await c.req.json();
     const { draft_id, approved_keyword_ids, approved_flashcard_ids, approved_quiz_ids, approved_connection_ids } = body;
@@ -333,7 +333,7 @@ ai.post("/ai/generate/approve", async (c) => {
     // Update draft status
     draft.status = "processed";
     draft.processed_at = new Date().toISOString();
-    draft.processed_by = user.id;
+    draft.processed_by = authResult.userId;
     await kv.set(`ai-draft:${draft_id}`, draft);
 
     console.log(`[AI] Draft ${draft_id} approved: ${JSON.stringify(stats)}`);
@@ -350,8 +350,10 @@ ai.post("/ai/generate/approve", async (c) => {
 // ────────────────────────────────────────────────────────────
 ai.get("/ai/drafts", async (c) => {
   try {
-    const user = await getAuthUser(c);
-    if (!user) return unauthorized(c);
+    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
+    if ("error" in authResult) {
+      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
+    }
 
     const drafts = await kv.getByPrefix("ai-draft:");
     return c.json({ success: true, data: drafts || [] });
@@ -367,9 +369,11 @@ ai.get("/ai/drafts", async (c) => {
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/chat", async (c) => {
   try {
-    const user = await getAuthUser(c);
-    if (!user) return unauthorized(c);
-    const userId = user.id;
+    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
+    if ("error" in authResult) {
+      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
+    }
+    const userId = authResult.userId;
 
     const body = await c.req.json();
     const { keyword_id, message, context } = body;
@@ -468,9 +472,11 @@ Definition: ${kw.definition}`;
 ai.get("/keyword-popup/:keywordId", async (c) => {
   try {
     const kwId = c.req.param("keywordId");
-    const user = await getAuthUser(c);
-    if (!user) return unauthorized(c);
-    const userId = user.id;
+    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
+    if ("error" in authResult) {
+      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
+    }
+    const userId = authResult.userId;
 
     // 1. Get keyword
     const keyword = await kv.get(`kw:${kwId}`);
