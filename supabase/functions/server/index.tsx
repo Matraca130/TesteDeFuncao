@@ -19,7 +19,7 @@ import contentRoutes from "./routes-content.tsx";
 import readingRoutes from "./routes-reading.tsx";
 
 const app = new Hono();
-const PREFIX = "/make-server-0c4f6a3c";
+const PREFIX = "/make-server-099e81c5";
 
 // Enable logger
 app.use("*", logger(console.log));
