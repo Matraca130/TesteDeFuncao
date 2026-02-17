@@ -2,12 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { createClient } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-// ================================================================
+// ════════════════════════════════════════════════════════════
 // AUTH CONTEXT — Supabase Auth integration for Axon
 //
 // Provides: login, signup, logout, session restore
 // Auth header is auto-set after login for all API calls.
-// ================================================================
+// ════════════════════════════════════════════════════════════
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-0c4f6a3c`;
 
@@ -75,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearError = useCallback(() => setError(null), []);
 
   // ── Authenticated fetch helper ──
+  // Uses ref so the callback identity is stable and always reads the latest token
   const apiFetch = useCallback(async (path: string, options: RequestInit = {}) => {
     const token = accessTokenRef.current;
     const headers: Record<string, string> = {
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return data.data !== undefined ? data.data : data;
-  }, []);
+  }, []); // stable — no dependency on accessToken, reads from ref
 
   // ── Session restore on mount ──
   useEffect(() => {
@@ -136,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
+      // Sign in via Supabase client (sets local session cookie)
       const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -193,7 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Auto-login after signup
+      // Auto-login after signup: set the session in Supabase client too
       if (result.data.access_token) {
         await supabase.auth.signInWithPassword({ email, password });
       }
@@ -230,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       console.log('[Auth] Logged out');
     }
-  }, []);
+  }, []); // stable — reads token from ref
 
   return (
     <AuthContext.Provider
