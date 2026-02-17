@@ -1,9 +1,11 @@
 // ============================================================
 // Axon — Auth Routes (Dev 6)
+// Uses shared getAuthUser from crud-factory.tsx for token validation.
 // ============================================================
 import { Hono } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
+import { getAuthUser } from "./crud-factory.tsx";
 
 const auth = new Hono();
 
@@ -14,21 +16,9 @@ function getSupabaseAdmin() {
   );
 }
 
-/** Helper: extract userId from Authorization header */
-export async function getUserIdFromToken(
-  authHeader: string | undefined
-): Promise<{ userId: string } | { error: string }> {
-  const token = authHeader?.split("Bearer ")[1];
-  if (!token) return { error: "Missing Authorization header" };
-
-  const supabase = getSupabaseAdmin();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) return { error: `Invalid token: ${error?.message || "user not found"}` };
-  return { userId: user.id };
+// ── Error message extractor (type-safe) ────────────────────
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -96,10 +86,11 @@ auth.post("/auth/signup", async (c) => {
         access_token: signInData.session?.access_token ?? "",
       },
     });
-  } catch (err: any) {
-    console.log(`[Auth] Signup error: ${err.message}`);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[Auth] Signup error: ${msg}`);
     return c.json(
-      { success: false, error: { code: "SERVER_ERROR", message: `Signup error: ${err.message}` } },
+      { success: false, error: { code: "SERVER_ERROR", message: `Signup error: ${msg}` } },
       500
     );
   }
@@ -150,14 +141,13 @@ auth.post("/auth/signin", async (c) => {
     }
 
     // Get memberships (multi-tenancy D9)
-    let memberships: any[] = [];
+    let memberships: unknown[] = [];
     try {
       const instIds = await kv.getByPrefix(`idx:user-insts:${data.user.id}:`);
       if (instIds.length > 0) {
-        memberships = await kv.mget(
+        memberships = (await kv.mget(
           instIds.map((instId: string) => `membership:${instId}:${data.user.id}`)
-        );
-        memberships = memberships.filter(Boolean);
+        )).filter(Boolean);
       }
     } catch (_e) {
       // No memberships yet, that's OK
@@ -172,10 +162,11 @@ auth.post("/auth/signin", async (c) => {
         memberships,
       },
     });
-  } catch (err: any) {
-    console.log(`[Auth] Signin error: ${err.message}`);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[Auth] Signin error: ${msg}`);
     return c.json(
-      { success: false, error: { code: "SERVER_ERROR", message: `Signin error: ${err.message}` } },
+      { success: false, error: { code: "SERVER_ERROR", message: `Signin error: ${msg}` } },
       500
     );
   }
@@ -183,18 +174,19 @@ auth.post("/auth/signin", async (c) => {
 
 // ────────────────────────────────────────────────────────────
 // GET /auth/me — Restore session from token
+// Uses shared getAuthUser (consolidated auth — no more duplicate helper)
 // ────────────────────────────────────────────────────────────
 auth.get("/auth/me", async (c) => {
   try {
-    const result = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in result) {
+    const authUser = await getAuthUser(c);
+    if (!authUser) {
       return c.json(
-        { success: false, error: { code: "AUTH_ERROR", message: result.error } },
+        { success: false, error: { code: "AUTH_ERROR", message: "Invalid or missing token" } },
         401
       );
     }
 
-    const user = await kv.get(`user:${result.userId}`);
+    const user = await kv.get(`user:${authUser.id}`);
     if (!user) {
       return c.json(
         { success: false, error: { code: "NOT_FOUND", message: "User not found in KV store" } },
@@ -203,22 +195,22 @@ auth.get("/auth/me", async (c) => {
     }
 
     // Get memberships
-    let memberships: any[] = [];
+    let memberships: unknown[] = [];
     try {
-      const instIds = await kv.getByPrefix(`idx:user-insts:${result.userId}:`);
+      const instIds = await kv.getByPrefix(`idx:user-insts:${authUser.id}:`);
       if (instIds.length > 0) {
-        memberships = await kv.mget(
-          instIds.map((instId: string) => `membership:${instId}:${result.userId}`)
-        );
-        memberships = memberships.filter(Boolean);
+        memberships = (await kv.mget(
+          instIds.map((instId: string) => `membership:${instId}:${authUser.id}`)
+        )).filter(Boolean);
       }
     } catch (_e) {}
 
     return c.json({ success: true, data: { user, memberships } });
-  } catch (err: any) {
-    console.log(`[Auth] /me error: ${err.message}`);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[Auth] /me error: ${msg}`);
     return c.json(
-      { success: false, error: { code: "SERVER_ERROR", message: `Session restore error: ${err.message}` } },
+      { success: false, error: { code: "SERVER_ERROR", message: `Session restore error: ${msg}` } },
       500
     );
   }
@@ -229,18 +221,14 @@ auth.get("/auth/me", async (c) => {
 // ────────────────────────────────────────────────────────────
 auth.post("/auth/signout", async (c) => {
   try {
-    const token = c.req.header("Authorization")?.split("Bearer ")[1];
-    if (token) {
-      const supabase = getSupabaseAdmin();
-      // Get user to find their ID for logging
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        console.log(`[Auth] User signed out: ${user.email} (${user.id})`);
-      }
+    const authUser = await getAuthUser(c);
+    if (authUser) {
+      console.log(`[Auth] User signed out: ${authUser.email} (${authUser.id})`);
     }
     return c.json({ success: true, data: { message: "Signed out successfully" } });
-  } catch (err: any) {
-    console.log(`[Auth] Signout error: ${err.message}`);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[Auth] Signout error: ${msg}`);
     return c.json({ success: true, data: { message: "Signed out" } });
   }
 });
