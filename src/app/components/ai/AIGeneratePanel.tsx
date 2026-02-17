@@ -5,14 +5,62 @@ import {
   BookOpen, HelpCircle, Link2, Tag, FileText
 } from 'lucide-react';
 
+// ── Typed interfaces for AI-generated content ──────────────
+
+interface GeneratedSubtopic {
+  id: string;
+  title: string;
+  description?: string;
+  status?: string;
+}
+
+interface GeneratedKeyword {
+  id: string;
+  term: string;
+  definition: string;
+  priority: number;
+  status?: string;
+  subtopics: GeneratedSubtopic[];
+}
+
+interface GeneratedFlashcard {
+  id: string;
+  front: string;
+  back: string;
+  keyword_term?: string;
+  subtopic_title?: string;
+  status?: string;
+}
+
+interface GeneratedQuizQuestion {
+  id: string;
+  quiz_type: 'multiple_choice' | 'write_in' | 'fill_blank';
+  question: string;
+  options?: string[];
+  correct_answer?: number;
+  explanation?: string;
+  keyword_term?: string;
+  status?: string;
+}
+
+interface GeneratedConnection {
+  id: string;
+  keyword_a_term: string;
+  keyword_b_term: string;
+  label: string;
+  status?: string;
+}
+
 interface GeneratedDraft {
   id: string;
   status: string;
-  keywords: any[];
-  flashcards: any[];
-  quiz_questions: any[];
-  suggested_connections: any[];
+  keywords: GeneratedKeyword[];
+  flashcards: GeneratedFlashcard[];
+  quiz_questions: GeneratedQuizQuestion[];
+  suggested_connections: GeneratedConnection[];
 }
+
+// ── Component ──────────────────────────────────────────────
 
 interface AIGeneratePanelProps {
   courseId?: string;
@@ -56,12 +104,13 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
       });
 
       setDraft(data);
-      setSelectedKeywords(new Set(data.keywords.map((k: any) => k.id)));
-      setSelectedFlashcards(new Set(data.flashcards.map((f: any) => f.id)));
-      setSelectedQuiz(new Set(data.quiz_questions.map((q: any) => q.id)));
-      setSelectedConnections(new Set(data.suggested_connections.map((c: any) => c.id)));
-    } catch (err: any) {
-      setError(err.message);
+      setSelectedKeywords(new Set(data.keywords.map((k: GeneratedKeyword) => k.id)));
+      setSelectedFlashcards(new Set(data.flashcards.map((f: GeneratedFlashcard) => f.id)));
+      setSelectedQuiz(new Set(data.quiz_questions.map((q: GeneratedQuizQuestion) => q.id)));
+      setSelectedConnections(new Set(data.suggested_connections.map((c: GeneratedConnection) => c.id)));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setGenerating(false);
     }
@@ -87,8 +136,9 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
       setDraft(null);
       setContent('');
       onApprovalComplete?.();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
     } finally {
       setApproving(false);
     }
@@ -105,8 +155,8 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
     setFn(next);
   }
 
-  function selectAll(items: any[], setFn: React.Dispatch<React.SetStateAction<Set<string>>>) {
-    setFn(new Set(items.map((i: any) => i.id)));
+  function selectAll(items: { id: string }[], setFn: React.Dispatch<React.SetStateAction<Set<string>>>) {
+    setFn(new Set(items.map((i) => i.id)));
   }
 
   function deselectAll(setFn: React.Dispatch<React.SetStateAction<Set<string>>>) {
@@ -203,7 +253,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onSelectAll={() => selectAll(draft.keywords, setSelectedKeywords)}
             onDeselectAll={() => deselectAll(setSelectedKeywords)}
           >
-            {draft.keywords.map((kw: any) => (
+            {draft.keywords.map((kw) => (
               <div
                 key={kw.id}
                 onClick={() => toggleItem(selectedKeywords, setSelectedKeywords, kw.id)}
@@ -234,7 +284,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
                     <p className="text-xs text-gray-600 mt-1 line-clamp-2">{kw.definition}</p>
                     {kw.subtopics?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {kw.subtopics.map((st: any) => (
+                        {kw.subtopics.map((st) => (
                           <span key={st.id} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
                             {st.title}
                           </span>
@@ -257,7 +307,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onSelectAll={() => selectAll(draft.flashcards, setSelectedFlashcards)}
             onDeselectAll={() => deselectAll(setSelectedFlashcards)}
           >
-            {draft.flashcards.map((fc: any) => (
+            {draft.flashcards.map((fc) => (
               <div
                 key={fc.id}
                 onClick={() => toggleItem(selectedFlashcards, setSelectedFlashcards, fc.id)}
@@ -297,7 +347,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onSelectAll={() => selectAll(draft.quiz_questions, setSelectedQuiz)}
             onDeselectAll={() => deselectAll(setSelectedQuiz)}
           >
-            {draft.quiz_questions.map((q: any) => (
+            {draft.quiz_questions.map((q) => (
               <div
                 key={q.id}
                 onClick={() => toggleItem(selectedQuiz, setSelectedQuiz, q.id)}
@@ -318,7 +368,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
                     <p className="text-sm text-gray-900 mt-1">{q.question}</p>
                     {q.options && (
                       <div className="mt-1 space-y-0.5">
-                        {q.options.map((opt: string, i: number) => (
+                        {q.options.map((opt, i) => (
                           <p key={i} className={`text-xs ${i === q.correct_answer ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
                             {opt}
                           </p>
@@ -342,7 +392,7 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
               onSelectAll={() => selectAll(draft.suggested_connections, setSelectedConnections)}
               onDeselectAll={() => deselectAll(setSelectedConnections)}
             >
-              {draft.suggested_connections.map((conn: any) => (
+              {draft.suggested_connections.map((conn) => (
                 <div
                   key={conn.id}
                   onClick={() => toggleItem(selectedConnections, setSelectedConnections, conn.id)}

@@ -5,7 +5,11 @@
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import { getUserIdFromToken } from "./auth.tsx";
+import {
+  getAuthUser,
+  unauthorized,
+  serverError,
+} from "./crud-factory.tsx";
 
 const ai = new Hono();
 
@@ -27,7 +31,7 @@ async function callGemini(
   jsonMode = false
 ): Promise<string> {
   const apiKey = getApiKey();
-  const body: any = {
+  const body: Record<string, unknown> = {
     contents: messages,
     generationConfig: {
       temperature,
@@ -63,11 +67,9 @@ async function callGemini(
   throw new Error("Gemini API rate limit exceeded. Try again later.");
 }
 
-function generateUUID(): string {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-  });
+// ── Error message extractor (type-safe) ────────────────────
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -75,11 +77,9 @@ function generateUUID(): string {
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/generate", async (c) => {
   try {
-    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in authResult) {
-      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
-    }
-    const userId = authResult.userId;
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const userId = user.id;
 
     const body = await c.req.json();
     const { summary_id, content, course_id } = body;
@@ -125,16 +125,17 @@ ${content}`;
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON found in response");
       parsed = JSON.parse(jsonMatch[0]);
-    } catch (parseErr: any) {
-      console.log(`[AI] Failed to parse Gemini response: ${parseErr.message}`);
+    } catch (parseErr: unknown) {
+      const msg = errMsg(parseErr);
+      console.log(`[AI] Failed to parse Gemini response: ${msg}`);
       return c.json({
         success: false,
-        error: { code: "AI_PARSE_ERROR", message: `Failed to parse AI response: ${parseErr.message}` },
+        error: { code: "AI_PARSE_ERROR", message: `Failed to parse AI response: ${msg}` },
       }, 500);
     }
 
     // Store as draft (D20)
-    const draftId = summary_id || generateUUID();
+    const draftId = summary_id || crypto.randomUUID();
     const draft = {
       id: draftId,
       course_id: course_id || null,
@@ -142,29 +143,29 @@ ${content}`;
       generated_by: userId,
       generated_at: new Date().toISOString(),
       status: "pending_review",
-      keywords: (parsed.keywords || []).map((kw: any) => ({
+      keywords: (parsed.keywords || []).map((kw: Record<string, unknown>) => ({
         ...kw,
-        id: generateUUID(),
+        id: crypto.randomUUID(),
         status: "pending",
-        subtopics: (kw.subtopics || []).map((st: any) => ({
+        subtopics: (Array.isArray(kw.subtopics) ? kw.subtopics : []).map((st: Record<string, unknown>) => ({
           ...st,
-          id: generateUUID(),
+          id: crypto.randomUUID(),
           status: "pending",
         })),
       })),
-      flashcards: (parsed.flashcards || []).map((fc: any) => ({
+      flashcards: (parsed.flashcards || []).map((fc: Record<string, unknown>) => ({
         ...fc,
-        id: generateUUID(),
+        id: crypto.randomUUID(),
         status: "pending",
       })),
-      quiz_questions: (parsed.quiz_questions || []).map((q: any) => ({
+      quiz_questions: (parsed.quiz_questions || []).map((q: Record<string, unknown>) => ({
         ...q,
-        id: generateUUID(),
+        id: crypto.randomUUID(),
         status: "pending",
       })),
-      suggested_connections: (parsed.suggested_connections || []).map((conn: any) => ({
+      suggested_connections: (parsed.suggested_connections || []).map((conn: Record<string, unknown>) => ({
         ...conn,
-        id: generateUUID(),
+        id: crypto.randomUUID(),
         status: "pending",
       })),
     };
@@ -174,9 +175,10 @@ ${content}`;
     console.log(`[AI] Draft saved: ${draftId} — ${draft.keywords.length} keywords, ${draft.flashcards.length} flashcards, ${draft.quiz_questions.length} quiz questions`);
 
     return c.json({ success: true, data: draft });
-  } catch (err: any) {
-    console.log(`[AI] Generate error: ${err.message}`);
-    return c.json({ success: false, error: { code: "AI_ERROR", message: `AI generation error: ${err.message}` } }, 500);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[AI] Generate error: ${msg}`);
+    return c.json({ success: false, error: { code: "AI_ERROR", message: `AI generation error: ${msg}` } }, 500);
   }
 });
 
@@ -185,10 +187,8 @@ ${content}`;
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/generate/approve", async (c) => {
   try {
-    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in authResult) {
-      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
-    }
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
 
     const body = await c.req.json();
     const { draft_id, approved_keyword_ids, approved_flashcard_ids, approved_quiz_ids, approved_connection_ids } = body;
@@ -208,7 +208,7 @@ ai.post("/ai/generate/approve", async (c) => {
     const approvedConnIds = new Set(approved_connection_ids || []);
 
     const kvKeys: string[] = [];
-    const kvValues: any[] = [];
+    const kvValues: unknown[] = [];
     const stats = { keywords: 0, subtopics: 0, flashcards: 0, quiz_questions: 0, connections: 0 };
 
     // Process keywords & subtopics
@@ -333,14 +333,15 @@ ai.post("/ai/generate/approve", async (c) => {
     // Update draft status
     draft.status = "processed";
     draft.processed_at = new Date().toISOString();
-    draft.processed_by = authResult.userId;
+    draft.processed_by = user.id;
     await kv.set(`ai-draft:${draft_id}`, draft);
 
     console.log(`[AI] Draft ${draft_id} approved: ${JSON.stringify(stats)}`);
     return c.json({ success: true, data: { stats, draft_id } });
-  } catch (err: any) {
-    console.log(`[AI] Approve error: ${err.message}`);
-    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `Approval error: ${err.message}` } }, 500);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[AI] Approve error: ${msg}`);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `Approval error: ${msg}` } }, 500);
   }
 });
 
@@ -349,16 +350,15 @@ ai.post("/ai/generate/approve", async (c) => {
 // ────────────────────────────────────────────────────────────
 ai.get("/ai/drafts", async (c) => {
   try {
-    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in authResult) {
-      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
-    }
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
 
     const drafts = await kv.getByPrefix("ai-draft:");
     return c.json({ success: true, data: drafts || [] });
-  } catch (err: any) {
-    console.log(`[AI] Drafts list error: ${err.message}`);
-    return c.json({ success: false, error: { code: "SERVER_ERROR", message: err.message } }, 500);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[AI] Drafts list error: ${msg}`);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: msg } }, 500);
   }
 });
 
@@ -367,11 +367,9 @@ ai.get("/ai/drafts", async (c) => {
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/chat", async (c) => {
   try {
-    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in authResult) {
-      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
-    }
-    const userId = authResult.userId;
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const userId = user.id;
 
     const body = await c.req.json();
     const { keyword_id, message, context } = body;
@@ -397,7 +395,7 @@ Definition: ${kw.definition}`;
           const stIds = await kv.getByPrefix(`idx:kw-subtopics:${keyword_id}:`);
           if (stIds.length > 0) {
             const subtopics = await kv.mget(stIds.map((id: string) => `subtopic:${id}`));
-            const stTitles = subtopics.filter(Boolean).map((st: any) => st.title);
+            const stTitles = subtopics.filter(Boolean).map((st: Record<string, string>) => st.title);
             if (stTitles.length > 0) {
               systemPrompt += `\nSub-topics: ${stTitles.join(", ")}`;
             }
@@ -440,7 +438,7 @@ Definition: ${kw.definition}`;
 
     // Build Gemini messages from history (last 20 messages for context window)
     const recentMsgs = history.messages.slice(-20);
-    const geminiMessages = recentMsgs.map((m: any) => ({
+    const geminiMessages = recentMsgs.map((m: { role: string; content: string }) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
@@ -457,9 +455,10 @@ Definition: ${kw.definition}`;
     await kv.set(chatKey, history);
 
     return c.json({ success: true, data: { reply, history } });
-  } catch (err: any) {
-    console.log(`[AI] Chat error: ${err.message}`);
-    return c.json({ success: false, error: { code: "AI_ERROR", message: `Chat error: ${err.message}` } }, 500);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[AI] Chat error: ${msg}`);
+    return c.json({ success: false, error: { code: "AI_ERROR", message: `Chat error: ${msg}` } }, 500);
   }
 });
 
@@ -469,11 +468,9 @@ Definition: ${kw.definition}`;
 ai.get("/keyword-popup/:keywordId", async (c) => {
   try {
     const kwId = c.req.param("keywordId");
-    const authResult = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in authResult) {
-      return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
-    }
-    const userId = authResult.userId;
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const userId = user.id;
 
     // 1. Get keyword
     const keyword = await kv.get(`kw:${kwId}`);
@@ -482,8 +479,8 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     }
 
     // 2. Get subtopics
-    let subtopics: any[] = [];
-    let subtopicStates: any[] = [];
+    let subtopics: Record<string, unknown>[] = [];
+    let subtopicStates: unknown[] = [];
     try {
       const stIds = await kv.getByPrefix(`idx:kw-subtopics:${kwId}:`);
       if (stIds.length > 0) {
@@ -494,7 +491,7 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     } catch (_e) {}
 
     // 3. Get connections + related keywords
-    const relatedKeywords: any[] = [];
+    const relatedKeywords: { keyword: unknown; connection_label: string }[] = [];
     try {
       const connIds = await kv.getByPrefix(`idx:kw-conn:${kwId}:`);
       if (connIds.length > 0) {
@@ -539,9 +536,10 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
         quiz_count: quizCount,
       },
     });
-  } catch (err: any) {
-    console.log(`[AI] Keyword popup error: ${err.message}`);
-    return c.json({ success: false, error: { code: "SERVER_ERROR", message: err.message } }, 500);
+  } catch (err: unknown) {
+    const msg = errMsg(err);
+    console.log(`[AI] Keyword popup error: ${msg}`);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: msg } }, 500);
   }
 });
 
