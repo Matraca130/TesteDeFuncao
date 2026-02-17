@@ -1,55 +1,63 @@
 // ============================================================
-// Axon — Student Data Types
+// Axon -- Student Data Types
 // ============================================================
 
-import type { KeywordState } from '@/app/services/spacedRepetition';
+export interface KeywordState {
+  keyword: string;
+  mastery: number;
+  stability_days: number;
+  due_at: string | null;
+  lapses: number;
+  exposures: number;
+  card_coverage: number;
+  last_review_at: string | null;
+  color: 'red' | 'yellow' | 'green';
+  color_stability_counter: number;
+}
 
-/** Core student profile */
 export interface StudentProfile {
   id: string;
   name: string;
   email: string;
   avatarUrl?: string;
   university?: string;
-  course?: string; // e.g. "Medicina"
+  course?: string;
   semester?: number;
-  enrolledCourseIds: string[]; // matches Course.id from courses.ts
-  createdAt: string; // ISO date
+  enrolledCourseIds: string[];
+  createdAt: string;
   preferences: StudentPreferences;
 }
 
 export interface StudentPreferences {
   theme: 'dark' | 'light';
-  language: string; // 'pt-BR', 'en', 'es'
+  language: string;
   dailyGoalMinutes: number;
   notificationsEnabled: boolean;
   spacedRepetitionAlgorithm: 'sm2' | 'fsrs' | 'simple';
 }
 
-/** Aggregate study statistics */
 export interface StudentStats {
   totalStudyMinutes: number;
   totalSessions: number;
   totalCardsReviewed: number;
   totalQuizzesCompleted: number;
-  currentStreak: number; // consecutive days
+  currentStreak: number;
   longestStreak: number;
   averageDailyMinutes: number;
-  lastStudyDate: string; // ISO date
-  weeklyActivity: number[]; // [Mon..Sun] minutes per day this week
+  lastStudyDate: string;
+  weeklyActivity: number[];
 }
 
-/** Progress per course/subject */
 export interface CourseProgress {
   courseId: string;
   courseName: string;
-  masteryPercent: number; // 0-100
+  masteryPercent: number;
   lessonsCompleted: number;
   lessonsTotal: number;
   flashcardsMastered: number;
   flashcardsTotal: number;
-  quizAverageScore: number; // 0-100
-  lastAccessedAt: string; // ISO date
+  quizAverageScore: number;
+  lastAccessedAt: string;
   topicProgress: TopicProgress[];
 }
 
@@ -63,30 +71,22 @@ export interface TopicProgress {
   lastReviewedAt?: string;
   nextReviewAt?: string;
   reviewCount: number;
-  /** Keywords tracked for this topic */
   keywords?: Record<string, KeywordState>;
 }
 
-/** Individual flashcard review log (for spaced repetition) */
 export interface FlashcardReview {
   cardId: number;
   topicId: string;
   courseId: string;
-  reviewedAt: string; // ISO date
-  rating: 1 | 2 | 3 | 4 | 5; // 1=again, 5=easy
+  reviewedAt: string;
+  rating: 1 | 2 | 3 | 4 | 5;
   responseTimeMs: number;
-  // SM-2 fields
   ease: number;
-  interval: number; // days until next review
+  interval: number;
   repetitions: number;
-  /** Keywords associated with this card (for keyword-level tracking) */
-  keywords?: {
-    primary: string[];
-    secondary: string[];
-  };
+  keywords?: { primary: string[]; secondary: string[] };
 }
 
-/** Study session log */
 export interface StudySession {
   id: string;
   studentId: string;
@@ -101,16 +101,14 @@ export interface StudySession {
   notes?: string;
 }
 
-/** Daily activity entry for heatmap/calendar views */
 export interface DailyActivity {
-  date: string; // YYYY-MM-DD
+  date: string;
   studyMinutes: number;
   sessionsCount: number;
   cardsReviewed: number;
   retentionPercent?: number;
 }
 
-/** Summary/notes created during study sessions */
 export interface StudySummary {
   id: string;
   studentId: string;
@@ -118,21 +116,15 @@ export interface StudySummary {
   topicId: string;
   courseName: string;
   topicTitle: string;
-  /** User-written summary content (markdown) */
   content: string;
-  /** Annotation blocks attached to the summary */
+  canvasBlocks?: string; // JSON-serialized canvas blocks for rich editor
   annotations: SummaryAnnotation[];
-  /** Keyword mastery levels tracked by the student */
   keywordMastery?: Record<string, string>;
-  /** Personal keyword notes */
   keywordNotes?: Record<string, string[]>;
-  createdAt: string; // ISO date
-  updatedAt: string; // ISO date
-  /** Time spent writing/editing in minutes */
+  createdAt: string;
+  updatedAt: string;
   editTimeMinutes: number;
-  /** User-assigned tags */
   tags: string[];
-  /** Is bookmarked for quick access */
   bookmarked: boolean;
 }
 
@@ -145,10 +137,33 @@ export interface SummaryAnnotation {
   color: 'yellow' | 'blue' | 'green' | 'pink';
 }
 
-/** Keyword collection storage (per topic or course) */
 export interface KeywordCollectionData {
   courseId: string;
   topicId?: string;
   keywords: Record<string, KeywordState>;
-  lastUpdated: string; // ISO date
+  lastUpdated: string;
+}
+
+// ── Quiz Attempt ──
+export interface QuizAnswer {
+  questionId: number;
+  type: 'multiple-choice' | 'write-in' | 'fill-blank';
+  userAnswer: string | number;
+  correct: boolean;
+  timeMs: number;
+}
+
+export interface QuizAttempt {
+  id: string;
+  studentId: string;
+  courseId: string;
+  topicId: string;
+  courseName: string;
+  topicTitle: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  timeSeconds: number;
+  answers: QuizAnswer[];
+  completedAt: string;
 }

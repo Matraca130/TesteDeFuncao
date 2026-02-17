@@ -51,100 +51,36 @@ interface AppContextType {
   setActiveView: (view: ViewType) => void;
   isSidebarOpen: boolean;
   setSidebarOpen: (isOpen: boolean) => void;
-  isStudySessionActive: boolean;
-  setStudySessionActive: (active: boolean) => void;
-  studyPlans: StudyPlan[];
-  addStudyPlan: (plan: StudyPlan) => void;
-  toggleTaskComplete: (planId: string, taskId: string) => void;
-  quizAutoStart: boolean;
-  setQuizAutoStart: (v: boolean) => void;
-  flashcardAutoStart: boolean;
-  setFlashcardAutoStart: (v: boolean) => void;
-  theme: ThemeType;
-  setTheme: (theme: ThemeType) => void;
 }
 
 const noop = () => {};
-
-const defaultContextValue: AppContextType = {
+const AppContext = createContext<AppContextType>({
   currentCourse: courses[0],
   setCurrentCourse: noop,
   currentTopic: courses[0].semesters[0].sections[0].topics[0],
   setCurrentTopic: noop,
-  activeView: 'home',
+  activeView: 'dashboard',
   setActiveView: noop,
   isSidebarOpen: true,
   setSidebarOpen: noop,
-  isStudySessionActive: false,
-  setStudySessionActive: noop,
-  studyPlans: [],
-  addStudyPlan: noop,
-  toggleTaskComplete: noop,
-  quizAutoStart: false,
-  setQuizAutoStart: noop,
-  flashcardAutoStart: false,
-  setFlashcardAutoStart: noop,
-  theme: 'light',
-  setTheme: noop,
-};
-
-const AppContext = createContext<AppContextType>(defaultContextValue);
+});
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentCourse, setCurrentCourse] = useState<Course>(courses[0]);
-  const defaultTopic = courses[0].semesters[0].sections[0].topics[0];
-  const [currentTopic, setCurrentTopic] = useState<Topic | null>(defaultTopic);
-  const [activeView, setActiveView] = useState<ViewType>('home');
+  const [currentTopic, setCurrentTopic] = useState<Topic | null>(courses[0].semesters[0].sections[0].topics[0]);
+  const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [isStudySessionActive, setStudySessionActive] = useState(false);
-  const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
-  const [quizAutoStart, setQuizAutoStart] = useState(false);
-  const [flashcardAutoStart, setFlashcardAutoStart] = useState(false);
-  const [theme, setTheme] = useState<ThemeType>('light');
-
-  const addStudyPlan = (plan: StudyPlan) => {
-    setStudyPlans(prev => [...prev, plan]);
-  };
-
-  const toggleTaskComplete = (planId: string, taskId: string) => {
-    setStudyPlans(prev => prev.map(plan => {
-      if (plan.id !== planId) return plan;
-      return {
-        ...plan,
-        tasks: plan.tasks.map(task =>
-          task.id === taskId ? { ...task, completed: !task.completed } : task
-        )
-      };
-    }));
-  };
 
   return (
     <AppContext.Provider value={{
-      currentCourse,
-      setCurrentCourse,
-      currentTopic,
-      setCurrentTopic,
-      activeView,
-      setActiveView,
-      isSidebarOpen,
-      setSidebarOpen,
-      isStudySessionActive,
-      setStudySessionActive,
-      studyPlans,
-      addStudyPlan,
-      toggleTaskComplete,
-      quizAutoStart,
-      setQuizAutoStart,
-      flashcardAutoStart,
-      setFlashcardAutoStart,
-      theme,
-      setTheme,
+      currentCourse, setCurrentCourse,
+      currentTopic, setCurrentTopic,
+      activeView, setActiveView,
+      isSidebarOpen, setSidebarOpen,
     }}>
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useApp() {
-  return useContext(AppContext);
-}
+export function useApp() { return useContext(AppContext); }

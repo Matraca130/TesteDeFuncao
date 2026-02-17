@@ -14,12 +14,11 @@ export default defineConfig({
     alias: {
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
-      // Force all three imports to resolve to the same physical module
-      'three': path.resolve(__dirname, 'node_modules/three'),
+      // Alias /utils so absolute imports resolve in both Figma Make and Vercel
+      '/utils': path.resolve(__dirname, './utils'),
     },
-    dedupe: ['three'],
   },
-  optimizeDeps: {
-    include: ['three', 'three/examples/jsm/controls/OrbitControls.js'],
-  },
+
+  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
+  assetsInclude: ['**/*.svg', '**/*.csv'],
 })

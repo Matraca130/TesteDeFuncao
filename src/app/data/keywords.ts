@@ -1,4 +1,5 @@
 // Base de dados de palavras-chave médicas com sistema de cores de domínio
+// Importado de GitHub: Matraca130/TesteDeFuncao
 
 export type MasteryLevel = 'red' | 'yellow' | 'green';
 
@@ -11,7 +12,7 @@ export interface KeywordData {
   id: string;
   term: string;
   definition: string;
-  masteryLevel: MasteryLevel; // default mastery
+  masteryLevel: MasteryLevel;
   aiQuestions: AIQuestion[];
   has3DModel: boolean;
   source: string;
@@ -107,11 +108,11 @@ export const keywordsDatabase: KeywordData[] = [
   {
     id: 'kw-manguito-rotador',
     term: 'manguito rotador',
-    definition: 'Conjunto de quatro músculos (supraespinal, infraespinal, redondo menor e subescapular) cujos tendões se fundem à cápsula articular, formando um "manguito" que estabiliza dinamicamente a articulação glenoumeral.',
+    definition: 'Conjunto de quatro músculos (supraespinal, infraespinal, redondo menor e subescapular) cujos tendões se fundem à cápsula articular, formando um \"manguito\" que estabiliza dinamicamente a articulação glenoumeral.',
     masteryLevel: 'red',
     aiQuestions: [
       { question: 'Quais musculos compoem o manguito rotador?', answer: 'Mnemonica SITS: Supraespinal, Infraespinal, Redondo menor (Teres minor) e Subescapular.' },
-      { question: 'Qual musculo do manguito e mais frequentemente lesionado?', answer: 'O supraespinal, devido a sua posicao sob o arco coracoacromial e a "zona critica" de hipovascularizacao.' },
+      { question: 'Qual musculo do manguito e mais frequentemente lesionado?', answer: 'O supraespinal, devido a sua posicao sob o arco coracoacromial e a \"zona critica\" de hipovascularizacao.' },
       { question: 'Qual a funcao principal do manguito rotador?' },
     ],
     has3DModel: true,
@@ -227,9 +228,20 @@ export const keywordsDatabase: KeywordData[] = [
 ];
 
 // Lookup helpers
+
+/** Normalize a string by removing diacritical marks (accents) for fuzzy matching */
+function normalizeAccents(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 export function findKeyword(term: string): KeywordData | undefined {
-  const lowerTerm = term.toLowerCase();
-  return keywordsDatabase.find(kw => kw.term.toLowerCase() === lowerTerm);
+  const lowerTerm = term.toLowerCase().trim();
+  // 1. Try exact match first (preserves accents)
+  const exact = keywordsDatabase.find(kw => kw.term.toLowerCase() === lowerTerm);
+  if (exact) return exact;
+  // 2. Fallback: accent-insensitive match (e.g. "escapula" matches "escápula")
+  const normalizedTerm = normalizeAccents(lowerTerm);
+  return keywordsDatabase.find(kw => normalizeAccents(kw.term.toLowerCase()) === normalizedTerm);
 }
 
 export function getAllKeywordTerms(): string[] {
