@@ -1,72 +1,14 @@
 // ══════════════════════════════════════════════════════════════
-// AXON — Course Data Model
-// Hierarchy: Course → Semester (with year) → Section (with region) → Topic
+// AXON — Course Data (assembled) + barrel re-exports
+// Split: course-types.ts (types), course-helpers.ts (helpers), courses.ts (data)
 // ══════════════════════════════════════════════════════════════
 
-export type QuizQuestionType = 'multiple-choice' | 'write-in' | 'fill-blank';
+// Re-export all types (backward compatible — all 'from courses' imports still work)
+export type { QuizQuestionType, QuizQuestion, Flashcard, FlashcardImagePosition, Model3D, Topic, Section, Semester, Course, TopicSubcategory } from './course-types';
+import type { Course, Topic } from './course-types';
 
-export interface QuizQuestion {
-  id: number;
-  type?: QuizQuestionType;
-  question: string;
-  options?: string[];
-  correctAnswer?: number;
-  correctText?: string;
-  acceptedVariations?: string[];
-  blankSentence?: string;
-  blankAnswer?: string;
-  hint?: string;
-  explanation?: string;
-}
-
-export interface Flashcard {
-  id: number;
-  question: string;
-  answer: string;
-  mastery: number;
-  image?: string;
-}
-
-export interface Model3D {
-  id: string;
-  name: string;
-  description: string;
-  available: boolean;
-}
-
-export interface Topic {
-  id: string;
-  title: string;
-  summary: string;
-  videoUrl?: string;
-  flashcards?: Flashcard[];
-  quizzes?: QuizQuestion[];
-  model3D?: Model3D;
-  subtopics?: Topic[];  // Nested sub-topics (folders within folders)
-}
-
-export interface Section {
-  id: string;
-  title: string;
-  region?: string;   // Grouping: "Membro Superior", "Membro Inferior", "Torax", etc.
-  imageUrl?: string;
-  topics: Topic[];
-}
-
-export interface Semester {
-  id: string;
-  title: string;
-  year?: number;      // 1 = 1o Ano, 2 = 2o Ano, etc.
-  sections: Section[];
-}
-
-export interface Course {
-  id: string;
-  name: string;
-  color: string;
-  accentColor: string;
-  semesters: Semester[];
-}
+// Re-export all helpers (backward compatible)
+export { getTopicSubcategory, SUBCATEGORY_CONFIG, groupTopicsBySubcategory, groupSectionsByRegion, getAllTopics, flattenTopicsWithSubtopics } from './course-helpers';
 
 // ══════════════════════════════════════════════════════════════
 // STANDARD ANATOMY TOPIC PATTERN

@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
-export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin';
+export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin' | 'flashcard-admin' | 'curriculum-admin' | 'diagnostic';
+export type ThemeType = 'dark' | 'light';
 
 // ════════════════════════════════════════════════════════════════
 // APP CONTEXT — Estado do aluno e navegacao
@@ -16,6 +17,30 @@ export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' 
 // (nucleo independente). Busque "useAdmin" nos componentes
 // que precisam do estado admin.
 // ════════════════════════════════════════════════════════════════
+
+export interface StudyPlanTask {
+  id: string;
+  date: Date;
+  title: string;
+  subject: string;
+  subjectColor: string;
+  method: string;
+  estimatedMinutes: number;
+  completed: boolean;
+}
+
+export interface StudyPlan {
+  id: string;
+  name: string;
+  subjects: { id: string; name: string; color: string }[];
+  methods: string[];
+  selectedTopics: { courseId: string; courseName: string; sectionTitle: string; topicTitle: string; topicId: string }[];
+  completionDate: Date;
+  weeklyHours: number[]; // [mon, tue, wed, thu, fri, sat, sun]
+  tasks: StudyPlanTask[];
+  createdAt: Date;
+  totalEstimatedHours: number;
+}
 
 interface AppContextType {
   currentCourse: Course;

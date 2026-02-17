@@ -14,7 +14,9 @@ import {
   Home,
   Database,
   Settings2,
-  SquarePen
+  SquarePen,
+  FolderTree,
+  Wrench
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -38,8 +40,10 @@ export function Sidebar() {
   ];
 
   const adminItems = [
-    { id: 'admin', label: 'Criar Quizzes', icon: Settings2, accentBg: 'bg-violet-500/15', accentText: 'text-violet-400', accentBorder: 'border-violet-500/20' },
-    { id: 'flashcard-admin', label: 'Criar Flashcards', icon: SquarePen, accentBg: 'bg-teal-500/15', accentText: 'text-teal-400', accentBorder: 'border-teal-500/20' },
+    { id: 'admin', label: 'Criar Quizzes', icon: Settings2, accentBg: 'bg-violet-500/15', accentText: 'text-violet-400', accentBorder: 'border-violet-500/20', dotColor: 'bg-violet-400' },
+    { id: 'flashcard-admin', label: 'Criar Flashcards', icon: SquarePen, accentBg: 'bg-teal-500/15', accentText: 'text-teal-400', accentBorder: 'border-teal-500/20', dotColor: 'bg-teal-400' },
+    { id: 'curriculum-admin', label: 'Estrutura Curricular', icon: FolderTree, accentBg: 'bg-amber-500/15', accentText: 'text-amber-400', accentBorder: 'border-amber-500/20', dotColor: 'bg-amber-400' },
+    { id: 'diagnostic', label: 'Diagnostico KV', icon: Wrench, accentBg: 'bg-rose-500/15', accentText: 'text-rose-400', accentBorder: 'border-rose-500/20', dotColor: 'bg-rose-400' },
   ];
 
   return (
@@ -110,7 +114,7 @@ export function Sidebar() {
                 {isActive && (
                   <motion.div
                     layoutId="active-admin-indicator"
-                    className={clsx("ml-auto w-1.5 h-1.5 rounded-full", item.id === 'admin' ? 'bg-violet-400' : 'bg-teal-400')}
+                    className={clsx("ml-auto w-1.5 h-1.5 rounded-full", item.dotColor)}
                   />
                 )}
               </button>

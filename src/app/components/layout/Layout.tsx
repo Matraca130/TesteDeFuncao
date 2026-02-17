@@ -21,6 +21,8 @@ import { MasteryDashboardView } from '@/app/components/content/MasteryDashboardV
 import { StudentDataPanel } from '@/app/components/content/StudentDataPanel';
 import { QuizAdminView } from '@/app/components/admin/QuizAdminView';
 import { FlashcardAdminView } from '@/app/components/admin/FlashcardAdminView';
+import { CurriculumAdminView } from '@/app/components/admin/CurriculumAdminView';
+import { DiagnosticView } from '@/app/components/admin/DiagnosticView';
 import { UserProfileDropdown } from '@/app/components/layout/UserProfileDropdown';
 import { AxonAIAssistant } from '@/app/components/ai/AxonAIAssistant';
 import { components, animation } from '@/app/design-system';
@@ -51,6 +53,8 @@ export function Layout() {
       case 'student-data': return <StudentDataPanel />;
       case 'admin': return <QuizAdminView />;
       case 'flashcard-admin': return <FlashcardAdminView />;
+      case 'curriculum-admin': return <CurriculumAdminView />;
+      case 'diagnostic': return <DiagnosticView />;
       default: return <WelcomeView />;
     };
   };
