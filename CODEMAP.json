@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "version": "2.0.0",
-    "updated": "2026-02-16",
+    "version": "2.1.0",
+    "updated": "2026-02-17",
     "description": "Mapa do frontend Axon/TesteDeFuncao. Cada pool tem read_first (ler SEMPRE) e read_if_needed (ler conforme a tarefa).",
-    "total_files": 99,
-    "total_files_detail": "50 domain + 48 ui/shadcn + 1 figma/infra = 99 .ts/.tsx + 4 CSS",
+    "total_files": 100,
+    "total_files_detail": "51 domain + 48 ui/shadcn + 1 figma/infra = 100 .ts/.tsx + 4 CSS",
     "pools_count": 10,
     "implicit_dependency": "design-system/ e importado por 17 arquivos em quase todos os pools. Nao e listado em cada pool — consulte cross_reference.",
 
@@ -15,7 +15,17 @@
       "step_4": "Consulte shared_warnings ANTES de editar qualquer arquivo compartilhado.",
       "combined_pools": "Para 'pool: admin + canvas', leia read_first de ambos. Dedup: ResumoCanvas.tsx aparece nos dois — ler so uma vez.",
       "monster_files": "Arquivos com mais de 400 linhas: leia imports + assinaturas de funcoes primeiro (offset 0, limit 60). Leia o resto sob demanda."
-    }
+    },
+
+    "changelog": [
+      {
+        "version": "2.1.0",
+        "date": "2026-02-17",
+        "description": "Extraido AdminContext como nucleo independiente. Admin auth (isAdmin, adminLogin, adminLogout) movido de AppContext para AdminContext.tsx. AppContext agora gerencia apenas navegacao e estado do aluno.",
+        "files_added": ["src/app/context/AdminContext.tsx"],
+        "files_modified": ["AppContext.tsx", "App.tsx", "AdminPanel.tsx", "AdminSettings.tsx", "Sidebar.tsx", "AdminBanner.tsx"]
+      }
+    ]
   },
 
   "line_counts": {
@@ -24,13 +34,13 @@
     "StudyView.tsx": 557,
     "DashboardView.tsx": 176,
     "ResumosView.tsx": 508,
-    "AdminPanel.tsx": 329,
+    "AdminPanel.tsx": 340,
     "ResumoCanvas.tsx": 906,
     "CanvasBlocksRenderer.tsx": 209,
     "AdminOverview.tsx": 270,
     "AdminResumos.tsx": 276,
     "AdminPlaceholderTab.tsx": 252,
-    "AdminSettings.tsx": 190,
+    "AdminSettings.tsx": 200,
     "canvas/types.ts": 94,
     "canvas/helpers.ts": 165,
     "canvas/index.ts": 16,
@@ -46,10 +56,11 @@
     "canvas/BlockActions.tsx": 102,
     "canvas/ReorderBlockWrapper.tsx": 347,
     "AxonPageHeader.tsx": 49,
-    "AdminBanner.tsx": 309,
-    "Sidebar.tsx": 219,
+    "AdminBanner.tsx": 312,
+    "Sidebar.tsx": 220,
     "AxonLogo.tsx": 52,
-    "AppContext.tsx": 83,
+    "AdminContext.tsx": 75,
+    "AppContext.tsx": 55,
     "StudentDataContext.tsx": 263,
     "courses.ts": 477,
     "keywords.ts": 249,
@@ -68,7 +79,7 @@
         "src/app/components/content/StudyView.tsx",
         "src/app/context/AppContext.tsx"
       ],
-      "read_first_lines": 640,
+      "read_first_lines": 612,
       "read_if_needed": {
         "rendering_resumos": ["src/app/components/content/CanvasBlocksRenderer.tsx", "src/app/components/content/canvas/KeywordPopover.tsx"],
         "content_medico": ["src/app/data/studyContent.ts", "src/app/data/sectionImages.ts"],
@@ -81,7 +92,8 @@
         "courses.ts (477 linhas) — tambem: resumos, canvas, admin, AppContext",
         "keywords.ts — tambem: resumos, canvas (KeywordPicker, KeywordPopover)",
         "studentApi.ts — usado por todos os pools que persistem dados",
-        "AxonPageHeader.tsx — tambem: resumos, dashboard, admin"
+        "AxonPageHeader.tsx — tambem: resumos, dashboard, admin",
+        "AdminBanner.tsx — usa useAdmin() de AdminContext (nao AppContext)"
       ],
       "notes": "Contem StudyPlan + StudySession como sub-views internas. Usa CanvasBlocksRenderer (standalone, tipos duplicados) para renderizar resumos. lessonData.ts (26 linhas) exporta topicLessons mas NENHUM arquivo importa — orfao preparado para uso futuro."
     },
@@ -92,7 +104,7 @@
         "src/app/components/content/ResumosView.tsx",
         "src/app/context/AppContext.tsx"
       ],
-      "read_first_lines": 591,
+      "read_first_lines": 563,
       "read_if_needed": {
         "rendering_blocks": ["src/app/components/content/CanvasBlocksRenderer.tsx", "src/app/components/content/canvas/KeywordPopover.tsx"],
         "keywords": ["src/app/data/keywords.ts"],
@@ -103,7 +115,8 @@
       "shared_warnings": [
         "CanvasBlocksRenderer.tsx — standalone com tipos duplicados, tambem usado por study",
         "courses.ts — tambem: study, canvas, admin",
-        "studentApi.ts — usado por todos os pools que persistem dados"
+        "studentApi.ts — usado por todos os pools que persistem dados",
+        "AdminBanner.tsx — usa useAdmin() de AdminContext (nao AppContext)"
       ],
       "notes": "Sub-views: 'list' (grade de cards) e 'detail' (preview read-only). NAO abre o editor — ResumoCanvas so e acessado pelo admin."
     },
@@ -138,12 +151,12 @@
     },
 
     "admin": {
-      "description": "Painel admin — hub com 6 tabs (overview, resumos CRUD, quiz/flashcards/content placeholders, settings)",
+      "description": "Painel admin — hub com 6 tabs (overview, resumos CRUD, quiz/flashcards/content placeholders, settings). Sessao admin gerenciada por AdminContext (nucleo independiente).",
       "read_first": [
         "src/app/components/content/AdminPanel.tsx",
-        "src/app/context/AppContext.tsx"
+        "src/app/context/AdminContext.tsx"
       ],
-      "read_first_lines": 412,
+      "read_first_lines": 415,
       "read_if_needed": {
         "tab_overview": ["src/app/components/content/admin/AdminOverview.tsx"],
         "tab_resumos_crud": ["src/app/components/content/admin/AdminResumos.tsx"],
@@ -152,14 +165,16 @@
         "editor_canvas": ["src/app/components/content/ResumoCanvas.tsx"],
         "api_tipos": ["src/app/services/studentApi.ts", "src/app/types/student.ts"],
         "dados_cursos": ["src/app/data/courses.ts"],
-        "ui_header": ["src/app/components/shared/AxonPageHeader.tsx"]
+        "ui_header": ["src/app/components/shared/AxonPageHeader.tsx"],
+        "navegacao_bridge": ["src/app/context/AppContext.tsx"]
       },
       "shared_warnings": [
-        "AppContext.tsx — isAdmin, adminLogin, adminLogout (ADMIN_PLACEHOLDER para Supabase Auth)",
+        "AdminContext.tsx — isAdmin, adminLogin, adminLogout, sessionStartedAt (nucleo independiente, ADMIN_PLACEHOLDER para Supabase Auth)",
+        "AppContext.tsx — usado apenas para navegacao (setActiveView) via bridge pattern",
         "ResumoCanvas.tsx (906 linhas) — e o pool 'canvas' inteiro. Se a tarefa envolve o editor, carregue pool canvas tambem.",
         "courses.ts — AdminOverview e AdminResumos iteram cursos para stats"
       ],
-      "notes": "Exports { AdminPanel, AdminLoginGate }. AdminPanel carrega ResumoCanvas como sub-view do tab 'resumos'. Se precisar mexer no editor, combine: 'pool: admin + canvas'."
+      "notes": "Exports { AdminPanel, AdminLoginGate }. Auth via useAdmin() (AdminContext), navegacao via useApp() (AppContext) — bridge pattern. AdminPanel carrega ResumoCanvas como sub-view do tab 'resumos'. Se precisar mexer no editor, combine: 'pool: admin + canvas'. Para migrar para Supabase Auth, so AdminContext.tsx precisa mudar."
     },
 
     "dashboard": {
@@ -169,7 +184,7 @@
         "src/app/context/AppContext.tsx",
         "src/app/context/StudentDataContext.tsx"
       ],
-      "read_first_lines": 522,
+      "read_first_lines": 494,
       "read_if_needed": {
         "tipos": ["src/app/types/student.ts"],
         "ui_header": ["src/app/components/shared/AxonPageHeader.tsx"]
@@ -182,21 +197,23 @@
     },
 
     "navigation": {
-      "description": "App shell — routing por ViewType, sidebar, toggle, transicoes",
+      "description": "App shell — routing por ViewType, sidebar, toggle, transicoes. Admin auth via AdminContext (separado).",
       "read_first": [
         "src/app/App.tsx",
         "src/app/components/shared/Sidebar.tsx",
         "src/app/context/AppContext.tsx"
       ],
-      "read_first_lines": 376,
+      "read_first_lines": 349,
       "read_if_needed": {
-        "logo": ["src/app/components/shared/AxonLogo.tsx"]
+        "logo": ["src/app/components/shared/AxonLogo.tsx"],
+        "admin_auth": ["src/app/context/AdminContext.tsx"]
       },
       "shared_warnings": [
-        "AppContext.tsx — ViewType define todas as rotas possiveis",
-        "App.tsx — ViewRouter mapeia ViewType para componentes de cada modulo"
+        "AppContext.tsx — ViewType define todas as rotas possiveis (inclui 'admin')",
+        "AdminContext.tsx — Sidebar e ViewRouter usam useAdmin() para indicador de sessao e gate",
+        "App.tsx — ViewRouter mapeia ViewType para componentes de cada modulo. Provider hierarchy: AppProvider > AdminProvider > StudentDataProvider"
       ],
-      "notes": "NAO usa React Router — routing manual via ViewType + switch. AnimatePresence para transicoes. Sidebar: moduleItems (dashboard, study, resumos, quiz) + admin separado."
+      "notes": "NAO usa React Router — routing manual via ViewType + switch. AnimatePresence para transicoes. Sidebar: moduleItems (dashboard, study, resumos, quiz) + admin separado. Admin auth lido de AdminContext (useAdmin), navegacao de AppContext (useApp)."
     },
 
     "design-system": {
@@ -251,14 +268,15 @@
         "src/app/components/shared/Sidebar.tsx",
         "src/app/components/shared/AxonLogo.tsx"
       ],
-      "read_first_lines": 629,
+      "read_first_lines": 633,
       "read_if_needed": {
-        "context": ["src/app/context/AppContext.tsx"]
+        "context_navegacao": ["src/app/context/AppContext.tsx"],
+        "context_admin": ["src/app/context/AdminContext.tsx"]
       },
       "shared_warnings": [
         "AxonPageHeader — usado por: study, resumos, dashboard, admin",
-        "AdminBanner — 4 variantes (banner, inline, floating, minimal) + BackendStatusBadge. Usado por: study, resumos",
-        "Sidebar — modulos, toggle, admin. Usa AxonLogo + AppContext",
+        "AdminBanner — 4 variantes (banner, inline, floating, minimal) + BackendStatusBadge. Usa useAdmin() de AdminContext + useApp() de AppContext. Usado por: study, resumos",
+        "Sidebar — modulos, toggle, admin. Usa AxonLogo + useApp() (navegacao) + useAdmin() (indicador sessao)",
         "AxonLogo — AxonMark SVG + AxonBrand + AxonBadge + AxonWatermark. Usado por: Sidebar, AxonPageHeader"
       ],
       "notes": "AdminBanner: 4 variantes + AdminRequired wrapper + BackendStatusBadge."
@@ -289,7 +307,8 @@
     "keywords.ts": ["study", "resumos", "canvas", "data"],
     "student.ts": ["study", "resumos", "canvas", "admin", "dashboard", "types-services"],
     "studentApi.ts": ["study", "resumos", "canvas", "admin", "types-services"],
-    "AppContext.tsx": ["study", "resumos", "admin", "dashboard", "navigation", "shared-components"],
+    "AdminContext.tsx": ["admin", "navigation", "shared-components (AdminBanner, Sidebar)"],
+    "AppContext.tsx": ["study", "resumos", "admin (bridge)", "dashboard", "navigation", "shared-components"],
     "StudentDataContext.tsx": ["dashboard", "types-services"],
     "AxonPageHeader.tsx": ["study", "resumos", "dashboard", "admin", "shared-components"],
     "AdminBanner.tsx": ["study", "resumos", "shared-components"],
