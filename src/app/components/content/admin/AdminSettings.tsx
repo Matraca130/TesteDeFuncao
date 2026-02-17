@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAdmin } from '@/app/context/AdminContext';
+import { useApp } from '@/app/context/AppContext';
 import { headingStyle } from '@/app/design-system';
 import clsx from 'clsx';
 import {
@@ -14,12 +15,20 @@ import {
 // e informacoes sobre o ambiente.
 //
 // Auth: useAdmin() (AdminContext — nucleo independiente)
+// Navegacao: useApp() (AppContext — bridge para routing)
 // ══════════════════════════════════════════════
 
 const CARD = 'bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100';
 
 export function AdminSettings() {
   const { isAdmin, adminLogout, sessionStartedAt, sessionDurationMinutes } = useAdmin();
+  const { setActiveView } = useApp();
+
+  // Bridge pattern: admin context (auth) + app context (navigation)
+  const handleEndSession = () => {
+    adminLogout();              // AdminContext: limpa sessao
+    setActiveView('dashboard'); // AppContext: navega para dashboard
+  };
 
   return (
     <div className="space-y-6">
@@ -53,7 +62,7 @@ export function AdminSettings() {
           </div>
           {isAdmin && (
             <button
-              onClick={adminLogout}
+              onClick={handleEndSession}
               className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-medium transition-colors border border-red-200"
             >
               Encerrar Sessao
