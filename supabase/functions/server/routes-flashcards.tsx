@@ -13,6 +13,10 @@
 //   D39 — Students can create personal flashcards (source='student')
 //   D44 — Student cards feed BKT with same multiplier
 //   D46 — response_time_ms saved but does NOT affect algorithms in v1
+//
+// FlashcardCard contract (instruments.ts): exactly 12 fields
+//   id, summary_id, keyword_id, subtopic_id, institution_id,
+//   front, back, image_url, status, source, created_by, created_at
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -58,31 +62,31 @@ flashcards.post("/flashcards", async (c) => {
     if (!user) return unauthorized(c);
     const body = await c.req.json();
 
-    // Validate required fields
-    if (!body.keyword_id || !body.question || !body.answer) {
+    // Validate required fields (contract: front + back)
+    if (!body.keyword_id || !body.front || !body.back) {
       return validationError(
         c,
-        "Missing required fields: keyword_id, question, answer"
+        "Missing required fields: keyword_id, front, back"
       );
     }
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // FlashcardCard: exactly 12 fields per instruments.ts contract
     const card = {
       id,
-      keyword_id: body.keyword_id,
       summary_id: body.summary_id ?? null,
+      keyword_id: body.keyword_id,
       subtopic_id: body.subtopic_id ?? body.keyword_id, // D27
-      question: body.question,
-      answer: body.answer,
-      hint: body.hint ?? null,
-      tags: body.tags ?? [],
-      source: body.source ?? "professor", // D39: 'professor' | 'student' | 'ai'
-      status: body.source === "student" ? "published" : (body.status ?? "draft"),
+      institution_id: body.institution_id ?? null,
+      front: body.front,
+      back: body.back,
+      image_url: body.image_url ?? null,
+      status: body.status ?? "published",
+      source: body.source ?? "student", // D39: default student
       created_by: user.id,
       created_at: now,
-      updated_at: now,
     };
 
     // Primary key + indices
@@ -151,7 +155,6 @@ flashcards.get("/flashcards/due", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
 
-    const courseId = c.req.query("course_id");
     const limitParam = c.req.query("limit");
     const limit = limitParam ? parseInt(limitParam, 10) : 20;
 
@@ -177,16 +180,13 @@ flashcards.get("/flashcards/due", async (c) => {
     const today = new Date().toISOString().split("T")[0];
 
     // 4. Build result: only include cards that are actually overdue
+    // Response shape: DueFlashcardItem { card, fsrs_state, overdue_days }
     const result: any[] = [];
     for (let i = 0; i < uniqueCardIds.length; i++) {
       const card = cards[i];
       const fsrsState = states[i];
 
       if (!card || !fsrsState) continue;
-
-      // Filter by course if specified (card → keyword → course chain)
-      // For v1, we skip course filtering if not provided
-      // (would require loading keyword→summary→topic→section→semester→course)
 
       // Only include cards where due_at <= now
       if (fsrsState.due_at) {
@@ -197,7 +197,7 @@ flashcards.get("/flashcards/due", async (c) => {
           );
           result.push({
             card,
-            fsrs_state: fsrsState,
+            fsrs_state: fsrsState, // Contract: "fsrs_state", NOT "fsrs"
             overdue_days: Math.max(0, overdueDays),
           });
         }
@@ -255,15 +255,17 @@ flashcards.put("/flashcards/:id", async (c) => {
     }
 
     const body = await c.req.json();
-    const updated = {
-      ...existing,
-      ...body,
-      id, // Prevent overwriting ID
-      keyword_id: existing.keyword_id, // Prevent reparenting
-      created_by: existing.created_by, // Preserve creator
-      created_at: existing.created_at, // Preserve creation date
-      updated_at: new Date().toISOString(),
-    };
+
+    // Whitelist: only these fields are updatable on FlashcardCard
+    const UPDATABLE = ["front", "back", "image_url", "status"];
+    const updated = { ...existing };
+    for (const field of UPDATABLE) {
+      if (body[field] !== undefined) {
+        updated[field] = body[field];
+      }
+    }
+    // Immutable fields preserved: id, keyword_id, subtopic_id,
+    // institution_id, summary_id, source, created_by, created_at
 
     await kv.set(KV.flashcard(id), updated);
     return c.json({ success: true, data: updated });
@@ -306,15 +308,12 @@ flashcards.delete("/flashcards/:id", async (c) => {
       keysToDelete.push(KV.IDX.flashcardOfSummary(card.summary_id, id));
     }
 
-    // Remove FSRS state for all students who reviewed this card
-    // (prefix scan for all users who have FSRS state for this card)
-    // Note: In practice, we'd need a reverse index. For v1, we clean up
-    // the deleting user's state only. A background job can handle others.
+    // Remove FSRS state for deleting user
+    // (background job can handle other students' states)
     const fsrsState = await kv.get(KV.fsrs(user.id, id));
     if (fsrsState) {
       keysToDelete.push(KV.fsrs(user.id, id));
       keysToDelete.push(KV.IDX.studentFsrs(user.id, id));
-      // Clean up due index if exists
       if (fsrsState.due_at) {
         const dueDate = fsrsState.due_at.split("T")[0];
         keysToDelete.push(KV.IDX.dueCard(user.id, dueDate, id));
@@ -337,6 +336,12 @@ flashcards.delete("/flashcards/:id", async (c) => {
 // Implements: GRADE_TO_BKT → updateBKT → calcFSRS →
 //             getDisplayMastery → getThreshold → delta →
 //             getColorFromDelta → persist with mset
+//
+// ReviewLog contract (activity.ts): only _after fields
+//   bkt_after, stability_after, delta_after, color_after
+//   NO before/after pairs, NO is_lapse
+//
+// SubmitReviewRes.feedback: inline object, NOT a named type
 // ================================================================
 
 flashcards.post("/reviews", async (c) => {
@@ -355,7 +360,7 @@ flashcards.post("/reviews", async (c) => {
       response_time_ms,
     } = body;
 
-    // ── Validate required fields ───────────────────────────
+    // ── Validate required fields ─────────────────────────
     if (
       !session_id ||
       !item_id ||
@@ -371,14 +376,14 @@ flashcards.post("/reviews", async (c) => {
       );
     }
 
-    if (!['flashcard', 'quiz'].includes(instrument_type)) {
+    if (!["flashcard", "quiz"].includes(instrument_type)) {
       return validationError(
         c,
         `Invalid instrument_type: ${instrument_type}. Must be 'flashcard' or 'quiz'`
       );
     }
 
-    // ── 1. Map grade → BKT params ──────────────────────────
+    // ── 1. Map grade → BKT params ────────────────────────
     const bktParams = GRADE_TO_BKT[grade as number];
     if (!bktParams) {
       return validationError(
@@ -396,9 +401,9 @@ flashcards.post("/reviews", async (c) => {
       bkt = createInitialBktState(userId, subtopic_id, keyword_id);
     }
 
-    // ── 3. Update BKT mastery ──────────────────────────────
-    const typeMult: 'flashcard' | 'quiz' =
-      instrument_type === 'quiz' ? 'quiz' : 'flashcard';
+    // ── 3. Update BKT mastery ──────────────────────────
+    const typeMult: "flashcard" | "quiz" =
+      instrument_type === "quiz" ? "quiz" : "flashcard";
     const newMastery = updateBKT(
       bkt.p_know,
       bkt.max_mastery,
@@ -408,25 +413,25 @@ flashcards.post("/reviews", async (c) => {
     );
     const newMaxMastery = Math.max(bkt.max_mastery, newMastery);
 
-    // ── 4. FSRS (flashcard only — D36) ─────────────────────
+    // ── 4. FSRS (flashcard only — D36) ───────────────────
     let newStability = bkt.stability;
     let fsrsState: any = null;
     let oldDueDate: string | null = null;
     let newDueDate: string | null = null;
 
-    if (instrument_type === 'flashcard') {
+    if (instrument_type === "flashcard") {
       const fsrsKey = KV.fsrs(userId, item_id);
       fsrsState = await kv.get(fsrsKey);
       if (!fsrsState) {
         fsrsState = createInitialCardFsrs(userId, item_id);
       }
-      oldDueDate = fsrsState.due_at?.split('T')[0] ?? null;
+      oldDueDate = fsrsState.due_at?.split("T")[0] ?? null;
 
-      const firstReview = fsrsState.state === 'new';
+      const firstReview = fsrsState.state === "new";
       if (firstReview) {
         // First review: use getInitialS based on grade
         newStability = getInitialS(grade);
-        fsrsState.state = 'learning';
+        fsrsState.state = "learning";
         fsrsState.reps = 1;
       } else {
         // Subsequent reviews: full FSRS computation
@@ -446,10 +451,10 @@ flashcards.post("/reviews", async (c) => {
 
         if (result.isLapse) {
           fsrsState.lapses += 1;
-          fsrsState.state = 'relearning';
+          fsrsState.state = "relearning";
         } else {
           fsrsState.reps += 1;
-          fsrsState.state = 'review';
+          fsrsState.state = "review";
         }
       }
 
@@ -459,24 +464,21 @@ flashcards.post("/reviews", async (c) => {
       // Schedule next review: due_at = now + stability days
       const dueAt = new Date(Date.now() + newStability * 86_400_000);
       fsrsState.due_at = dueAt.toISOString();
-      newDueDate = dueAt.toISOString().split('T')[0];
+      newDueDate = dueAt.toISOString().split("T")[0];
       fsrsState.updated_at = new Date().toISOString();
     }
 
-    // ── 5. Recompute delta & color ─────────────────────────
-    // Get keyword priority for threshold calculation
+    // ── 5. Recompute delta & color ─────────────────────
     const kwData = await kv.get(KV.keyword(keyword_id));
     const priority = kwData?.priority ?? 1;
-
-    // displayMastery = mastery * R(daysSince, stability)
-    // Since we just reviewed, daysSince = 0, so displayM = mastery
+    // daysSince = 0 since we JUST reviewed, so displayM = mastery
     const displayM = getDisplayMastery(newMastery, 0, newStability);
     const threshold = getThreshold(priority);
     const delta = threshold > 0 ? displayM / threshold : 0;
     const colorInfo = getColorFromDelta(delta);
     const colorName = colorInfo.color;
 
-    // ── 6. Update BKT state ────────────────────────────────
+    // ── 6. Update BKT state ────────────────────────────
     const now = new Date().toISOString();
     const updatedBkt = {
       ...bkt,
@@ -492,7 +494,7 @@ flashcards.post("/reviews", async (c) => {
       updated_at: now,
     };
 
-    // ── 7. Create review log ───────────────────────────────
+    // ── 7. Create review log (activity.ts contract: _after only) ──
     const reviewId = crypto.randomUUID();
     const reviewLog = {
       id: reviewId,
@@ -506,13 +508,13 @@ flashcards.post("/reviews", async (c) => {
       response_time_ms: response_time_ms ?? null, // D46: saved but not used
       bkt_after: newMastery,
       stability_after:
-        instrument_type === 'flashcard' ? newStability : null,
+        instrument_type === "flashcard" ? newStability : null,
       delta_after: delta,
       color_after: colorName,
       created_at: now,
     };
 
-    // ── 8. Persist EVERYTHING atomically ────────────────────
+    // ── 8. Persist EVERYTHING atomically ──────────────────
     const keys: string[] = [
       bktKey,
       KV.review(reviewId),
@@ -528,7 +530,7 @@ flashcards.post("/reviews", async (c) => {
       subtopic_id,
     ];
 
-    if (instrument_type === 'flashcard' && fsrsState) {
+    if (instrument_type === "flashcard" && fsrsState) {
       keys.push(KV.fsrs(userId, item_id));
       values.push(fsrsState);
       keys.push(KV.IDX.studentFsrs(userId, item_id));
@@ -545,14 +547,14 @@ flashcards.post("/reviews", async (c) => {
 
     // Delete old due entry if date changed (can't be in mset — separate op)
     if (
-      instrument_type === 'flashcard' &&
+      instrument_type === "flashcard" &&
       oldDueDate &&
       oldDueDate !== newDueDate
     ) {
       await kv.del(KV.IDX.dueCard(userId, oldDueDate, item_id));
     }
 
-    // ── 9. Update session counters ─────────────────────────
+    // ── 9. Update session counters ─────────────────────
     const session = await kv.get(KV.session(session_id));
     if (session) {
       session.items_reviewed = (session.items_reviewed ?? 0) + 1;
@@ -578,7 +580,7 @@ flashcards.post("/reviews", async (c) => {
       await kv.set(KV.session(session_id), session);
     }
 
-    // ── 10. Return response ────────────────────────────────
+    // ── 10. Return response (SubmitReviewRes) ───────────────
     console.log(
       `[Reviews] ${instrument_type} review for ${item_id} by ${userId}: grade=${grade}, mastery=${newMastery.toFixed(3)}, delta=${delta.toFixed(3)}, color=${colorName}`
     );
@@ -589,6 +591,7 @@ flashcards.post("/reviews", async (c) => {
         review_log: reviewLog,
         updated_bkt: updatedBkt,
         updated_card_fsrs: fsrsState,
+        // feedback is an inline object in SubmitReviewRes, NOT a named type
         feedback: {
           delta_before: bkt.delta,
           delta_after: delta,
@@ -596,7 +599,7 @@ flashcards.post("/reviews", async (c) => {
           color_after: colorName,
           mastery: newMastery,
           stability:
-            instrument_type === 'flashcard' ? newStability : null,
+            instrument_type === "flashcard" ? newStability : null,
           next_due: fsrsState?.due_at ?? null,
         },
       },
@@ -695,7 +698,6 @@ flashcards.get("/sessions/:id", async (c) => {
     const session = await kv.get(KV.session(c.req.param("id")));
     if (!session) return notFound(c, "Session");
 
-    // Only allow access to own sessions
     if (session.student_id !== user.id) {
       return c.json(
         {
@@ -775,7 +777,7 @@ flashcards.put("/sessions/:id/end", async (c) => {
     await kv.set(KV.session(id), updatedSession);
 
     console.log(
-      `[Sessions] Ended session ${id}: ${session.items_reviewed} items, avg_grade=${avgGrade?.toFixed(2) ?? 'N/A'}, ${totalTimeMs}ms`
+      `[Sessions] Ended session ${id}: ${session.items_reviewed} items, avg_grade=${avgGrade?.toFixed(2) ?? "N/A"}, ${totalTimeMs}ms`
     );
     return c.json({ success: true, data: updatedSession });
   } catch (err) {
@@ -788,7 +790,6 @@ flashcards.put("/sessions/:id/end", async (c) => {
 // ================================================================
 
 // ── GET /bkt — Get BKT states for current student ──────────
-// Query params: keyword_id (optional), subtopic_id (optional)
 flashcards.get("/bkt", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -798,13 +799,11 @@ flashcards.get("/bkt", async (c) => {
     const subtopicId = c.req.query("subtopic_id");
 
     if (subtopicId) {
-      // Direct lookup for a specific subtopic
       const bkt = await kv.get(KV.bkt(user.id, subtopicId));
       return c.json({ success: true, data: bkt ?? null });
     }
 
     if (keywordId) {
-      // All BKT states for subtopics under this keyword
       const subtopicIds = await kv.getByPrefix(
         KV.PREFIX.bktOfStudentKw(user.id, keywordId)
       );
@@ -856,7 +855,6 @@ flashcards.get("/fsrs", async (c) => {
       return c.json({ success: true, data: fsrs ?? null });
     }
 
-    // All FSRS states for this student
     const allCardIds = await kv.getByPrefix(
       KV.PREFIX.fsrsOfStudent(user.id)
     );
