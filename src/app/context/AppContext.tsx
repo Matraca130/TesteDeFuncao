@@ -2,21 +2,42 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
-export type ViewType = 'home' | 'dashboard' | 'resumos' | 'study-hub' | 'study' | 'flashcards' | 'quiz' | '3d' | 'schedule' | 'organize-study' | 'review-session' | 'study-dashboards' | 'knowledge-heatmap' | 'mastery-dashboard' | 'student-data' | 'admin' | 'flashcard-admin' | 'curriculum-admin' | 'diagnostic';
-export type ThemeType = 'dark' | 'light';
 
-// ════════════════════════════════════════════════════════════════
+// ================================================================
 // APP CONTEXT — Estado do aluno e navegacao
 //
-// Este contexto gerencia APENAS:
-//   - Curso e topico selecionado pelo aluno
-//   - View ativa (routing manual por ViewType)
-//   - Estado do sidebar
-//
-// A sessao admin foi extraida para AdminContext.tsx
-// (nucleo independente). Busque "useAdmin" nos componentes
-// que precisam do estado admin.
-// ════════════════════════════════════════════════════════════════
+// ViewTypes incluem os modulos de todos os devs:
+//   - dashboard, study, resumos, quiz, flashcards (Devs 1-5)
+//   - ai-generate, ai-chat, ai-approval (Dev 6 — Auth & AI)
+//   - admin (AdminContext gerencia sessao independente)
+// ================================================================
+
+export type ViewType =
+  | 'home'
+  | 'dashboard'
+  | 'resumos'
+  | 'study'
+  | 'study-hub'
+  | 'flashcards'
+  | 'quiz'
+  | '3d'
+  | 'schedule'
+  | 'organize-study'
+  | 'review-session'
+  | 'study-dashboards'
+  | 'knowledge-heatmap'
+  | 'mastery-dashboard'
+  | 'student-data'
+  | 'admin'
+  | 'flashcard-admin'
+  | 'curriculum-admin'
+  | 'diagnostic'
+  // Dev 6 — Auth & AI views
+  | 'ai-generate'
+  | 'ai-chat'
+  | 'ai-approval';
+
+export type ThemeType = 'dark' | 'light';
 
 export interface StudyPlanTask {
   id: string;
@@ -36,7 +57,7 @@ export interface StudyPlan {
   methods: string[];
   selectedTopics: { courseId: string; courseName: string; sectionTitle: string; topicTitle: string; topicId: string }[];
   completionDate: Date;
-  weeklyHours: number[]; // [mon, tue, wed, thu, fri, sat, sun]
+  weeklyHours: number[];
   tasks: StudyPlanTask[];
   createdAt: Date;
   totalEstimatedHours: number;
@@ -67,20 +88,30 @@ const AppContext = createContext<AppContextType>({
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentCourse, setCurrentCourse] = useState<Course>(courses[0]);
-  const [currentTopic, setCurrentTopic] = useState<Topic | null>(courses[0].semesters[0].sections[0].topics[0]);
+  const [currentTopic, setCurrentTopic] = useState<Topic | null>(
+    courses[0].semesters[0].sections[0].topics[0]
+  );
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <AppContext.Provider value={{
-      currentCourse, setCurrentCourse,
-      currentTopic, setCurrentTopic,
-      activeView, setActiveView,
-      isSidebarOpen, setSidebarOpen,
-    }}>
+    <AppContext.Provider
+      value={{
+        currentCourse,
+        setCurrentCourse,
+        currentTopic,
+        setCurrentTopic,
+        activeView,
+        setActiveView,
+        isSidebarOpen,
+        setSidebarOpen,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
 }
 
-export function useApp() { return useContext(AppContext); }
+export function useApp() {
+  return useContext(AppContext);
+}

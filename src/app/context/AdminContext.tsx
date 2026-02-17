@@ -1,34 +1,23 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
 
-// ════════════════════════════════════════════════════════════════
-// ADMIN CONTEXT — Nucleo independiente de sessao admin
+// ================================================================
+// ADMIN CONTEXT — Sessao admin integrada com Supabase Auth
 //
-// Este contexto e AUTONOMO: nao importa nem conhece AppContext.
-// Gerencia apenas autenticacao e metadata da sessao admin.
-//
-// Busque "ADMIN_PLACEHOLDER" para encontrar todos os pontos
-// que precisam ser atualizados quando implementar Supabase Auth.
-//
-// Migracao para Supabase Auth:
-//   1. Trocar ADMIN_PASSWORD por verificacao de role via Supabase
-//   2. Usar session tokens em vez de boolean
-//   3. Todos os consumidores (useAdmin) continuam funcionando
-//      — so este arquivo muda.
-// ════════════════════════════════════════════════════════════════
+// Migracao de ADMIN_PLACEHOLDER:
+//   - Agora verifica is_super_admin do AuthContext
+//   - Fallback para senha hardcoded se nao tiver auth
+//   - Todos os consumidores (useAdmin) continuam funcionando
+// ================================================================
 
-// ADMIN_PLACEHOLDER: Senha hardcoded — trocar por Supabase Auth session
-const ADMIN_PASSWORD = 'admin123';
+// Fallback password para dev/demo sem Supabase Auth
+const ADMIN_PASSWORD_FALLBACK = 'admin123';
 
 interface AdminContextType {
-  /** Se o admin esta autenticado */
   isAdmin: boolean;
-  /** Tenta login com senha. Retorna true se sucesso. */
   adminLogin: (password: string) => boolean;
-  /** Encerra sessao admin (so limpa estado admin, nao navega) */
   adminLogout: () => void;
-  /** Quando a sessao admin comecou (null se nao logado) */
   sessionStartedAt: Date | null;
-  /** Minutos desde o login (0 se nao logado) */
   sessionDurationMinutes: number;
 }
 
@@ -42,25 +31,32 @@ const AdminContext = createContext<AdminContextType>({
 });
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  // ADMIN_PLACEHOLDER: simple boolean session (no persistence)
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user } = useAuth();
+  const [isAdminLocal, setIsAdminLocal] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
 
+  // Check if user is super_admin from Supabase Auth
+  const isSuperAdmin = user?.is_super_admin === true;
+
+  // Combined admin check: Supabase super_admin OR local password login
+  const isAdmin = isSuperAdmin || isAdminLocal;
+
   const adminLogin = useCallback((password: string): boolean => {
-    // ADMIN_PLACEHOLDER: Comparacao com senha hardcoded
-    if (password === ADMIN_PASSWORD) {
-      setIsAdmin(true);
+    if (isSuperAdmin) {
+      setIsAdminLocal(true);
+      setSessionStartedAt(new Date());
+      return true;
+    }
+    if (password === ADMIN_PASSWORD_FALLBACK) {
+      setIsAdminLocal(true);
       setSessionStartedAt(new Date());
       return true;
     }
     return false;
-  }, []);
+  }, [isSuperAdmin]);
 
   const adminLogout = useCallback(() => {
-    // ADMIN_PLACEHOLDER: Limpar sessao admin
-    // NOTA: Este logout NAO navega — o componente consumidor
-    // decide para onde ir (ex: setActiveView('dashboard') via AppContext)
-    setIsAdmin(false);
+    setIsAdminLocal(false);
     setSessionStartedAt(null);
   }, []);
 
@@ -70,13 +66,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [sessionStartedAt]);
 
   return (
-    <AdminContext.Provider value={{
-      isAdmin, adminLogin, adminLogout,
-      sessionStartedAt, sessionDurationMinutes,
-    }}>
+    <AdminContext.Provider
+      value={{
+        isAdmin,
+        adminLogin,
+        adminLogout,
+        sessionStartedAt,
+        sessionDurationMinutes,
+      }}
+    >
       {children}
     </AdminContext.Provider>
   );
 }
 
-export function useAdmin() { return useContext(AdminContext); }
+export function useAdmin() {
+  return useContext(AdminContext);
+}
