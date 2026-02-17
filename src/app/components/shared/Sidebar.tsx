@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp, ViewType } from '@/app/context/AppContext';
+import { useAdmin } from '@/app/context/AdminContext';
 import { AxonLogo } from '@/app/components/shared/AxonLogo';
 import { components } from '@/app/design-system';
 import {
@@ -50,7 +51,8 @@ const secondaryItems: { id: ViewType; label: string; icon: string }[] = [
 ];
 
 export function Sidebar() {
-  const { activeView, setActiveView, isSidebarOpen, setSidebarOpen, isAdmin } = useApp();
+  const { activeView, setActiveView, isSidebarOpen, setSidebarOpen } = useApp();
+  const { isAdmin } = useAdmin();
 
   return (
     <AnimatePresence initial={false}>
@@ -166,7 +168,7 @@ export function Sidebar() {
                 <span>Configuracoes</span>
               </button>
 
-              {/* ADMIN_PLACEHOLDER: Botão Admin no sidebar */}
+              {/* Admin button — reads from AdminContext (independent module) */}
               <button
                 onClick={() => setActiveView('admin')}
                 className={clsx(

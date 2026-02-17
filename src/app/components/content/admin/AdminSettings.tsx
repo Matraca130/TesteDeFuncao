@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApp } from '@/app/context/AppContext';
+import { useAdmin } from '@/app/context/AdminContext';
 import { headingStyle } from '@/app/design-system';
 import clsx from 'clsx';
 import {
@@ -12,12 +12,14 @@ import {
 // ADMIN SETTINGS TAB
 // Configuracoes de sessao admin, status de conexoes,
 // e informacoes sobre o ambiente.
+//
+// Auth: useAdmin() (AdminContext — nucleo independiente)
 // ══════════════════════════════════════════════
 
 const CARD = 'bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100';
 
 export function AdminSettings() {
-  const { isAdmin, adminLogout } = useApp();
+  const { isAdmin, adminLogout, sessionStartedAt, sessionDurationMinutes } = useAdmin();
 
   return (
     <div className="space-y-6">
@@ -33,7 +35,7 @@ export function AdminSettings() {
               <p className="text-sm text-gray-500 mb-3">
                 {isAdmin ? 'Sessao ativa — voce tem acesso total ao painel de gerenciamento.' : 'Sessao inativa.'}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={clsx(
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold',
                   isAdmin ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-50 text-gray-500 border border-gray-200'
@@ -41,6 +43,11 @@ export function AdminSettings() {
                   <span className={clsx('w-2 h-2 rounded-full', isAdmin ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400')} />
                   {isAdmin ? 'Autenticado' : 'Nao autenticado'}
                 </span>
+                {isAdmin && sessionStartedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                    Sessao: {sessionDurationMinutes < 1 ? '< 1 min' : `${sessionDurationMinutes} min`}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -69,6 +76,11 @@ export function AdminSettings() {
               status="warning"
             />
             <InfoRow
+              label="Contexto"
+              value="AdminContext.tsx (nucleo independiente)"
+              status="ok"
+            />
+            <InfoRow
               label="Destino"
               value="Migrar para Supabase Auth com roles"
               status="info"
@@ -83,9 +95,11 @@ export function AdminSettings() {
             <p className="text-[11px] text-amber-700 flex items-start gap-2">
               <AlertTriangle size={12} className="shrink-0 mt-0.5" />
               <span>
-                A autenticacao atual usa senha hardcoded ("admin123"). Em producao, deve ser migrada
-                para Supabase Auth com roles de admin. Busque "ADMIN_PLACEHOLDER" no codigo para encontrar
-                todos os pontos que precisam ser atualizados.
+                A autenticacao atual usa senha hardcoded ("admin123") em AdminContext.tsx.
+                Em producao, deve ser migrada para Supabase Auth com roles de admin.
+                Busque "ADMIN_PLACEHOLDER" no codigo para encontrar todos os pontos
+                que precisam ser atualizados. Apenas AdminContext.tsx precisa mudar —
+                todos os consumidores (useAdmin) continuam funcionando.
               </span>
             </p>
           </div>
@@ -130,7 +144,8 @@ export function AdminSettings() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {[
-            { file: 'AppContext.tsx', desc: 'Estado global isAdmin, adminLogin, adminLogout', tag: 'context' },
+            { file: 'AdminContext.tsx', desc: 'Nucleo independiente: isAdmin, adminLogin, adminLogout, session metadata', tag: 'context' },
+            { file: 'AppContext.tsx', desc: 'Navegacao e estado do aluno (sem admin auth)', tag: 'context' },
             { file: 'AdminPanel.tsx', desc: 'Hub principal com navegacao por tabs', tag: 'view' },
             { file: 'admin/AdminOverview.tsx', desc: 'Dashboard de visao geral do admin', tag: 'tab' },
             { file: 'admin/AdminResumos.tsx', desc: 'CRUD de resumos (lista + acoes)', tag: 'tab' },

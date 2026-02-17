@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '@/app/context/AppContext';
+import { useAdmin } from '@/app/context/AdminContext';
 import { AxonPageHeader } from '@/app/components/shared/AxonPageHeader';
 import { headingStyle, components } from '@/app/design-system';
 import * as api from '@/app/services/studentApi';
@@ -29,10 +30,11 @@ import { AdminSettings } from './admin/AdminSettings';
 //   Tab 'content'     → AdminContentTab (placeholder)
 //   Tab 'settings'    → AdminSettings (sessao, conexoes)
 //
+// Auth: useAdmin() (AdminContext — nucleo independente)
+// Navegacao: useApp() (AppContext — bridge para routing)
+//
 // Os componentes AdminBanner (shared) e indicadores no
 // Sidebar, StudyView e ResumosView apontam para ca.
-// Busque "ADMIN_PLACEHOLDER" para encontrar todos os pontos
-// que precisam de migracao para Supabase Auth.
 // ══════════════════════════════════════════════════════════
 
 type AdminTab = 'overview' | 'resumos' | 'quiz' | 'flashcards' | 'content' | 'settings';
@@ -47,7 +49,8 @@ const TAB_CONFIG: { id: AdminTab; label: string; icon: React.ElementType; shortL
 ];
 
 export function AdminPanel() {
-  const { adminLogout } = useApp();
+  const { adminLogout } = useAdmin();
+  const { setActiveView } = useApp();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [summaries, setSummaries] = useState<StudySummary[]>([]);
@@ -67,6 +70,12 @@ export function AdminPanel() {
   }, []);
 
   useEffect(() => { fetchSummaries(); }, [fetchSummaries]);
+
+  // ── Logout handler (bridge: admin context + navigation) ──
+  const handleLogout = () => {
+    adminLogout();              // AdminContext: limpa sessao
+    setActiveView('dashboard'); // AppContext: navega para dashboard
+  };
 
   // ── Resumo handlers ──
   const handleEdit = (s: StudySummary) => { setSelectedSummary(s); setShowCanvas(true); };
@@ -160,7 +169,7 @@ export function AdminPanel() {
         }
         actionButton={
           <button
-            onClick={adminLogout}
+            onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-xl text-sm font-medium transition-colors border border-gray-200 hover:border-red-200"
             title="Sair da sessao admin"
           >
@@ -220,17 +229,17 @@ export function AdminPanel() {
 
 // ══════════════════════════════════════════════════════════
 // ADMIN LOGIN GATE
-// ADMIN_PLACEHOLDER: Tela de login simples
+// Auth: useAdmin() (AdminContext — nucleo independiente)
 // ══════════════════════════════════════════════════════════
 export function AdminLoginGate() {
-  const { adminLogin, setActiveView } = useApp();
+  const { adminLogin } = useAdmin();
+  const { setActiveView } = useApp();
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // ADMIN_PLACEHOLDER: Login com senha hardcoded
     const success = adminLogin(password);
     if (!success) {
       setError(true);
