@@ -1,75 +1,68 @@
-// ═══════════════════════════════════════════════════════════════
-// kv-keys.tsx — Compatibility Wrapper
-// routes-content.tsx imports { KV } from this file.
-// Maps the KV namespace API → flat functions in kv-keys.ts.
-// DO NOT DELETE without updating routes-content.tsx imports.
-// ═══════════════════════════════════════════════════════════════
-import {
-  // Primary keys
-  courseKey, semesterKey, sectionKey, topicKey,
-  summaryKey, chunkKey, kwKey, kwInstKey, subtopicKey,
-  connKey, instKey, memberKey, fcKey, quizKey, model3dKey,
-  // Index keys
-  idxInstCourses, idxCourseSemesters, idxSemesterSections,
-  idxSectionTopics, idxTopicSummaries, idxSummaryChunks,
-  idxSummaryKw, idxKwSummaries, idxInstKw, idxKwSubtopics,
-  idxKwConn, idxInstMembers, idxUserInsts,
-  idxSummaryModel3d, idxTopicModel3d, idxKwModel3d,
-  // Prefixes
-  KV_PREFIXES,
-} from "./kv-keys.ts";
+// ============================================================
+// Axon v4.4 — KV Key Builders
+// Matches kv-schema.ts contract (27 primary + 30 indices)
+// ============================================================
 
 export const KV = {
-  // Primary keys
-  course: courseKey,
-  semester: semesterKey,
-  section: sectionKey,
-  topic: topicKey,
-  summary: summaryKey,
-  chunk: chunkKey,
-  keyword: kwKey,
-  keywordInstance: kwInstKey,
-  subtopic: subtopicKey,
-  connection: connKey,
-  institution: instKey,
-  membership: memberKey,
-  flashcard: fcKey,
-  quizQuestion: quizKey,
-  model3d: model3dKey,
+  // ── Primary keys ──
+  institution: (id: string) => `inst:${id}`,
+  membership: (instId: string, userId: string) => `membership:${instId}:${userId}`,
+  user: (id: string) => `user:${id}`,
+  course: (id: string) => `course:${id}`,
+  semester: (id: string) => `semester:${id}`,
+  section: (id: string) => `section:${id}`,
+  topic: (id: string) => `topic:${id}`,
+  summary: (id: string) => `summary:${id}`,
+  chunk: (id: string) => `chunk:${id}`,
+  keyword: (id: string) => `kw:${id}`,
+  keywordInstance: (id: string) => `kw-inst:${id}`,
+  subtopic: (id: string) => `subtopic:${id}`,
+  connection: (id: string) => `conn:${id}`,
 
-  // Index keys
+  // ── Index keys (value = child ID) ──
   IDX: {
-    courseOfInst: idxInstCourses,
-    semesterOfCourse: idxCourseSemesters,
-    sectionOfSemester: idxSemesterSections,
-    topicOfSection: idxSectionTopics,
-    summaryOfTopic: idxTopicSummaries,
-    chunkOfSummary: idxSummaryChunks,
-    keywordOfSummary: idxSummaryKw,
-    summaryOfKeyword: idxKwSummaries,
-    keywordOfInst: idxInstKw,
-    subtopicOfKeyword: idxKwSubtopics,
-    connectionOfKeyword: idxKwConn,
-    memberOfInst: idxInstMembers,
-    instOfUser: idxUserInsts,
-    summaryModel3d: idxSummaryModel3d,
-    topicModel3d: idxTopicModel3d,
-    kwModel3d: idxKwModel3d,
+    courseOfInst: (instId: string, courseId: string) =>
+      `idx:inst-courses:${instId}:${courseId}`,
+    memberOfInst: (instId: string, userId: string) =>
+      `idx:inst-members:${instId}:${userId}`,
+    instOfUser: (userId: string, instId: string) =>
+      `idx:user-insts:${userId}:${instId}`,
+    semesterOfCourse: (courseId: string, semId: string) =>
+      `idx:course-semesters:${courseId}:${semId}`,
+    sectionOfSemester: (semId: string, secId: string) =>
+      `idx:semester-sections:${semId}:${secId}`,
+    topicOfSection: (secId: string, topicId: string) =>
+      `idx:section-topics:${secId}:${topicId}`,
+    summaryOfTopic: (topicId: string, summaryId: string) =>
+      `idx:topic-summaries:${topicId}:${summaryId}`,
+    chunkOfSummary: (summaryId: string, sortOrder: number) =>
+      `idx:summary-chunks:${summaryId}:${String(sortOrder).padStart(6, "0")}`,
+    keywordOfInst: (instId: string, kwId: string) =>
+      `idx:inst-kw:${instId}:${kwId}`,
+    keywordOfSummary: (summaryId: string, kwId: string) =>
+      `idx:summary-kw:${summaryId}:${kwId}`,
+    summaryOfKeyword: (kwId: string, summaryId: string) =>
+      `idx:kw-summaries:${kwId}:${summaryId}`,
+    subtopicOfKeyword: (kwId: string, stId: string) =>
+      `idx:kw-subtopics:${kwId}:${stId}`,
+    connectionOfKeyword: (kwId: string, connId: string) =>
+      `idx:kw-conn:${kwId}:${connId}`,
   },
 
-  // Prefix functions (for getByPrefix queries)
+  // ── Prefix queries (for getByPrefix) ──
   PREFIX: {
-    coursesOfInst:      (instId: string) => KV_PREFIXES.IDX_INST_COURSES + instId + ":",
-    semestersOfCourse:  (courseId: string) => KV_PREFIXES.IDX_COURSE_SEMESTERS + courseId + ":",
-    sectionsOfSemester: (semId: string) => KV_PREFIXES.IDX_SEMESTER_SECTIONS + semId + ":",
-    topicsOfSection:    (secId: string) => KV_PREFIXES.IDX_SECTION_TOPICS + secId + ":",
-    summariesOfTopic:   (topicId: string) => KV_PREFIXES.IDX_TOPIC_SUMMARIES + topicId + ":",
-    chunksOfSummary:    (sumId: string) => KV_PREFIXES.IDX_SUMMARY_CHUNKS + sumId + ":",
-    keywordsOfSummary:  (sumId: string) => KV_PREFIXES.IDX_SUMMARY_KW + sumId + ":",
-    summariesOfKeyword: (kwId: string) => KV_PREFIXES.IDX_KW_SUMMARIES + kwId + ":",
-    keywordsOfInst:     (instId: string) => KV_PREFIXES.IDX_INST_KW + instId + ":",
-    subtopicsOfKeyword: (kwId: string) => KV_PREFIXES.IDX_KW_SUBTOPICS + kwId + ":",
-    connectionsOfKeyword: (kwId: string) => KV_PREFIXES.IDX_KW_CONN + kwId + ":",
-    membersOfInst:      (instId: string) => KV_PREFIXES.IDX_INST_MEMBERS + instId + ":",
+    coursesOfInst: (instId: string) => `idx:inst-courses:${instId}:`,
+    membersOfInst: (instId: string) => `idx:inst-members:${instId}:`,
+    instsOfUser: (userId: string) => `idx:user-insts:${userId}:`,
+    semestersOfCourse: (courseId: string) => `idx:course-semesters:${courseId}:`,
+    sectionsOfSemester: (semId: string) => `idx:semester-sections:${semId}:`,
+    topicsOfSection: (secId: string) => `idx:section-topics:${secId}:`,
+    summariesOfTopic: (topicId: string) => `idx:topic-summaries:${topicId}:`,
+    chunksOfSummary: (summaryId: string) => `idx:summary-chunks:${summaryId}:`,
+    keywordsOfInst: (instId: string) => `idx:inst-kw:${instId}:`,
+    keywordsOfSummary: (summaryId: string) => `idx:summary-kw:${summaryId}:`,
+    summariesOfKeyword: (kwId: string) => `idx:kw-summaries:${kwId}:`,
+    subtopicsOfKeyword: (kwId: string) => `idx:kw-subtopics:${kwId}:`,
+    connectionsOfKeyword: (kwId: string) => `idx:kw-conn:${kwId}:`,
   },
-} as const;
+};
