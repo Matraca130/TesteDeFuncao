@@ -149,7 +149,7 @@ const VALID_GRADES = [1, 2, 3, 4]; // Again=1, Hard=2, Good=3, Easy=4
 //   6. Update BKT state
 //   7. Create review log (_after fields only)
 //   8. Persist EVERYTHING atomically
-//   9. Update session counters
+//   9. Update session counters (with ownership check)
 //  10. Return SubmitReviewRes with inline feedback
 // ================================================================
 reviews.post("/reviews", async (c) => {
@@ -258,6 +258,9 @@ reviews.post("/reviews", async (c) => {
     };
 
     // ── 7. Create review log (activity.ts contract: _after only) ──
+    // NOTE: Runtime shape includes subtopic_id, keyword_id, bkt_after,
+    // stability_after, delta_after which extend beyond the shared-types.ts
+    // ReviewLog interface. Architect should update shared-types.ts to match.
     const reviewId = crypto.randomUUID();
     const reviewLog = {
       id: reviewId,
@@ -324,9 +327,22 @@ reviews.post("/reviews", async (c) => {
       await kv.del(idxDue(userId, item_id, oldDueDate));
     }
 
-    // ── 9. Update session counters ─────────────────────────
+    // ── 9. Update session counters (with ownership check) ───
     const session = await kv.get(sessionKey(session_id));
     if (session) {
+      // Security: verify the authenticated user owns this session
+      if (session.student_id !== userId) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: "FORBIDDEN",
+              message: "Cannot update another student's session",
+            },
+          },
+          403
+        );
+      }
       session.items_reviewed = (session.items_reviewed ?? 0) + 1;
       if (
         !session.keywords_touched ||
