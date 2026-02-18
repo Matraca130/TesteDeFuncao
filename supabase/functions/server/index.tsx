@@ -2,10 +2,13 @@
 // Axon v4.2 — Server Entry Point
 // ============================================================
 // Modular Hono router. Each vertical owns a route file:
-//   - auth.tsx        (Dev 6) — signup, signin, me, signout
-//   - ai-routes.tsx   (Dev 6) — generate, approve, chat, keyword-popup
-//   - routes-content  (Dev 1) — CRUD for all content entities (~47 routes)
-//   - routes-reading  (Dev 2) — reading state, annotations, topics/:id/full
+//   - auth.tsx           (Dev 6) — signup, signin, me, signout
+//   - ai-routes.tsx      (Dev 6) — generate, approve, chat, keyword-popup
+//   - routes-content     (Dev 1) — CRUD for all content entities (~47 routes)
+//   - routes-reading     (Dev 2) — reading state, annotations, topics/:id/full
+//   - routes-flashcards  (Dev 3) — flashcard CRUD + /due
+//   - routes-reviews     (Dev 3) — POST /reviews, GET /bkt, GET /fsrs
+//   - routes-sessions    (Dev 3) — study sessions CRUD
 //
 // CONSERVED: gemini.tsx (imported by ai-routes), seed.tsx
 // ============================================================
@@ -17,6 +20,9 @@ import authRoutes from "./auth.tsx";
 import aiRoutes from "./ai-routes.tsx";
 import contentRoutes from "./routes-content.tsx";
 import readingRoutes from "./routes-reading.tsx";
+import flashcardRoutes from "./routes-flashcards.tsx";
+import reviewRoutes from "./routes-reviews.tsx";
+import sessionRoutes from "./routes-sessions.tsx";
 
 const app = new Hono();
 const PREFIX = "/make-server-0c4f6a3c";
@@ -78,7 +84,15 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
     success: true,
     data: {
       prefix: PREFIX,
-      modules: ["auth", "ai-routes", "routes-content", "routes-reading"],
+      modules: [
+        "auth",
+        "ai-routes",
+        "routes-content",
+        "routes-reading",
+        "routes-flashcards",
+        "routes-reviews",
+        "routes-sessions",
+      ],
       content_routes: [
         "POST /courses", "GET /courses", "GET /courses/:id", "PUT /courses/:id", "DELETE /courses/:id",
         "POST /semesters", "GET /semesters", "GET /semesters/:id", "PUT /semesters/:id", "DELETE /semesters/:id",
@@ -91,6 +105,16 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
         "POST /keywords", "GET /keywords", "GET /keywords/:id", "PUT /keywords/:id", "DELETE /keywords/:id",
         "POST /connections", "GET /connections", "GET /connections/:id", "DELETE /connections/:id",
         "PUT /content/batch-status",
+      ],
+      flashcard_routes: [
+        "POST /flashcards", "GET /flashcards", "GET /flashcards/due",
+        "GET /flashcards/:id", "PUT /flashcards/:id", "DELETE /flashcards/:id",
+      ],
+      review_routes: [
+        "POST /reviews", "GET /bkt/:subtopicId", "GET /fsrs/:cardId",
+      ],
+      session_routes: [
+        "POST /sessions", "GET /sessions", "GET /sessions/:id", "PUT /sessions/:id/end",
       ],
     },
   });
@@ -107,5 +131,14 @@ app.route(PREFIX, contentRoutes);
 
 // Mount reading/annotation routes (Dev 2 — 7 routes)
 app.route(PREFIX, readingRoutes);
+
+// Mount flashcard routes (Dev 3 — 6 routes: FC CRUD + /due)
+app.route(PREFIX, flashcardRoutes);
+
+// Mount review routes (Dev 3 → Dev 4 — 3 routes: reviews, BKT, FSRS)
+app.route(PREFIX, reviewRoutes);
+
+// Mount session routes (Dev 3 → Dev 5 — 4 routes: sessions CRUD)
+app.route(PREFIX, sessionRoutes);
 
 Deno.serve(app.fetch);
