@@ -25,8 +25,8 @@
 // QuizQuestion types (shared-types.ts QuizType):
 //   mcq        — Multiple choice: options[] with is_correct flag
 //   true_false — True/false: correct_answer is "true" or "false"
-//   fill_blank — Fill in the blank: correct_answer is the expected text
-//   open       — Open/write-in: correct_answer + case-insensitive match
+//   fill_blank — Fill in the blank: correct_answer + accepted_variations
+//   open       — Open/write-in: correct_answer + accepted_variations
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -63,6 +63,27 @@ function errMsg(err: unknown): string {
 // Valid quiz types for validation
 const VALID_QUIZ_TYPES = ["mcq", "true_false", "fill_blank", "open"];
 
+// ── Helper: check text match with accepted_variations ──────
+function matchesAnswer(
+  studentAnswer: string,
+  correctAnswer: string,
+  acceptedVariations?: string[]
+): boolean {
+  const normalized = String(studentAnswer).toLowerCase().trim();
+  const normalizedCorrect = correctAnswer.toLowerCase().trim();
+
+  if (normalized === normalizedCorrect) return true;
+
+  // Check accepted_variations (case-insensitive, trimmed)
+  if (acceptedVariations && Array.isArray(acceptedVariations)) {
+    return acceptedVariations.some(
+      (v: string) => v.toLowerCase().trim() === normalized
+    );
+  }
+
+  return false;
+}
+
 // ================================================================
 // POST /quiz-questions/evaluate — System-evaluate student answer
 // ================================================================
@@ -89,14 +110,18 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
     const { question_id, student_answer } = body;
 
     // Validate required fields
-    if (!question_id || student_answer === undefined || student_answer === null) {
+    if (
+      !question_id ||
+      student_answer === undefined ||
+      student_answer === null
+    ) {
       return validationError(
         c,
         "Missing required fields: question_id, student_answer"
       );
     }
 
-    const question: QuizQuestion | null = await kv.get(quizKey(question_id));
+    const question: any = await kv.get(quizKey(question_id));
     if (!question) {
       return notFound(c, "Quiz question");
     }
@@ -117,7 +142,7 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       }
 
       case "true_false": {
-        // student_answer is "true" or "false"
+        // student_answer is "true" or "false" (string)
         const normalized = String(student_answer).toLowerCase().trim();
         const normalizedCorrect = (
           question.correct_answer ?? ""
@@ -130,27 +155,23 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       }
 
       case "fill_blank": {
-        // Case-insensitive, trimmed comparison
-        const normalized = String(student_answer).toLowerCase().trim();
-        const normalizedCorrect = (
-          question.correct_answer ?? ""
-        )
-          .toLowerCase()
-          .trim();
-        correct = normalized === normalizedCorrect;
+        // Case-insensitive + accepted_variations
+        correct = matchesAnswer(
+          student_answer,
+          question.correct_answer ?? "",
+          question.accepted_variations
+        );
         correctAnswer = question.correct_answer ?? "";
         break;
       }
 
       case "open": {
-        // Open (write-in) questions: case-insensitive comparison
-        const normalized = String(student_answer).toLowerCase().trim();
-        const normalizedCorrect = (
-          question.correct_answer ?? ""
-        )
-          .toLowerCase()
-          .trim();
-        correct = normalized === normalizedCorrect;
+        // Open (write-in): case-insensitive + accepted_variations
+        correct = matchesAnswer(
+          student_answer,
+          question.correct_answer ?? "",
+          question.accepted_variations
+        );
         correctAnswer = question.correct_answer ?? "";
         break;
       }
@@ -247,6 +268,7 @@ quiz.post("/quiz-questions", async (c) => {
     const now = new Date().toISOString();
 
     // QuizQuestion entity — matches shared-types.ts + subtopic_id (D27)
+    // + accepted_variations (for fill_blank and open types)
     const questionEntity: Record<string, any> = {
       id,
       summary_id: body.summary_id ?? null,
@@ -257,6 +279,7 @@ quiz.post("/quiz-questions", async (c) => {
       status: body.status ?? "active",
       options: body.options ?? null,
       correct_answer: body.correct_answer ?? null,
+      accepted_variations: body.accepted_variations ?? null,
       explanation: body.explanation ?? null,
       difficulty_tier: body.difficulty_tier ?? null,
       created_by: user.id,
@@ -346,8 +369,8 @@ quiz.get("/quiz-questions/:id", async (c) => {
 // PUT /quiz-questions/:id — Update question fields
 // ================================================================
 // D39: Students can only edit their own questions.
-// Whitelist: question, options, correct_answer, explanation,
-//            status, difficulty_tier
+// Whitelist: question, options, correct_answer, accepted_variations,
+//            explanation, status, difficulty_tier
 // Immutable: id, keyword_id, subtopic_id, summary_id,
 //            quiz_type, created_by, created_at
 // ================================================================
@@ -381,6 +404,7 @@ quiz.put("/quiz-questions/:id", async (c) => {
       "question",
       "options",
       "correct_answer",
+      "accepted_variations",
       "explanation",
       "status",
       "difficulty_tier",
