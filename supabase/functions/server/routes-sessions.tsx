@@ -1,35 +1,36 @@
 // ============================================================
-// Axon v4.2 — Dev 3: Session Management Routes
+// Axon v4.2 — Dev 3→5: Study Session Routes
 // ============================================================
-// POST /sessions      — Create a study session
-// GET  /sessions      — List sessions for current user
-// GET  /sessions/:id  — Get session details (with ownership check)
-// PUT  /sessions/:id/end — Close session, compute aggregates
+// 4 routes: POST, GET, GET/:id, PUT/:id/end
 //
-// Key decisions:
-//   D10 — Frontend ONLY sends grade; backend computes everything
-//   D46 — response_time_ms saved but does NOT affect algorithms in v1
+// Imports:
+//   ./kv-keys.ts       — Canonical key generation functions
+//   ./shared-types.ts   — Entity type definitions
+//   ./crud-factory.tsx  — Shared helpers
+//   ./kv_store.tsx      — KV CRUD operations
 //
-// StudySession fields managed here:
-//   id, student_id, instrument_type, course_id, started_at,
-//   ended_at, items_reviewed, keywords_touched, subtopics_touched,
-//   avg_grade, total_time_ms, created_at, updated_at
+// KV Keys:
+//   session:{id}                                          → StudySession
+//   review:{id}                                           → ReviewLog
+//   idx:student-sessions:{sId}:{courseId}:{sessionId}     → sessionId
+//   idx:session-reviews:{sessionId}:{reviewId}            → reviewId
+//
+// Note: idxStudentSessions uses "_" when course_id is null.
+// Decisions: D10, D46
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-
-// Types — import ONLY the ones this file uses
-import type { StudySession } from "./shared-types.ts";
-
-// Keys — canonical kv-keys.ts (ZERO references to kv-keys.tsx)
+import type {
+  StudySession,
+  ReviewLog,
+} from "./shared-types.ts";
 import {
   sessionKey,
   reviewKey,
   idxStudentSessions,
+  idxSessionReviews,
   KV_PREFIXES,
 } from "./kv-keys.ts";
-
-// Shared CRUD helpers
 import {
   getAuthUser,
   unauthorized,
@@ -46,15 +47,10 @@ function errMsg(err: unknown): string {
 }
 
 // ================================================================
-// SESSION MANAGEMENT
-// ================================================================
-
-// ================================================================
 // POST /sessions — Create a study session
 // ================================================================
-// Required: instrument_type ('flashcard' | 'quiz')
-// Optional: course_id
-// Initializes counters to 0/empty, writes primary key + index.
+// Body: { session_type, course_id? }
+// session_type: "flashcard" | "quiz" | "mixed"
 // ================================================================
 sessions.post("/sessions", async (c) => {
   try {
@@ -62,43 +58,49 @@ sessions.post("/sessions", async (c) => {
     if (!user) return unauthorized(c);
 
     const body = await c.req.json();
-    if (!body.instrument_type) {
+    if (!body.session_type) {
       return validationError(
         c,
-        "Missing required field: instrument_type"
+        "Missing required field: session_type"
       );
     }
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const courseId = body.course_id || "_";
+    const courseId = body.course_id ?? null;
 
-    const session = {
+    const session: StudySession & {
+      keywords_touched: string[];
+      subtopics_touched: string[];
+      created_at: string;
+      updated_at: string;
+    } = {
       id,
       student_id: user.id,
-      instrument_type: body.instrument_type, // 'flashcard' | 'quiz'
-      course_id: body.course_id ?? null,
+      session_type: body.session_type,
+      course_id: courseId,
       started_at: now,
-      ended_at: null as string | null,
-      items_reviewed: 0,
-      keywords_touched: [] as string[],
-      subtopics_touched: [] as string[],
-      avg_grade: null as number | null,
-      total_time_ms: null as number | null,
+      ended_at: undefined,
+      total_reviews: 0,
+      correct_reviews: 0,
+      duration_seconds: undefined,
+      keywords_touched: [],
+      subtopics_touched: [],
       created_at: now,
       updated_at: now,
     };
 
+    // idxStudentSessions uses "_" when course_id is null
     await kv.mset(
       [
         sessionKey(id),
-        idxStudentSessions(user.id, courseId, id),
+        idxStudentSessions(user.id, courseId || "_", id),
       ],
       [session, id]
     );
 
     console.log(
-      `[Sessions] Created session ${id} (${body.instrument_type}) for ${user.id}`
+      `[Sessions] Created session ${id.slice(0, 8)}… (${body.session_type}) for ${user.id.slice(0, 8)}…`
     );
     return c.json({ success: true, data: session }, 201);
   } catch (err) {
@@ -108,9 +110,6 @@ sessions.post("/sessions", async (c) => {
 
 // ================================================================
 // GET /sessions — List sessions for current user
-// ================================================================
-// Returns all sessions owned by the authenticated student.
-// Uses prefix scan on student-sessions index.
 // ================================================================
 sessions.get("/sessions", async (c) => {
   try {
@@ -124,13 +123,13 @@ sessions.get("/sessions", async (c) => {
       return c.json({ success: true, data: [] });
     }
 
-    const allSessions = await kv.mget(
+    const sessionsList = await kv.mget(
       (sessionIds as string[]).map((id: string) => sessionKey(id))
     );
 
     return c.json({
       success: true,
-      data: allSessions.filter(Boolean),
+      data: sessionsList.filter(Boolean),
     });
   } catch (err) {
     return serverError(c, "GET /sessions", err);
@@ -140,8 +139,7 @@ sessions.get("/sessions", async (c) => {
 // ================================================================
 // GET /sessions/:id — Get session details
 // ================================================================
-// Ownership check: student can only access their own sessions.
-// Returns 403 FORBIDDEN if session belongs to another student.
+// Only the owning student can access their session.
 // ================================================================
 sessions.get("/sessions/:id", async (c) => {
   try {
@@ -173,9 +171,9 @@ sessions.get("/sessions/:id", async (c) => {
 // ================================================================
 // PUT /sessions/:id/end — Close session, compute aggregates
 // ================================================================
-// Ownership check: student can only end their own sessions.
-// Computes: ended_at, total_time_ms, avg_grade (from review logs).
-// Returns 400 if session already ended.
+// Computes: ended_at, duration_seconds, avg_grade from review logs.
+// Only the owning student can end their session.
+// Cannot end an already-ended session.
 // ================================================================
 sessions.put("/sessions/:id/end", async (c) => {
   try {
@@ -204,7 +202,9 @@ sessions.put("/sessions/:id/end", async (c) => {
     }
 
     const now = new Date().toISOString();
-    const totalTimeMs = Date.now() - Date.parse(session.started_at);
+    const durationSeconds = Math.round(
+      (Date.now() - Date.parse(session.started_at)) / 1000
+    );
 
     // Compute avg_grade from review logs in this session
     let avgGrade: number | null = null;
@@ -212,10 +212,10 @@ sessions.put("/sessions/:id/end", async (c) => {
       KV_PREFIXES.IDX_SESSION_REVIEWS + id + ":"
     );
     if (reviewIds && reviewIds.length > 0) {
-      const reviewLogs = await kv.mget(
+      const reviewsList = await kv.mget(
         (reviewIds as string[]).map((rid: string) => reviewKey(rid))
       );
-      const validReviews = reviewLogs.filter(Boolean);
+      const validReviews = reviewsList.filter(Boolean);
       if (validReviews.length > 0) {
         const sumGrades = validReviews.reduce(
           (sum: number, r: any) => sum + (r.grade ?? 0),
@@ -228,7 +228,7 @@ sessions.put("/sessions/:id/end", async (c) => {
     const updatedSession = {
       ...session,
       ended_at: now,
-      total_time_ms: totalTimeMs,
+      duration_seconds: durationSeconds,
       avg_grade: avgGrade,
       updated_at: now,
     };
@@ -236,7 +236,8 @@ sessions.put("/sessions/:id/end", async (c) => {
     await kv.set(sessionKey(id), updatedSession);
 
     console.log(
-      `[Sessions] Ended session ${id}: ${session.items_reviewed} items, avg_grade=${avgGrade?.toFixed(2) ?? "N/A"}, ${totalTimeMs}ms`
+      `[Sessions] Ended session ${id.slice(0, 8)}…: ${session.total_reviews ?? 0} reviews, ` +
+        `avg_grade=${avgGrade?.toFixed(2) ?? "N/A"}, ${durationSeconds}s`
     );
     return c.json({ success: true, data: updatedSession });
   } catch (err) {
