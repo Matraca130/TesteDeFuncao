@@ -281,10 +281,11 @@ ai.post("/ai/generate/approve", async (c) => {
       }
     }
 
-    // Process quiz questions
+    // Process quiz questions — FIXED: quiz:{id} not quiz-q:{id}
     for (const q of draft.quiz_questions) {
       if (approvedQIds.has(q.id)) {
-        kvKeys.push(`quiz-q:${q.id}`);
+        const kwId = termToId[q.keyword_term] || null;
+        kvKeys.push(`quiz:${q.id}`);
         kvValues.push({
           id: q.id,
           quiz_type: q.quiz_type,
@@ -292,12 +293,17 @@ ai.post("/ai/generate/approve", async (c) => {
           options: q.options,
           correct_answer: q.correct_answer,
           explanation: q.explanation,
+          keyword_id: kwId,
           keyword_term: q.keyword_term,
           course_id: draft.course_id,
           source: "ai_generated",
           status: "published",
           created_at: new Date().toISOString(),
         });
+        if (kwId) {
+          kvKeys.push(`idx:kw-quiz:${kwId}:${q.id}`);
+          kvValues.push(q.id);
+        }
         stats.quiz_questions++;
       }
     }
