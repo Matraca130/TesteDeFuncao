@@ -1,1 +1,148 @@
-aW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JzsKLy8gQHJlZnJlc2ggcmVzZXQKaW1wb3J0IHsgQXV0aFByb3ZpZGVyIH0gZnJvbSAnQC9hcHAvY29udGV4dC9BdXRoQ29udGV4dCc7CmltcG9ydCB7IEFwcFByb3ZpZGVyLCB1c2VBcHAgfSBmcm9tICdAL2FwcC9jb250ZXh0L0FwcENvbnRleHQnOwppbXBvcnQgeyBBZG1pblByb3ZpZGVyLCB1c2VBZG1pbiB9IGZyb20gJ0AvYXBwL2NvbnRleHQvQWRtaW5Db250ZXh0JzsKaW1wb3J0IHsgU3R1ZGVudERhdGFQcm92aWRlciB9IGZyb20gJ0AvYXBwL2NvbnRleHQvU3R1ZGVudERhdGFDb250ZXh0JzsKaW1wb3J0IHsgQXV0aEd1YXJkIH0gZnJvbSAnQC9hcHAvY29tcG9uZW50cy9hdXRoL0F1dGhHdWFyZCc7CmltcG9ydCB7IExvZ2luUGFnZSB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvYXV0aC9Mb2dpblBhZ2UnOwppbXBvcnQgeyBTaWdudXBQYWdlIH0gZnJvbSAnQC9hcHAvY29tcG9uZW50cy9hdXRoL1NpZ251cFBhZ2UnOwppbXBvcnQgeyBEYXNoYm9hcmRWaWV3IH0gZnJvbSAnQC9hcHAvY29tcG9uZW50cy9jb250ZW50L0Rhc2hib2FyZFZpZXcnOwppbXBvcnQgeyBSZXN1bW9zVmlldyB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvY29udGVudC9SZXN1bW9zVmlldyc7CmltcG9ydCB7IFN0dWR5VmlldyB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvY29udGVudC9TdHVkeVZpZXcnOwppbXBvcnQgeyBBZG1pblBhbmVsLCBBZG1pbkxvZ2luR2F0ZSB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvY29udGVudC9BZG1pblBhbmVsJzsKaW1wb3J0IHsgQ29udGVudEFwcHJvdmFsTGlzdCB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvYWkvQ29udGVudEFwcHJvdmFsTGlzdCc7CmltcG9ydCB7IEFJR2VuZXJhdGVQYW5lbCB9IGZyb20gJ0AvYXBwL2NvbXBvbmVudHMvYWkvQUlHZW5lcmF0ZVBhbmVsJzsKaW1wb3J0IHsgQUlDaGF0UGFuZWwgfSBmcm9tICdAL2FwcC9jb21wb25lbnRzL2FpL0FJQ2hhdFBhbmVsJzsKaW1wb3J0IHsgUXVpelZpZXcgfSBmcm9tICdAL2FwcC9jb21wb25lbnRzL3F1aXovUXVpelZpZXcnOwppbXBvcnQgeyBTaWRlYmFyLCBTaWRlYmFyVG9nZ2xlIH0gZnJvbSAnQC9hcHAvY29tcG9uZW50cy9zaGFyZWQvU2lkZWJhcic7CmltcG9ydCB7IEFuaW1hdGVQcmVzZW5jZSwgbW90aW9uIH0gZnJvbSAnbW90aW9uL3JlYWN0JzsKCi8qKgogKiBBdXRoRmxvdyDigJQgU2hvd24gd2hlbiB1c2VyIGlzIE5PVCBhdXRoZW50aWNhdGVkLgogKiBUb2dnbGVzIGJldHdlZW4gTG9naW4gYW5kIFNpZ251cCBzY3JlZW5zLgogKi8KZnVuY3Rpb24gQXV0aEZsb3coKSB7CiAgY29uc3QgW21vZGUsIHNldE1vZGVdID0gUmVhY3QudXNlU3RhdGU8J2xvZ2luJyB8ICdzaWdudXAnPignbG9naW4nKTsKCiAgaWYgKG1vZGUgPT09ICdzaWdudXAnKSB7CiAgICByZXR1cm4gKAogICAgICA8U2lnbnVwUGFnZQogICAgICAgIG9uU3dpdGNoVG9Mb2dpbj17KCkgPT4gc2V0TW9kZSgnbG9naW4nKX0KICAgICAgICBvblNpZ251cFN1Y2Nlc3M9eygpID0+IHsKICAgICAgICAgIC8vIEF1dGhHdWFyZCByZS1yZW5kZXJzIGF1dG9tYXRpY2FsbHkgd2hlbiBpc0F1dGhlbnRpY2F0ZWQgYmVjb21lcyB0cnVlCiAgICAgICAgfX0KICAgICAgLz4KICAgICk7CiAgfQoKICByZXR1cm4gKAogICAgPExvZ2luUGFnZQogICAgICBvblN3aXRjaFRvU2lnbnVwPXsoKSA9PiBzZXRNb2RlKCdzaWdudXAnKX0KICAgICAgb25Mb2dpblN1Y2Nlc3M9eygpID0+IHsKICAgICAgICAvLyBBdXRoR3VhcmQgcmUtcmVuZGVycyBhdXRvbWF0aWNhbGx5IHdoZW4gaXNBdXRoZW50aWNhdGVkIGJlY29tZXMgdHJ1ZQogICAgICB9fQogICAgLz4KICApOwp9CgovKioKICogTWFwYSBkZSB2aXN0YXMgcG9yIG1vZHVsby4KICogQ3VhbmRvIFByb2dyYW1hZG9yIEIvQyBlbnRyZWd1ZW4gc3VzIG1vZHVsb3MsIHNvbG8gaGF5IHF1ZToKICogMS4gUmVlbXBsYXphciBlbCBpbXBvcnQgZGVsIHBsYWNlaG9sZGVyIHBvciBlbCByZWFsCiAqIDIuIEVsIHJlc3RvIGRlbCByb3V0aW5nIGZ1bmNpb25hIGlndWFsCiAqLwpmdW5jdGlvbiBWaWV3Um91dGVyKCkgewogIGNvbnN0IHsgYWN0aXZlVmlldyB9ID0gdXNlQXBwKCk7CiAgY29uc3QgeyBpc0FkbWluIH0gPSB1c2VBZG1pbigpOwoKICBjb25zdCByZW5kZXJWaWV3ID0gKCkgPT4gewogICAgc3dpdGNoIChhY3RpdmVWaWV3KSB7CiAgICAgIGNhc2UgJ3N0dWR5JzoKICAgICAgICByZXR1cm4gPFN0dWR5VmlldyBrZXk9InN0dWR5IiAvPjsKICAgICAgY2FzZSAncmVzdW1vcyc6CiAgICAgICAgcmV0dXJuIDxSZXN1bW9zVmlldyBrZXk9InJlc3Vtb3MiIC8+OwogICAgICBjYXNlICdhZG1pbic6CiAgICAgICAgLy8gQWRtaW4gc2Vzc2lvbiBpcyBtYW5hZ2VkIGJ5IEFkbWluQ29udGV4dCAoaW5kZXBlbmRlbnQgbW9kdWxlKQogICAgICAgIHJldHVybiBpc0FkbWluID8gPEFkbWluUGFuZWwga2V5PSJhZG1pbiIgLz4gOiA8QWRtaW5Mb2dpbkdhdGUga2V5PSJhZG1pbi1sb2dpbiIgLz47CiAgICAgIGNhc2UgJ3F1aXonOgogICAgICAgIHJldHVybiA8UXVpelZpZXcga2V5PSJxdWl6IiAvPjsKCiAgICAgIC8vIOKUgOKUgCBEZXYgNjogQUkgVmlld3Mg4pSA4pSACiAgICAgIGNhc2UgJ2FpLWdlbmVyYXRlJzoKICAgICAgICByZXR1cm4gKAogICAgICAgICAgPGRpdiBrZXk9ImFpLWdlbmVyYXRlIiBjbGFzc05hbWU9ImgtZnVsbCBvdmVyZmxvdy15LWF1dG8gcC02IGJnLVsjZjVmMmVhXSI+CiAgICAgICAgICAgIDxBSUdlbmVyYXRlUGFuZWwgLz4KICAgICAgICAgIDwvZGl2PgogICAgICAgICk7CiAgICAgIGNhc2UgJ2FpLWFwcHJvdmFsJzoKICAgICAgICByZXR1cm4gKAogICAgICAgICAgPGRpdiBrZXk9ImFpLWFwcHJvdmFsIiBjbGFzc05hbWU9ImgtZnVsbCBvdmVyZmxvdy15LWF1dG8gcC02IGJnLVsjZjVmMmVhXSI+CiAgICAgICAgICAgIDxDb250ZW50QXBwcm92YWxMaXN0IC8+CiAgICAgICAgICA8L2Rpdj4KICAgICAgICApOwogICAgICBjYXNlICdhaS1jaGF0JzoKICAgICAgICByZXR1cm4gKAogICAgICAgICAgPGRpdiBrZXk9ImFpLWNoYXQiIGNsYXNzTmFtZT0iaC1mdWxsIG92ZXJmbG93LXktYXV0byBiZy1bI2Y1ZjJlYV0iPgogICAgICAgICAgICA8QUlDaGF0UGFuZWwgLz4KICAgICAgICAgIDwvZGl2PgogICAgICAgICk7CgogICAgICBjYXNlICdkYXNoYm9hcmQnOgogICAgICBkZWZhdWx0OgogICAgICAgIHJldHVybiA8RGFzaGJvYXJkVmlldyBrZXk9ImRhc2hib2FyZCIgLz47CiAgICB9CiAgfTsKCiAgcmV0dXJuICgKICAgIDxBbmltYXRlUHJlc2VuY2UgbW9kZT0id2FpdCI+CiAgICAgIDxtb3Rpb24uZGl2CiAgICAgICAga2V5PXthY3RpdmVWaWV3ICsgKGFjdGl2ZVZpZXcgPT09ICdhZG1pbicgPyAoaXNBZG1pbiA/ICctYXV0aCcgOiAnLWxvZ2luJykgOiAnJyl9CiAgICAgICAgaW5pdGlhbD17eyBvcGFjaXR5OiAwLCB4OiA4IH19CiAgICAgICAgYW5pbWF0ZT17eyBvcGFjaXR5OiAxLCB4OiAwIH19CiAgICAgICAgZXhpdD17eyBvcGFjaXR5OiAwLCB4OiAtOCB9fQogICAgICAgIHRyYW5zaXRpb249e3sgZHVyYXRpb246IDAuMTUsIGVhc2U6ICdlYXNlT3V0JyB9fQogICAgICAgIGNsYXNzTmFtZT0iaC1mdWxsIHctZnVsbCBtaW4tdy0wIgogICAgICA+CiAgICAgICAge3JlbmRlclZpZXcoKX0KICAgICAgPC9tb3Rpb24uZGl2PgogICAgPC9BbmltYXRlUHJlc2VuY2U+CiAgKTsKfQoKZnVuY3Rpb24gQXBwU2hlbGwoKSB7CiAgcmV0dXJuICgKICAgIDxkaXYgY2xhc3NOYW1lPSJoLXNjcmVlbiB3LXNjcmVlbiBvdmVyZmxvdy1oaWRkZW4gZmxleCI+CiAgICAgIDxTaWRlYmFyIC8+CiAgICAgIDxTaWRlYmFyVG9nZ2xlIC8+CiAgICAgIDxtYWluIGNsYXNzTmFtZT0iZmxleC0xIG1pbi13LTAgaC1mdWxsIG92ZXJmbG93LWhpZGRlbiI+CiAgICAgICAgPFZpZXdSb3V0ZXIgLz4KICAgICAgPC9tYWluPgogICAgPC9kaXY+CiAgKTsKfQoKLyoqCiAqIFByb3ZpZGVyIGhpZXJhcmNoeToKICogICBBdXRoUHJvdmlkZXIgKFN1cGFiYXNlIEF1dGgg4oCUIG91dGVybW9zdCkKICogICAgIEF1dGhHdWFyZCAoZ2F0ZXMgb24gaXNBdXRoZW50aWNhdGVkLCBmYWxsYmFjayA9IGxvZ2luL3NpZ251cCkKICogICAgICAgQXBwUHJvdmlkZXIgKG5hdmlnYXRpb24gc3RhdGUsIGN1cnJlbnQgY291cnNlKQogKiAgICAgICAgIEFkbWluUHJvdmlkZXIgKHJlYWRzIHVzZUF1dGggZm9yIGlzX3N1cGVyX2FkbWluKQogKiAgICAgICAgICAgU3R1ZGVudERhdGFQcm92aWRlciAoRlNSUywgc3R1ZHkgZGF0YSkKICogICAgICAgICAgICAgQXBwU2hlbGwgKFNpZGViYXIgKyBWaWV3Um91dGVyKQogKi8KZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gQXBwKCkgewogIHJldHVybiAoCiAgICA8QXV0aFByb3ZpZGVyPgogICAgICA8QXV0aEd1YXJkIGZhbGxiYWNrPXs8QXV0aEZsb3cgLz59PgogICAgICAgIDxBcHBQcm92aWRlcj4KICAgICAgICAgIDxBZG1pblByb3ZpZGVyPgogICAgICAgICAgICA8U3R1ZGVudERhdGFQcm92aWRlcj4KICAgICAgICAgICAgICA8QXBwU2hlbGwgLz4KICAgICAgICAgICAgPC9TdHVkZW50RGF0YVByb3ZpZGVyPgogICAgICAgICAgPC9BZG1pblByb3ZpZGVyPgogICAgICAgIDwvQXBwUHJvdmlkZXI+CiAgICAgIDwvQXV0aEd1YXJkPgogICAgPC9BdXRoUHJvdmlkZXI+CiAgKTsKfQo=
+import React from 'react';
+// @refresh reset
+import { AuthProvider } from '@/app/context/AuthContext';
+import { AppProvider, useApp } from '@/app/context/AppContext';
+import { AdminProvider, useAdmin } from '@/app/context/AdminContext';
+import { StudentDataProvider } from '@/app/context/StudentDataContext';
+import { AuthGuard } from '@/app/components/auth/AuthGuard';
+import { LoginPage } from '@/app/components/auth/LoginPage';
+import { SignupPage } from '@/app/components/auth/SignupPage';
+import { DashboardView } from '@/app/components/content/DashboardView';
+import { ResumosView } from '@/app/components/content/ResumosView';
+import { StudyView } from '@/app/components/content/StudyView';
+import { AdminPanel, AdminLoginGate } from '@/app/components/content/AdminPanel';
+import { ContentApprovalList } from '@/app/components/ai/ContentApprovalList';
+import { AIGeneratePanel } from '@/app/components/ai/AIGeneratePanel';
+import { AIChatPanel } from '@/app/components/ai/AIChatPanel';
+import { QuizView } from '@/app/components/quiz/QuizView';
+import { Sidebar, SidebarToggle } from '@/app/components/shared/Sidebar';
+import { AnimatePresence, motion } from 'motion/react';
+
+/**
+ * AuthFlow — Shown when user is NOT authenticated.
+ * Toggles between Login and Signup screens.
+ */
+function AuthFlow() {
+  const [mode, setMode] = React.useState<'login' | 'signup'>('login');
+
+  if (mode === 'signup') {
+    return (
+      <SignupPage
+        onSwitchToLogin={() => setMode('login')}
+        onSignupSuccess={() => {
+          // AuthGuard re-renders automatically when isAuthenticated becomes true
+        }}
+      />
+    );
+  }
+
+  return (
+    <LoginPage
+      onSwitchToSignup={() => setMode('signup')}
+      onLoginSuccess={() => {
+        // AuthGuard re-renders automatically when isAuthenticated becomes true
+      }}
+    />
+  );
+}
+
+/**
+ * Mapa de vistas por modulo.
+ * Cuando Programador B/C entreguen sus modulos, solo hay que:
+ * 1. Reemplazar el import del placeholder por el real
+ * 2. El resto del routing funciona igual
+ */
+function ViewRouter() {
+  const { activeView } = useApp();
+  const { isAdmin } = useAdmin();
+
+  const renderView = () => {
+    switch (activeView) {
+      case 'study':
+        return <StudyView key="study" />;
+      case 'resumos':
+        return <ResumosView key="resumos" />;
+      case 'admin':
+        // Admin session is managed by AdminContext (independent module)
+        return isAdmin ? <AdminPanel key="admin" /> : <AdminLoginGate key="admin-login" />;
+      case 'quiz':
+        return <QuizView key="quiz" />;
+
+      // ── Dev 6: AI Views ──
+      case 'ai-generate':
+        return (
+          <div key="ai-generate" className="h-full overflow-y-auto p-6 bg-[#f5f2ea]">
+            <AIGeneratePanel />
+          </div>
+        );
+      case 'ai-approval':
+        return (
+          <div key="ai-approval" className="h-full overflow-y-auto p-6 bg-[#f5f2ea]">
+            <ContentApprovalList />
+          </div>
+        );
+      case 'ai-chat':
+        return (
+          <div key="ai-chat" className="h-full overflow-y-auto bg-[#f5f2ea]">
+            <AIChatPanel />
+          </div>
+        );
+
+      case 'dashboard':
+      default:
+        return <DashboardView key="dashboard" />;
+    }
+  };
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={activeView + (activeView === 'admin' ? (isAdmin ? '-auth' : '-login') : '')}
+        initial={{ opacity: 0, x: 8 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -8 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        className="h-full w-full min-w-0"
+      >
+        {renderView()}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function AppShell() {
+  return (
+    <div className="h-screen w-screen overflow-hidden flex">
+      <Sidebar />
+      <SidebarToggle />
+      <main className="flex-1 min-w-0 h-full overflow-hidden">
+        <ViewRouter />
+      </main>
+    </div>
+  );
+}
+
+/**
+ * Provider hierarchy:
+ *   AuthProvider (Supabase Auth — outermost)
+ *     AuthGuard (gates on isAuthenticated, fallback = login/signup)
+ *       AppProvider (navigation state, current course)
+ *         AdminProvider (reads useAuth for is_super_admin)
+ *           StudentDataProvider (FSRS, study data)
+ *             AppShell (Sidebar + ViewRouter)
+ */
+export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGuard fallback={<AuthFlow />}>
+        <AppProvider>
+          <AdminProvider>
+            <StudentDataProvider>
+              <AppShell />
+            </StudentDataProvider>
+          </AdminProvider>
+        </AppProvider>
+      </AuthGuard>
+    </AuthProvider>
+  );
+}
