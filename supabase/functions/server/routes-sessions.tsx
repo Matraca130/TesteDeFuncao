@@ -41,16 +41,8 @@ import {
 
 const sessions = new Hono();
 
-// ── Helper: error message extractor ────────────────────────
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // ================================================================
 // POST /sessions — Create a study session
-// ================================================================
-// Body: { session_type, course_id? }
-// session_type: "flashcard" | "quiz" | "mixed"
 // ================================================================
 sessions.post("/sessions", async (c) => {
   try {
@@ -90,7 +82,6 @@ sessions.post("/sessions", async (c) => {
       updated_at: now,
     };
 
-    // idxStudentSessions uses "_" when course_id is null
     await kv.mset(
       [
         sessionKey(id),
@@ -139,8 +130,6 @@ sessions.get("/sessions", async (c) => {
 // ================================================================
 // GET /sessions/:id — Get session details
 // ================================================================
-// Only the owning student can access their session.
-// ================================================================
 sessions.get("/sessions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -170,10 +159,6 @@ sessions.get("/sessions/:id", async (c) => {
 
 // ================================================================
 // PUT /sessions/:id/end — Close session, compute aggregates
-// ================================================================
-// Computes: ended_at, duration_seconds, avg_grade from review logs.
-// Only the owning student can end their session.
-// Cannot end an already-ended session.
 // ================================================================
 sessions.put("/sessions/:id/end", async (c) => {
   try {
@@ -206,7 +191,6 @@ sessions.put("/sessions/:id/end", async (c) => {
       (Date.now() - Date.parse(session.started_at)) / 1000
     );
 
-    // Compute avg_grade from review logs in this session
     let avgGrade: number | null = null;
     const reviewIds = await kv.getByPrefix(
       KV_PREFIXES.IDX_SESSION_REVIEWS + id + ":"

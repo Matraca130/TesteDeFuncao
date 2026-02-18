@@ -63,11 +63,6 @@ import {
 
 const reviews = new Hono();
 
-// ── Helper: error message extractor ────────────────────────
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // ════════════════════════════════════════════════════════════
 // LOCAL BKT HELPERS (not in fsrs-engine — kept here for
 // isolation; BKT is independent of FSRS scheduling)
@@ -114,17 +109,14 @@ function updateBktMastery(
 ): number {
   let pKnowGivenEvidence: number;
   if (correct) {
-    // P(K | correct) = P(K)*(1-P(slip)) / [P(K)*(1-P(slip)) + (1-P(K))*P(guess)]
     const numerator = pKnow * (1 - pSlip);
     const denominator = numerator + (1 - pKnow) * pGuess;
     pKnowGivenEvidence = denominator > 0 ? numerator / denominator : pKnow;
   } else {
-    // P(K | wrong) = P(K)*P(slip) / [P(K)*P(slip) + (1-P(K))*(1-P(guess))]
     const numerator = pKnow * pSlip;
     const denominator = numerator + (1 - pKnow) * (1 - pGuess);
     pKnowGivenEvidence = denominator > 0 ? numerator / denominator : pKnow;
   }
-  // Apply learning transition
   const newPKnow = pKnowGivenEvidence + (1 - pKnowGivenEvidence) * pTransit;
   return Math.max(0, Math.min(1, newPKnow));
 }
@@ -138,6 +130,10 @@ function getColorFromDelta(delta: number): BktColor {
 }
 
 // ── Priority → mastery threshold ──────────────────────────
+// NOTE: Keyword.priority in shared-types.ts is 1-5, but this
+// function maps 0-3 + default. Priority 4-5 falls to default
+// (0.80). This may need architect review if the intent is to
+// differentiate all 5 levels.
 function getThreshold(priority: number): number {
   switch (priority) {
     case 0: return 0.95; // critical
@@ -153,22 +149,6 @@ const VALID_GRADES = [1, 2, 3, 4];
 
 // ================================================================
 // POST /reviews — THE CRITICAL CASCADE ROUTE
-// ================================================================
-// Flow: validate → BKT read → FSRS compute (via reviewCard) →
-//       BKT update → delta+color → review log → persist mset →
-//       session counters
-//
-// Cascade steps:
-//   1. Validate input
-//   2. Read/create BKT state
-//   3. Update BKT mastery (classic Bayesian update)
-//   4. FSRS scheduling (flashcard only — D36)
-//   5. Recompute delta & color
-//   6. Update BKT state
-//   7. Create review log (_after fields only)
-//   8. Persist EVERYTHING atomically
-//   9. Update session counters (with ownership check)
-//  10. Return SubmitReviewRes with inline feedback
 // ================================================================
 reviews.post("/reviews", async (c) => {
   try {
@@ -218,7 +198,7 @@ reviews.post("/reviews", async (c) => {
 
     const userId = user.id;
     const now = new Date().toISOString();
-    const correct = grade >= 3; // Good(3) or Easy(4) = correct
+    const correct = grade >= 3;
 
     // ── 1. Read current BKT state (or create initial) ──────
     const bktK = bktKey(userId, subtopic_id);
@@ -234,13 +214,11 @@ reviews.post("/reviews", async (c) => {
     let newDueDate: string | null = null;
 
     if (instrument_type === "flashcard") {
-      // Read existing FSRS state or create new card
       const existingFsrs = await kv.get(fsrsKey(userId, item_id));
       let card: FsrsCard;
 
       if (existingFsrs) {
         oldDueDate = existingFsrs.due?.split("T")[0] ?? null;
-        // Extract FsrsCard fields from stored state
         card = {
           due: existingFsrs.due ?? new Date().toISOString(),
           stability: existingFsrs.stability ?? 0,
@@ -256,11 +234,8 @@ reviews.post("/reviews", async (c) => {
         card = createNewCard();
       }
 
-      // Call canonical FSRS engine — single function handles
-      // new cards, learning, review, and relearning
       const result = reviewCard(card, grade as FsrsGrade);
 
-      // Map result to CardFsrsState for storage
       fsrsState = {
         student_id: userId,
         card_id: item_id,
@@ -298,10 +273,7 @@ reviews.post("/reviews", async (c) => {
       review_count: bkt.review_count + 1,
     };
 
-    // ── 6. Create review log (activity.ts contract: _after only) ──
-    // NOTE: Runtime shape includes subtopic_id, keyword_id, bkt_after,
-    // stability_after, delta_after which extend beyond the shared-types.ts
-    // ReviewLog interface. Architect should update shared-types.ts to match.
+    // ── 6. Create review log ────────────────────────────
     const reviewId = crypto.randomUUID();
     const reviewLog: ReviewLog = {
       id: reviewId,
@@ -338,7 +310,6 @@ reviews.post("/reviews", async (c) => {
       keys.push(idxStudentFsrs(userId, item_id));
       values.push(item_id);
 
-      // Due index: add new due entry
       if (newDueDate) {
         keys.push(idxDue(userId, item_id, newDueDate));
         values.push(item_id);
@@ -347,7 +318,7 @@ reviews.post("/reviews", async (c) => {
 
     await kv.mset(keys, values);
 
-    // Delete old due entry if date changed (separate op, can't be in mset)
+    // Delete old due entry if date changed
     if (
       instrument_type === "flashcard" &&
       oldDueDate &&
@@ -364,7 +335,6 @@ reviews.post("/reviews", async (c) => {
     try {
       const session = await kv.get(sessionKey(session_id));
       if (session) {
-        // Security: verify the authenticated user owns this session
         if (session.student_id !== userId) {
           return c.json(
             {
@@ -403,7 +373,6 @@ reviews.post("/reviews", async (c) => {
         await kv.set(sessionKey(session_id), session);
       }
     } catch (_e) {
-      // Non-critical: session counter update
       console.log(`[Reviews] Warning: failed to update session ${session_id.slice(0, 8)}… counters`);
     }
 
@@ -439,11 +408,6 @@ reviews.post("/reviews", async (c) => {
 // ================================================================
 // GET /bkt — Get BKT states for current student
 // ================================================================
-// Query params:
-//   ?subtopic_id=X  → single BKT state
-//   ?keyword_id=X   → all subtopic BKTs for that keyword
-//   (none)          → all BKT states for the student
-// ================================================================
 reviews.get("/bkt", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -477,7 +441,6 @@ reviews.get("/bkt", async (c) => {
       });
     }
 
-    // All BKT states for this student
     const allSubtopicIds = await kv.getByPrefix(
       KV_PREFIXES.IDX_STUDENT_BKT + user.id + ":"
     );
@@ -500,10 +463,6 @@ reviews.get("/bkt", async (c) => {
 
 // ================================================================
 // GET /fsrs — Get FSRS states for current student
-// ================================================================
-// Query params:
-//   ?card_id=X  → single FSRS state
-//   (none)      → all FSRS states for the student
 // ================================================================
 reviews.get("/fsrs", async (c) => {
   try {

@@ -41,6 +41,7 @@ import {
   validationError,
   serverError,
   getChildren,
+  mgetOrdered,
 } from "./crud-factory.tsx";
 
 const flashcards = new Hono();
@@ -79,11 +80,11 @@ flashcards.post("/flashcards", async (c) => {
       front: body.front,
       back: body.back,
       image_url: body.image_url ?? null,
-      status: body.status ?? "active",  // Bug 3 fix: was "published"
-      source: body.source ?? "manual",  // Bug 4 fix: was "student"
+      status: body.status ?? "active",
+      source: body.source ?? "manual",
       created_by: user.id,
       created_at: now,
-      updated_at: now,                  // Bug 5 fix: was missing
+      updated_at: now,
     };
 
     // Primary key + indices
@@ -152,6 +153,11 @@ flashcards.get("/flashcards", async (c) => {
 // IMPORTANT: This route MUST be registered BEFORE /flashcards/:id
 // to avoid Hono matching "due" as an :id param.
 // Uses canonical field `due` (not legacy `due_at`).
+//
+// FIX: Uses mgetOrdered() instead of kv.mget() to guarantee
+// positional correspondence between cards[i] and states[i].
+// kv.mget() uses Supabase .in() which returns rows in arbitrary
+// DB order and omits missing keys — causing wrong card/FSRS pairing.
 // ================================================================
 flashcards.get("/flashcards/due", async (c) => {
   try {
@@ -173,10 +179,10 @@ flashcards.get("/flashcards/due", async (c) => {
     // 2. Deduplicate card IDs (old due entries may linger)
     const uniqueCardIds = [...new Set(allDueCardIds as string[])];
 
-    // 3. Load cards + FSRS states in parallel
+    // 3. Load cards + FSRS states in parallel (order-preserving)
     const [cards, states] = await Promise.all([
-      kv.mget(uniqueCardIds.map((id: string) => fcKey(id))),
-      kv.mget(uniqueCardIds.map((id: string) => fsrsKey(user.id, id))),
+      mgetOrdered(uniqueCardIds.map((id: string) => fcKey(id))),
+      mgetOrdered(uniqueCardIds.map((id: string) => fsrsKey(user.id, id))),
     ]);
 
     const now = Date.now();
@@ -224,6 +230,12 @@ flashcards.get("/flashcards/due", async (c) => {
 // ================================================================
 // Security: student-created cards are private to their creator.
 // Non-student cards (ai, manual, imported) are accessible to all.
+//
+// NOTE: FlashcardSource in shared-types.ts is "ai"|"manual"|"imported"
+// (no "student" value). POST /flashcards defaults source="manual".
+// This check protects cards that may be tagged source="student" by
+// other code paths (AI generation, seed data). If no such cards exist,
+// this guard is inert but harmless — defense in depth.
 // ================================================================
 flashcards.get("/flashcards/:id", async (c) => {
   try {
@@ -293,7 +305,7 @@ flashcards.put("/flashcards/:id", async (c) => {
         updated[field] = body[field];
       }
     }
-    updated.updated_at = new Date().toISOString(); // Bug 5 fix: was missing
+    updated.updated_at = new Date().toISOString();
 
     await kv.set(fcKey(id), updated);
 
