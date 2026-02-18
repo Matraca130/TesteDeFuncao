@@ -222,12 +222,30 @@ flashcards.get("/flashcards/due", async (c) => {
 // ================================================================
 // GET /flashcards/:id — Get single card
 // ================================================================
+// Security: student-created cards are private to their creator.
+// Non-student cards (ai, manual, imported) are accessible to all.
+// ================================================================
 flashcards.get("/flashcards/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const card = await kv.get(fcKey(c.req.param("id")));
     if (!card) return notFound(c, "Flashcard");
+
+    // D39: Student-created cards are private to their creator
+    if (card.source === "student" && card.created_by !== user.id) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Cannot access another student's flashcard",
+          },
+        },
+        403
+      );
+    }
+
     return c.json({ success: true, data: card });
   } catch (err) {
     return serverError(c, "GET /flashcards/:id", err);
@@ -237,8 +255,8 @@ flashcards.get("/flashcards/:id", async (c) => {
 // ================================================================
 // PUT /flashcards/:id — Update card fields
 // ================================================================
-// D39: Students can only edit their own cards.
-// Whitelist: front, back, image_url, status.
+// Security: only the creator can edit any card.
+// Whitelist: only front, back, image_url, status are updatable.
 // Immutable: id, keyword_id, subtopic_id, institution_id,
 //            summary_id, source, created_by, created_at.
 // ================================================================
@@ -251,11 +269,8 @@ flashcards.put("/flashcards/:id", async (c) => {
     const existing = await kv.get(fcKey(id));
     if (!existing) return notFound(c, "Flashcard");
 
-    // D39: Students can only edit their own cards
-    if (
-      existing.source === "manual" &&
-      existing.created_by !== user.id
-    ) {
+    // Security: only the original creator can edit a card (D39 generalized)
+    if (existing.created_by !== user.id) {
       return c.json(
         {
           success: false,
@@ -294,8 +309,9 @@ flashcards.put("/flashcards/:id", async (c) => {
 // ================================================================
 // DELETE /flashcards/:id — Delete card + all indices
 // ================================================================
-// D39: Students can only delete their own cards.
-// Cleans up: primary, kw index, summary index, FSRS, due index.
+// Security: only the original creator can delete any card.
+// Cleans: primary key, keyword index, summary index (if linked),
+//         FSRS state, student-FSRS index, due index entry.
 // ================================================================
 flashcards.delete("/flashcards/:id", async (c) => {
   try {
@@ -306,8 +322,8 @@ flashcards.delete("/flashcards/:id", async (c) => {
     const card = await kv.get(fcKey(id));
     if (!card) return notFound(c, "Flashcard");
 
-    // D39: Students can only delete their own cards
-    if (card.source === "manual" && card.created_by !== user.id) {
+    // Security: only the original creator can delete a card (D39 generalized)
+    if (card.created_by !== user.id) {
       return c.json(
         {
           success: false,
