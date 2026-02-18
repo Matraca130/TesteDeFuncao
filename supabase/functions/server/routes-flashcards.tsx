@@ -45,18 +45,13 @@ import {
 
 const flashcards = new Hono();
 
-// ── Helper: error message extractor ────────────────────────
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // ================================================================
 // POST /flashcards — Create a flashcard card
 // ================================================================
 // Body: { keyword_id, front, back, summary_id?, subtopic_id?,
 //         institution_id?, image_url?, status?, source? }
-// FlashcardCard: exactly 12 fields per contract.
-// D39: default source='student', D27: subtopic fallback = keyword
+// FlashcardCard: fields per contract + operational extras.
+// D39: default source='manual', D27: subtopic fallback = keyword
 // ================================================================
 flashcards.post("/flashcards", async (c) => {
   try {
@@ -75,7 +70,6 @@ flashcards.post("/flashcards", async (c) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // FlashcardCard: exactly 12 fields per contract
     const card = {
       id,
       summary_id: body.summary_id ?? null,
@@ -85,10 +79,11 @@ flashcards.post("/flashcards", async (c) => {
       front: body.front,
       back: body.back,
       image_url: body.image_url ?? null,
-      status: body.status ?? "published",
-      source: body.source ?? "student", // D39: default student
+      status: body.status ?? "active",  // Bug 3 fix: was "published"
+      source: body.source ?? "manual",  // Bug 4 fix: was "student"
       created_by: user.id,
       created_at: now,
+      updated_at: now,                  // Bug 5 fix: was missing
     };
 
     // Primary key + indices
@@ -258,7 +253,7 @@ flashcards.put("/flashcards/:id", async (c) => {
 
     // D39: Students can only edit their own cards
     if (
-      existing.source === "student" &&
+      existing.source === "manual" &&
       existing.created_by !== user.id
     ) {
       return c.json(
@@ -283,6 +278,7 @@ flashcards.put("/flashcards/:id", async (c) => {
         updated[field] = body[field];
       }
     }
+    updated.updated_at = new Date().toISOString(); // Bug 5 fix: was missing
 
     await kv.set(fcKey(id), updated);
 
@@ -311,7 +307,7 @@ flashcards.delete("/flashcards/:id", async (c) => {
     if (!card) return notFound(c, "Flashcard");
 
     // D39: Students can only delete their own cards
-    if (card.source === "student" && card.created_by !== user.id) {
+    if (card.source === "manual" && card.created_by !== user.id) {
       return c.json(
         {
           success: false,
