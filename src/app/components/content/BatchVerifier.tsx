@@ -1,13 +1,13 @@
 // ============================================================
 // Axon v4.4 — BatchVerifier (Thin Shell)
 //
-// All logic is modularized under ./batch-verifier/:
-//   types.ts       — TestResult, TestStatus, etc.
-//   api-helper.ts  — Raw fetch + KV inspect
-//   StatusBadge.tsx — StatusBadge + KvKeyBadges components
-//   test-runner.ts — All 7 test phases (runAllTests)
+// Modularized: logic extracted to batch-verifier/ submodules.
+//   types.ts       — TestStatus, TestResult, KvKeyResult, etc.
+//   api-helper.ts  — apiFetch(), kvInspect()
+//   StatusBadge.tsx — StatusBadge, KvKeyBadges
+//   test-runner.ts — runAllTests() (phases 1-7)
 //
-// This file: React state management + result rendering only.
+// This file keeps ONLY: React state, callbacks, and JSX layout.
 // ============================================================
 
 import React, { useState, useCallback, useRef } from 'react';
@@ -18,11 +18,13 @@ import {
   Search, Key,
 } from 'lucide-react';
 
+// ── Extracted submodules ──
 import type { TestResult } from './batch-verifier/types';
 import { StatusBadge, KvKeyBadges } from './batch-verifier/StatusBadge';
 import { runAllTests } from './batch-verifier/test-runner';
+import type { RunnerCallbacks } from './batch-verifier/test-runner';
 
-// ── Group icons ───────────────────────────────────────────
+// ── Group icon registry ──
 const groupIcons: Record<string, React.ReactNode> = {
   Server: <Server size={14} />,
   Auth: <Shield size={14} />,
@@ -50,14 +52,21 @@ export function BatchVerifier() {
     return r.id;
   }, []);
 
-  // ── Run all tests ────────────────────────────────────
+  // ── Run all tests via extracted runner ──
   const runAll = useCallback(async () => {
     setRunning(true);
     setResults([]);
     abortRef.current = false;
 
+    const callbacks: RunnerCallbacks = {
+      addResult,
+      updateResult,
+      setPhase,
+      abortRef,
+    };
+
     try {
-      await runAllTests({ addResult, updateResult, setPhase, abortRef });
+      await runAllTests(callbacks);
     } catch (err) {
       console.error('[BatchVerifier] Fatal:', err);
       addResult({
@@ -71,7 +80,7 @@ export function BatchVerifier() {
     }
   }, [addResult, updateResult]);
 
-  // ── Stats ───────────────────────────────────────────
+  // ── Stats ─────────────────────────────────────────────
   const pass = results.filter(r => r.status === 'pass').length;
   const fail = results.filter(r => r.status === 'fail').length;
   const warn = results.filter(r => r.status === 'warn').length;
@@ -81,7 +90,7 @@ export function BatchVerifier() {
   const kvTotal = kvChecks.reduce((s, r) => s + (r.kvKeys?.length || 0), 0);
   const kvFound = kvChecks.reduce((s, r) => s + (r.kvKeys?.filter(k => k.exists).length || 0), 0);
 
-  // ── Group results ─────────────────────────────────────
+  // Group results
   const groups: Record<string, TestResult[]> = {};
   for (const r of results) {
     if (!groups[r.group]) groups[r.group] = [];
@@ -155,7 +164,7 @@ export function BatchVerifier() {
           </div>
         )}
 
-        {/* Results by group */}
+        {/* Results */}
         {Object.entries(groups).map(([group, items]) => {
           const gPass = items.filter(i => i.status === 'pass').length;
           const gFail = items.filter(i => i.status === 'fail').length;

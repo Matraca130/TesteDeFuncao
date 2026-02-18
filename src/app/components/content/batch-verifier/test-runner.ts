@@ -40,7 +40,7 @@ async function runSingle(
   if (!bearer) {
     cb.updateResult(id, {
       status: 'fail', httpStatus: 0, ms: 0,
-      detail: 'No bearer token available — auth step failed',
+      detail: 'No bearer token available \u2014 auth step failed',
     });
     return { ok: false, data: null, httpStatus: 0 };
   }
@@ -83,7 +83,7 @@ async function runSingle(
       const mismatches = kvKeys.filter(k => k.mismatch);
       detail = `KV MISSING (get): ${missingKeys.map(k => k.key).join(', ')}`;
       if (mismatches.length > 0) {
-        detail += ` | MISMATCH (mget≠get): ${mismatches.map(k => `${k.key}[mget=${k.mget_exists},get=${k.get_exists}]`).join(', ')}`;
+        detail += ` | MISMATCH (mget\u2260get): ${mismatches.map(k => `${k.key}[mget=${k.mget_exists},get=${k.get_exists}]`).join(', ')}`;
       }
     }
   }
@@ -128,15 +128,15 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     body?: unknown, opts?: RunOpts,
   ) => runSingle(group, name, method, path, body, opts, accessToken, cb);
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 1: HEALTH + KV ROUNDTRIP
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('1/8 Health + KV Probe');
   await run('Server', 'GET /health', 'GET', '/health', undefined, { bearerToken: publicAnonKey });
 
   // KV round-trip: set -> get -> direct query -> table sample
   const rtId = 'Server::KV Roundtrip';
-  cb.addResult({ id: rtId, group: 'Server', name: 'GET /dev/kv-roundtrip (set→get→direct)', method: 'GET', path: '/dev/kv-roundtrip', status: 'running' });
+  cb.addResult({ id: rtId, group: 'Server', name: 'GET /dev/kv-roundtrip (set\u2192get\u2192direct)', method: 'GET', path: '/dev/kv-roundtrip', status: 'running' });
   const rtRes = await apiFetch('GET', '/dev/kv-roundtrip', publicAnonKey);
   const rt = rtRes.data?.data || {};
   const rtDetail = [
@@ -164,9 +164,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     console.error('[KV ROUNDTRIP FULL]', JSON.stringify(rt, null, 2));
   }
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 2: AUTH
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('2/8 Auth');
 
   // Step 2a: Create user via POST /auth/signup
@@ -184,7 +184,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
     cb.addResult({
       id: 'Auth::ABORT', group: 'Auth', name: 'ABORT', method: '-', path: '-',
-      status: 'fail', detail: 'Cannot continue — signup failed',
+      status: 'fail', detail: 'Cannot continue \u2014 signup failed',
     });
     return;
   }
@@ -212,7 +212,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
     cb.addResult({
       id: 'Auth::ABORT', group: 'Auth', name: 'ABORT', method: '-', path: '-',
-      status: 'fail', detail: 'Cannot continue — no valid access_token from browser auth',
+      status: 'fail', detail: 'Cannot continue \u2014 no valid access_token from browser auth',
     });
     return;
   }
@@ -260,9 +260,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     email: testEmail, password: testPassword,
   }, { bearerToken: publicAnonKey, assertFields: ['user', 'access_token'] });
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 3: INSTITUTION + MEMBERSHIP
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('3/8 Inst + Membership KV');
 
   const instRes = await run('Inst+Membership', 'POST /institutions', 'POST', '/institutions', {
@@ -288,7 +288,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     }
   } else {
     cb.addResult({
-      id: 'KV Verify::SKIP', group: 'KV Verify', name: 'SKIP — no instId or userId',
+      id: 'KV Verify::SKIP', group: 'KV Verify', name: 'SKIP \u2014 no instId or userId',
       method: '-', path: '-', status: 'fail',
       detail: `instId=${instId || 'EMPTY'}, userId=${userId || 'EMPTY'}`,
     });
@@ -327,9 +327,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     await run('Inst+Membership', 'DELETE /.../members/:userId', 'DELETE', `/institutions/${instId}/members/${testMemberId}`);
   }
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 4: FULL CRUD CHAIN
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('4/8 CRUD Chain');
 
   let courseId = '';
@@ -469,24 +469,24 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     }, { assertFields: ['processed', 'approved'] });
   }
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 5: AI ROUTES
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('5/8 AI Routes');
 
   await run('AI', 'GET /ai/drafts', 'GET', '/ai/drafts');
-  await run('AI', 'POST /ai/chat (no msg → 400)', 'POST', '/ai/chat', {}, { expectStatus: [400] });
-  await run('AI', 'POST /ai/generate (no content → 400)', 'POST', '/ai/generate', {}, { expectStatus: [400] });
-  await run('AI', 'POST /ai/approve (no draft → 400)', 'POST', '/ai/generate/approve', {}, { expectStatus: [400] });
-  await run('AI', 'GET /keyword-popup (fake → 404)', 'GET', '/keyword-popup/fake-id', undefined, { expectStatus: [404] });
+  await run('AI', 'POST /ai/chat (no msg \u2192 400)', 'POST', '/ai/chat', {}, { expectStatus: [400] });
+  await run('AI', 'POST /ai/generate (no content \u2192 400)', 'POST', '/ai/generate', {}, { expectStatus: [400] });
+  await run('AI', 'POST /ai/approve (no draft \u2192 400)', 'POST', '/ai/generate/approve', {}, { expectStatus: [400] });
+  await run('AI', 'GET /keyword-popup (fake \u2192 404)', 'GET', '/keyword-popup/fake-id', undefined, { expectStatus: [404] });
 
   if (kwId) {
     await run('AI', 'GET /keyword-popup/:id (real)', 'GET', `/keyword-popup/${kwId}`, undefined, { assertFields: ['keyword'] });
   }
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 6: CLEANUP
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('6/8 Cleanup');
 
   if (connId) await run('Cleanup', 'DEL connection', 'DELETE', `/connections/${connId}`);
@@ -520,9 +520,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
   }
 
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   // PHASE 7: SIGNOUT
-  // ════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════
   cb.setPhase('7/8 Signout');
   await run('Auth', 'POST /auth/signout', 'POST', '/auth/signout');
 
