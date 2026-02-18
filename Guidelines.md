@@ -74,6 +74,115 @@ API Client      -->  UNICO punto de contacto con el backend
 
 **Regla**: Si necesitas cambiar como se obtienen datos, solo toca `api.ts`. Los componentes y hooks no cambian.
 
+---
+
+## REGLA #1: Arquitectura de 3 Capas — Refactoring Seguro (Student App)
+
+### Problema que resuelve
+
+Cuando un agente construye UI con mocks y luego conecta al backend real, el riesgo es que los cambios se propaguen por toda la app. La arquitectura de 3 capas **aisla el impacto**: conectar el backend solo toca UN archivo.
+
+### Las 3 capas
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  CAPA 1: Componentes UI                                     │
+│  ─────────────────────                                      │
+│  Solo renderizan. Consumen datos de hooks.                  │
+│  NUNCA importan fetch, axios, api-client, ni URLs.          │
+│  NUNCA manejan loading/error directamente.                  │
+│                                                             │
+│  Ejemplo:                                                   │
+│    function QuizCard({ question, onAnswer }) {              │
+│      return <div>...</div>;                                 │
+│    }                                                        │
+├─────────────────────────────────────────────────────────────┤
+│  CAPA 2: Custom Hooks                                       │
+│  ────────────────────                                       │
+│  Orquestan la logica. Llaman funciones del API client.      │
+│  Manejan loading, error, y transformaciones de datos.       │
+│  NUNCA hacen fetch() directo — solo llaman a api.ts.        │
+│                                                             │
+│  Ejemplo:                                                   │
+│    function useQuizSession(courseId: string) {               │
+│      const [questions, setQuestions] = useState([]);         │
+│      const [loading, setLoading] = useState(true);          │
+│      useEffect(() => {                                      │
+│        api.listQuizQuestions({ course_id: courseId })        │
+│          .then(setQuestions)                                 │
+│          .finally(() => setLoading(false));                  │
+│      }, [courseId]);                                         │
+│      return { questions, loading };                         │
+│    }                                                        │
+├─────────────────────────────────────────────────────────────┤
+│  CAPA 3: API Client (api.ts)                                │
+│  ───────────────────────────                                │
+│  UNICO archivo que sabe como obtener datos.                 │
+│  En desarrollo: retorna mocks.                              │
+│  En produccion: llama al backend real via fetch.            │
+│  NADIE MAS en la app sabe si los datos son mock o reales.  │
+│                                                             │
+│  Ejemplo (mock):                                            │
+│    export async function listQuizQuestions(params) {         │
+│      return MOCK.quizQuestions.filter(...);                  │
+│    }                                                        │
+│                                                             │
+│  Ejemplo (real — swap sin tocar nada mas):                  │
+│    export async function listQuizQuestions(params) {         │
+│      return apiClient.get('/quiz-questions', params);        │
+│    }                                                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Reglas para agentes
+
+1. **Crear componentes nuevos** → Usa hooks, nunca fetch. Libre de refactorizar.
+2. **Refactorizar UI existente** → Los hooks no cambian. Libre de refactorizar.
+3. **Conectar al backend real** → Solo toca `api.ts`. Componentes y hooks NO se enteran.
+4. **Agregar un endpoint nuevo** → Agrega funcion en `api.ts`, crea hook que la consume, componente usa el hook. Tres archivos, cero acoplamiento.
+
+### Que PUEDE hacer un agente libremente
+
+- Crear, mover, renombrar, o partir componentes UI
+- Cambiar props, layout, estilos, animaciones
+- Crear hooks nuevos que consuman funciones de api.ts
+- Refactorizar hooks existentes (mientras mantengan la misma interfaz publica)
+
+### Que NO puede hacer un agente sin autorizacion
+
+- Meter `fetch()`, `axios`, o URLs de backend dentro de un componente UI
+- Meter `fetch()` directo dentro de un hook (debe pasar por api.ts)
+- Modificar la interfaz publica de api.ts sin actualizar los hooks que la consumen
+- Tocar archivos protegidos (fsrs-engine.ts, shared-types.ts, kv-keys.ts, kv_store.tsx)
+
+### Archivos de contrato disponibles
+
+| Archivo | Que contiene | Donde vive |
+|---|---|---|
+| `shared-types.ts` (13 modulos + barrel) | Forma de cada entidad (Student, Quiz, Flashcard, etc.) | `/src/types/` |
+| `api-contract.ts` | Cada ruta HTTP: method, request body, response body | `/src/types/api-contract.ts` |
+| `kv-schema.ts` | Patrones de keys del KV store | `/src/types/kv-schema.ts` |
+| `api-client.ts` | Fetch wrapper tipado con auth | `/src/app/lib/api-client.ts` |
+| `api-provider.tsx` | React Context que inyecta el client | `/src/app/lib/api-provider.tsx` |
+| `mock-data.ts` | Factories + escenario pre-armado | `/src/app/lib/mock-data.ts` |
+| `fsrs-engine.ts` | Algoritmo BKT+FSRS (PROTEGIDO) | `/src/app/components/fsrs-engine.ts` |
+
+### Flujo de trabajo de un agente (dia 1 → produccion)
+
+```
+DIA 1:  Copia archivos de contrato al proyecto student app
+        Crea api.ts con funciones que retornan mocks
+        Crea hooks/ que consumen api.ts
+        Crea componentes UI que consumen hooks
+        → App funciona 100% con datos mock
+
+DIA N:  Backend esta listo para conectar
+        Abre api.ts
+        Swapea cada funcion: mock → apiClient.get/post/put/del
+        → App funciona 100% con datos reales
+        → Componentes y hooks: CERO cambios
+```
+
 ### Imagenes en Flashcards/Resumenes
 - `FlashcardCard` tiene campos opcionales `front_image?`, `back_image?`
 - Supabase Storage se implementa en oleada futura — por ahora los campos existen pero no se usan
@@ -99,6 +208,8 @@ API Client      -->  UNICO punto de contacto con el backend
 [ ] No toque archivos protegidos
 [ ] Use el formato correcto de KV keys
 [ ] Si es student app: los cambios de data van en api.ts, no en componentes
+[ ] Si es student app: componentes NO importan fetch/axios/URLs
+[ ] Si es student app: hooks solo llaman funciones de api.ts, nunca fetch directo
 ```
 
 ---
