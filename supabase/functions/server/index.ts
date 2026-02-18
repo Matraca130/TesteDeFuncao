@@ -1,7 +1,22 @@
 // ============================================================
-// Axon v4.2 — Server Entry Point
-// Mounts: flashcards, reviews, sessions, model3d routes + seed endpoint
+// Axon v4.3 — Server Entry Point (COMPLETE)
+// Mounts ALL 9 route modules + inline seed endpoint.
 // Prefix: /make-server-7a20cd7d
+//
+// Route modules (84+ endpoints total):
+//   auth         — signup, signin, me, signout (4)
+//   content      — institutions, courses, semesters, sections,
+//                   topics, summaries, chunks, keywords,
+//                   subtopics, connections, batch-status (~35)
+//   dashboard    — stats, daily-activity, progress, smart-study,
+//                   study-plans, finalize-stats (16)
+//   flashcards   — CRUD + /due (6)
+//   quiz         — CRUD + /evaluate (6)
+//   reading      — reading-state, annotations, topics/:id/full (7)
+//   reviews      — CRUD + BKT update (varies)
+//   sessions     — CRUD (varies)
+//   model3d      — upload, CRUD, thumbnail (7)
+//   ai           — generate, approve, drafts, chat, keyword-popup (5)
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -9,12 +24,18 @@ import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
 
 // Route modules
+import auth from "./auth.tsx";
+import content from "./routes-content.tsx";
+import dashboard from "./routes-dashboard.tsx";
 import flashcards from "./routes-flashcards.tsx";
+import quiz from "./routes-quiz.tsx";
+import reading from "./routes-reading.tsx";
 import reviews from "./routes-reviews.tsx";
 import sessions from "./routes-sessions.tsx";
 import model3d from "./routes-model3d.tsx";
+import ai from "./ai-routes.tsx";
 
-// KV key functions (for seed)
+// KV key functions (for inline seed)
 import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
 import { createNewCard } from "./fsrs-engine.ts";
 
@@ -34,15 +55,32 @@ app.use(
   }),
 );
 
+// ── Health check ─────────────────────────────────────────────
 app.get(`${PREFIX}/health`, (c) => {
-  return c.json({ status: "ok", routes: ["flashcards", "reviews", "sessions", "models3d", "seed"] });
+  return c.json({
+    status: "ok",
+    version: "4.3",
+    routes: [
+      "auth", "content", "dashboard", "flashcards",
+      "quiz", "reading", "reviews", "sessions",
+      "model3d", "ai", "seed",
+    ],
+  });
 });
 
+// ── Mount all route modules ──────────────────────────────────
+app.route(PREFIX, auth);
+app.route(PREFIX, content);
+app.route(PREFIX, dashboard);
 app.route(PREFIX, flashcards);
+app.route(PREFIX, quiz);
+app.route(PREFIX, reading);
 app.route(PREFIX, reviews);
 app.route(PREFIX, sessions);
 app.route(PREFIX, model3d);
+app.route(PREFIX, ai);
 
+// ── Inline seed (FSRS flashcards — complements seed.tsx) ─────
 app.post(`${PREFIX}/seed`, async (c) => {
   try {
     const studentId = c.req.query("student_id") || "dev-user-001";
