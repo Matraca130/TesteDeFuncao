@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // FORMATTING TOOLBAR — text formatting, highlights, keywords, zoom
 // ══════════════════════════════════════════════════════════════
-import React, { useState } from 'react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { KeywordData } from '@/app/data/keywords';
-import type { BlockType, CanvasBlock } from './types';
+import type { BlockType } from './types';
 import { HIGHLIGHT_COLORS } from './types';
 import { ToolBtn, AddBlockMenu } from './ToolbarComponents';
 import { KeywordPicker } from './KeywordPicker';
@@ -51,7 +51,13 @@ export interface FormattingToolbarProps {
   onZoomChange: (z: number) => void;
 }
 
-export function FormattingToolbar(props: FormattingToolbarProps) {
+/** Imperative handle so parent can dismiss internal popups */
+export interface FormattingToolbarHandle {
+  dismissPopups: () => void;
+}
+
+export const FormattingToolbar = forwardRef<FormattingToolbarHandle, FormattingToolbarProps>(
+  function FormattingToolbar(props, ref) {
   const {
     undoCount, redoCount, onUndo, onRedo,
     onApplyFormat, onApplyHighlight, onRemoveHighlight,
@@ -65,6 +71,15 @@ export function FormattingToolbar(props: FormattingToolbarProps) {
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [showKeywordPicker, setShowKeywordPicker] = useState(false);
   const [keywordSearch, setKeywordSearch] = useState('');
+
+  // Expose dismissPopups so the parent can close internal popups on canvas click
+  useImperativeHandle(ref, () => ({
+    dismissPopups: () => {
+      setShowHighlightPicker(false);
+      setShowKeywordPicker(false);
+      setKeywordSearch('');
+    },
+  }));
 
   return (
     <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-1 flex-wrap sticky top-[52px] z-20">
@@ -200,4 +215,4 @@ export function FormattingToolbar(props: FormattingToolbarProps) {
       </div>
     </div>
   );
-}
+});
