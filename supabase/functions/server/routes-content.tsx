@@ -4,16 +4,13 @@
 //           Topic, Summary, Chunk, Keyword, SubTopic, Connection
 // + Batch content approval (D20)
 //
-// Standard entities (courses, semesters, sections, topics,
-// subtopics) use the generic CRUD factory from crud-factory.tsx.
-// Complex entities (institutions, summaries, keywords,
-// connections) remain manual due to custom logic.
+// ALL routes are now explicit (no factory) so that static
+// validators can detect every endpoint via regex/grep.
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
 import { KV } from "./kv-keys.tsx";
 import {
-  registerCrudRoutes,
   cascadeCollect,
   getAuthUser,
   unauthorized,
@@ -54,171 +51,541 @@ async function collectSummaryCascadeKeys(
 }
 
 // ================================================================
-// FACTORY-REGISTERED ENTITIES
-// 5 configs x 5 handlers each = 25 routes generated automatically
-// by registerCrudRoutes() in crud-factory.tsx.
-// The @route annotations below enable static detection by validators.
+// COURSES — 5 explicit routes
 // ================================================================
 
-// @route POST /courses
-// @route GET /courses
-// @route GET /courses/:id
-// @route PUT /courses/:id
-// @route DELETE /courses/:id
-registerCrudRoutes(content, {
-  route: "courses",
-  label: "Course",
-  primaryKey: KV.course,
-  requiredFields: ["name", "institution_id"],
-  optionalDefaults: {
-    description: null,
-    color: "#3b82f6",
-    accent_color: "#60a5fa",
-    sort_order: 0,
-  },
-  parentField: "institution_id",
-  indexKey: KV.IDX.courseOfInst,
-  parentQueryParam: "institution_id",
-  listPrefix: KV.PREFIX.coursesOfInst,
-  cascadeDelete: async (courseId) => {
-    // Level 0-2: semesters -> sections -> topics
-    const keys = await cascadeCollect(courseId, [
-      {
-        childPrefix: KV.PREFIX.semestersOfCourse,
-        childPrimaryKey: KV.semester,
-        childIndexKey: KV.IDX.semesterOfCourse,
-      },
-      {
-        childPrefix: KV.PREFIX.sectionsOfSemester,
-        childPrimaryKey: KV.section,
-        childIndexKey: KV.IDX.sectionOfSemester,
-      },
-      {
-        childPrefix: KV.PREFIX.topicsOfSection,
-        childPrimaryKey: KV.topic,
-        childIndexKey: KV.IDX.topicOfSection,
-      },
+content.post("/courses", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const body = await c.req.json();
+    if (!body.name || !body.institution_id)
+      return validationError(c, "Missing required fields: name, institution_id");
+    const id = crypto.randomUUID();
+    const entity = {
+      id,
+      name: body.name,
+      institution_id: body.institution_id,
+      description: body.description ?? null,
+      color: body.color ?? "#3b82f6",
+      accent_color: body.accent_color ?? "#60a5fa",
+      sort_order: body.sort_order ?? 0,
+      created_at: new Date().toISOString(),
+      created_by: user.id,
+    };
+    await kv.mset(
+      [KV.course(id), KV.IDX.courseOfInst(body.institution_id, id)],
+      [entity, id]
+    );
+    return c.json({ success: true, data: entity }, 201);
+  } catch (err) {
+    return serverError(c, "POST /courses", err);
+  }
+});
+
+content.get("/courses", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const pid = c.req.query("institution_id");
+    if (!pid) return validationError(c, "institution_id query param required");
+    const items = await getChildren(KV.PREFIX.coursesOfInst(pid), KV.course);
+    return c.json({ success: true, data: items });
+  } catch (err) {
+    return serverError(c, "GET /courses", err);
+  }
+});
+
+content.get("/courses/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const item = await kv.get(KV.course(c.req.param("id")));
+    if (!item) return notFound(c, "Course");
+    return c.json({ success: true, data: item });
+  } catch (err) {
+    return serverError(c, "GET /courses/:id", err);
+  }
+});
+
+content.put("/courses/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const existing = await kv.get(KV.course(id));
+    if (!existing) return notFound(c, "Course");
+    const body = await c.req.json();
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      institution_id: existing.institution_id,
+      created_at: existing.created_at,
+      created_by: existing.created_by,
+      updated_at: new Date().toISOString(),
+    };
+    await kv.set(KV.course(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return serverError(c, "PUT /courses/:id", err);
+  }
+});
+
+content.delete("/courses/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const entity = await kv.get(KV.course(id));
+    if (!entity) return notFound(c, "Course");
+    const keysToDelete: string[] = [
+      KV.course(id),
+      KV.IDX.courseOfInst(entity.institution_id, id),
+    ];
+    // Cascade: semesters -> sections -> topics
+    const cascadeKeys = await cascadeCollect(id, [
+      { childPrefix: KV.PREFIX.semestersOfCourse, childPrimaryKey: KV.semester, childIndexKey: KV.IDX.semesterOfCourse },
+      { childPrefix: KV.PREFIX.sectionsOfSemester, childPrimaryKey: KV.section, childIndexKey: KV.IDX.sectionOfSemester },
+      { childPrefix: KV.PREFIX.topicsOfSection, childPrimaryKey: KV.topic, childIndexKey: KV.IDX.topicOfSection },
     ]);
+    keysToDelete.push(...cascadeKeys);
     // Level 3+: summaries -> chunks + keyword cross-refs
-    const topicIds = keys
+    const topicIds = cascadeKeys
       .filter((k) => k.startsWith("topic:"))
       .map((k) => k.slice(6));
     for (const tid of topicIds) {
-      keys.push(...(await collectSummaryCascadeKeys(tid)));
+      keysToDelete.push(...(await collectSummaryCascadeKeys(tid)));
     }
-    return keys;
-  },
+    console.log(`[Content] DELETE /courses/${id} -> kv.mdel(${keysToDelete.length} keys)`);
+    await kv.mdel(keysToDelete);
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return serverError(c, "DELETE /courses/:id", err);
+  }
 });
 
-// @route POST /semesters
-// @route GET /semesters
-// @route GET /semesters/:id
-// @route PUT /semesters/:id
-// @route DELETE /semesters/:id
-registerCrudRoutes(content, {
-  route: "semesters",
-  label: "Semester",
-  primaryKey: KV.semester,
-  requiredFields: ["name", "course_id"],
-  optionalDefaults: { year: null, sort_order: 0 },
-  parentField: "course_id",
-  indexKey: KV.IDX.semesterOfCourse,
-  parentQueryParam: "course_id",
-  listPrefix: KV.PREFIX.semestersOfCourse,
-  cascadeDelete: async (semesterId) => {
-    const keys = await cascadeCollect(semesterId, [
-      {
-        childPrefix: KV.PREFIX.sectionsOfSemester,
-        childPrimaryKey: KV.section,
-        childIndexKey: KV.IDX.sectionOfSemester,
-      },
-      {
-        childPrefix: KV.PREFIX.topicsOfSection,
-        childPrimaryKey: KV.topic,
-        childIndexKey: KV.IDX.topicOfSection,
-      },
+// ================================================================
+// SEMESTERS — 5 explicit routes
+// ================================================================
+
+content.post("/semesters", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const body = await c.req.json();
+    if (!body.name || !body.course_id)
+      return validationError(c, "Missing required fields: name, course_id");
+    const id = crypto.randomUUID();
+    const entity = {
+      id,
+      name: body.name,
+      course_id: body.course_id,
+      year: body.year ?? null,
+      sort_order: body.sort_order ?? 0,
+      created_at: new Date().toISOString(),
+      created_by: user.id,
+    };
+    await kv.mset(
+      [KV.semester(id), KV.IDX.semesterOfCourse(body.course_id, id)],
+      [entity, id]
+    );
+    return c.json({ success: true, data: entity }, 201);
+  } catch (err) {
+    return serverError(c, "POST /semesters", err);
+  }
+});
+
+content.get("/semesters", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const pid = c.req.query("course_id");
+    if (!pid) return validationError(c, "course_id query param required");
+    const items = await getChildren(KV.PREFIX.semestersOfCourse(pid), KV.semester);
+    return c.json({ success: true, data: items });
+  } catch (err) {
+    return serverError(c, "GET /semesters", err);
+  }
+});
+
+content.get("/semesters/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const item = await kv.get(KV.semester(c.req.param("id")));
+    if (!item) return notFound(c, "Semester");
+    return c.json({ success: true, data: item });
+  } catch (err) {
+    return serverError(c, "GET /semesters/:id", err);
+  }
+});
+
+content.put("/semesters/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const existing = await kv.get(KV.semester(id));
+    if (!existing) return notFound(c, "Semester");
+    const body = await c.req.json();
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      course_id: existing.course_id,
+      created_at: existing.created_at,
+      created_by: existing.created_by,
+      updated_at: new Date().toISOString(),
+    };
+    await kv.set(KV.semester(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return serverError(c, "PUT /semesters/:id", err);
+  }
+});
+
+content.delete("/semesters/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const entity = await kv.get(KV.semester(id));
+    if (!entity) return notFound(c, "Semester");
+    const keysToDelete: string[] = [
+      KV.semester(id),
+      KV.IDX.semesterOfCourse(entity.course_id, id),
+    ];
+    const cascadeKeys = await cascadeCollect(id, [
+      { childPrefix: KV.PREFIX.sectionsOfSemester, childPrimaryKey: KV.section, childIndexKey: KV.IDX.sectionOfSemester },
+      { childPrefix: KV.PREFIX.topicsOfSection, childPrimaryKey: KV.topic, childIndexKey: KV.IDX.topicOfSection },
     ]);
-    const topicIds = keys
+    keysToDelete.push(...cascadeKeys);
+    const topicIds = cascadeKeys
       .filter((k) => k.startsWith("topic:"))
       .map((k) => k.slice(6));
     for (const tid of topicIds) {
-      keys.push(...(await collectSummaryCascadeKeys(tid)));
+      keysToDelete.push(...(await collectSummaryCascadeKeys(tid)));
     }
-    return keys;
-  },
+    console.log(`[Content] DELETE /semesters/${id} -> kv.mdel(${keysToDelete.length} keys)`);
+    await kv.mdel(keysToDelete);
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return serverError(c, "DELETE /semesters/:id", err);
+  }
 });
 
-// @route POST /sections
-// @route GET /sections
-// @route GET /sections/:id
-// @route PUT /sections/:id
-// @route DELETE /sections/:id
-registerCrudRoutes(content, {
-  route: "sections",
-  label: "Section",
-  primaryKey: KV.section,
-  requiredFields: ["name", "semester_id"],
-  optionalDefaults: { region: null, image_url: null, sort_order: 0 },
-  parentField: "semester_id",
-  indexKey: KV.IDX.sectionOfSemester,
-  parentQueryParam: "semester_id",
-  listPrefix: KV.PREFIX.sectionsOfSemester,
-  cascadeDelete: async (sectionId) => {
-    const keys = await cascadeCollect(sectionId, [
-      {
-        childPrefix: KV.PREFIX.topicsOfSection,
-        childPrimaryKey: KV.topic,
-        childIndexKey: KV.IDX.topicOfSection,
-      },
+// ================================================================
+// SECTIONS — 5 explicit routes
+// ================================================================
+
+content.post("/sections", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const body = await c.req.json();
+    if (!body.name || !body.semester_id)
+      return validationError(c, "Missing required fields: name, semester_id");
+    const id = crypto.randomUUID();
+    const entity = {
+      id,
+      name: body.name,
+      semester_id: body.semester_id,
+      region: body.region ?? null,
+      image_url: body.image_url ?? null,
+      sort_order: body.sort_order ?? 0,
+      created_at: new Date().toISOString(),
+      created_by: user.id,
+    };
+    await kv.mset(
+      [KV.section(id), KV.IDX.sectionOfSemester(body.semester_id, id)],
+      [entity, id]
+    );
+    return c.json({ success: true, data: entity }, 201);
+  } catch (err) {
+    return serverError(c, "POST /sections", err);
+  }
+});
+
+content.get("/sections", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const pid = c.req.query("semester_id");
+    if (!pid) return validationError(c, "semester_id query param required");
+    const items = await getChildren(KV.PREFIX.sectionsOfSemester(pid), KV.section);
+    return c.json({ success: true, data: items });
+  } catch (err) {
+    return serverError(c, "GET /sections", err);
+  }
+});
+
+content.get("/sections/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const item = await kv.get(KV.section(c.req.param("id")));
+    if (!item) return notFound(c, "Section");
+    return c.json({ success: true, data: item });
+  } catch (err) {
+    return serverError(c, "GET /sections/:id", err);
+  }
+});
+
+content.put("/sections/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const existing = await kv.get(KV.section(id));
+    if (!existing) return notFound(c, "Section");
+    const body = await c.req.json();
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      semester_id: existing.semester_id,
+      created_at: existing.created_at,
+      created_by: existing.created_by,
+      updated_at: new Date().toISOString(),
+    };
+    await kv.set(KV.section(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return serverError(c, "PUT /sections/:id", err);
+  }
+});
+
+content.delete("/sections/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const entity = await kv.get(KV.section(id));
+    if (!entity) return notFound(c, "Section");
+    const keysToDelete: string[] = [
+      KV.section(id),
+      KV.IDX.sectionOfSemester(entity.semester_id, id),
+    ];
+    const cascadeKeys = await cascadeCollect(id, [
+      { childPrefix: KV.PREFIX.topicsOfSection, childPrimaryKey: KV.topic, childIndexKey: KV.IDX.topicOfSection },
     ]);
-    const topicIds = keys
+    keysToDelete.push(...cascadeKeys);
+    const topicIds = cascadeKeys
       .filter((k) => k.startsWith("topic:"))
       .map((k) => k.slice(6));
     for (const tid of topicIds) {
-      keys.push(...(await collectSummaryCascadeKeys(tid)));
+      keysToDelete.push(...(await collectSummaryCascadeKeys(tid)));
     }
-    return keys;
-  },
+    console.log(`[Content] DELETE /sections/${id} -> kv.mdel(${keysToDelete.length} keys)`);
+    await kv.mdel(keysToDelete);
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return serverError(c, "DELETE /sections/:id", err);
+  }
 });
 
-// @route POST /topics
-// @route GET /topics
-// @route GET /topics/:id
-// @route PUT /topics/:id
-// @route DELETE /topics/:id
-registerCrudRoutes(content, {
-  route: "topics",
-  label: "Topic",
-  primaryKey: KV.topic,
-  requiredFields: ["name", "section_id"],
-  optionalDefaults: { description: null, sort_order: 0 },
-  parentField: "section_id",
-  indexKey: KV.IDX.topicOfSection,
-  parentQueryParam: "section_id",
-  listPrefix: KV.PREFIX.topicsOfSection,
-  cascadeDelete: (topicId) => collectSummaryCascadeKeys(topicId),
+// ================================================================
+// TOPICS — 5 explicit routes
+// ================================================================
+
+content.post("/topics", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const body = await c.req.json();
+    if (!body.name || !body.section_id)
+      return validationError(c, "Missing required fields: name, section_id");
+    const id = crypto.randomUUID();
+    const entity = {
+      id,
+      name: body.name,
+      section_id: body.section_id,
+      description: body.description ?? null,
+      sort_order: body.sort_order ?? 0,
+      created_at: new Date().toISOString(),
+      created_by: user.id,
+    };
+    await kv.mset(
+      [KV.topic(id), KV.IDX.topicOfSection(body.section_id, id)],
+      [entity, id]
+    );
+    return c.json({ success: true, data: entity }, 201);
+  } catch (err) {
+    return serverError(c, "POST /topics", err);
+  }
+});
+
+content.get("/topics", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const pid = c.req.query("section_id");
+    if (!pid) return validationError(c, "section_id query param required");
+    const items = await getChildren(KV.PREFIX.topicsOfSection(pid), KV.topic);
+    return c.json({ success: true, data: items });
+  } catch (err) {
+    return serverError(c, "GET /topics", err);
+  }
+});
+
+content.get("/topics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const item = await kv.get(KV.topic(c.req.param("id")));
+    if (!item) return notFound(c, "Topic");
+    return c.json({ success: true, data: item });
+  } catch (err) {
+    return serverError(c, "GET /topics/:id", err);
+  }
 });
 
 // NOTE: GET /topics/:id/full is handled by routes-reading.tsx (Dev 2)
 // which includes the complete view with flashcards, quiz, reading states,
 // BKT, FSRS, and annotations — a superset of what Dev 1 originally had here.
 
-// @route POST /subtopics
-// @route GET /subtopics
-// @route GET /subtopics/:id
-// @route PUT /subtopics/:id
-// @route DELETE /subtopics/:id
-registerCrudRoutes(content, {
-  route: "subtopics",
-  label: "SubTopic",
-  primaryKey: KV.subtopic,
-  requiredFields: ["keyword_id", "title"],
-  optionalDefaults: { description: null, priority: null, status: "draft" },
-  parentField: "keyword_id",
-  indexKey: KV.IDX.subtopicOfKeyword,
-  parentQueryParam: "keyword_id",
-  listPrefix: KV.PREFIX.subtopicsOfKeyword,
-  // Leaf entity — no cascade needed
+content.put("/topics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const existing = await kv.get(KV.topic(id));
+    if (!existing) return notFound(c, "Topic");
+    const body = await c.req.json();
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      section_id: existing.section_id,
+      created_at: existing.created_at,
+      created_by: existing.created_by,
+      updated_at: new Date().toISOString(),
+    };
+    await kv.set(KV.topic(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return serverError(c, "PUT /topics/:id", err);
+  }
+});
+
+content.delete("/topics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const entity = await kv.get(KV.topic(id));
+    if (!entity) return notFound(c, "Topic");
+    const keysToDelete: string[] = [
+      KV.topic(id),
+      KV.IDX.topicOfSection(entity.section_id, id),
+    ];
+    keysToDelete.push(...(await collectSummaryCascadeKeys(id)));
+    console.log(`[Content] DELETE /topics/${id} -> kv.mdel(${keysToDelete.length} keys)`);
+    await kv.mdel(keysToDelete);
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return serverError(c, "DELETE /topics/:id", err);
+  }
+});
+
+// ================================================================
+// SUBTOPICS — 5 explicit routes
+// ================================================================
+
+content.post("/subtopics", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const body = await c.req.json();
+    if (!body.keyword_id || !body.title)
+      return validationError(c, "Missing required fields: keyword_id, title");
+    const id = crypto.randomUUID();
+    const entity = {
+      id,
+      keyword_id: body.keyword_id,
+      title: body.title,
+      description: body.description ?? null,
+      priority: body.priority ?? null,
+      status: body.status ?? "draft",
+      created_at: new Date().toISOString(),
+      created_by: user.id,
+    };
+    await kv.mset(
+      [KV.subtopic(id), KV.IDX.subtopicOfKeyword(body.keyword_id, id)],
+      [entity, id]
+    );
+    return c.json({ success: true, data: entity }, 201);
+  } catch (err) {
+    return serverError(c, "POST /subtopics", err);
+  }
+});
+
+content.get("/subtopics", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const pid = c.req.query("keyword_id");
+    if (!pid) return validationError(c, "keyword_id query param required");
+    const items = await getChildren(KV.PREFIX.subtopicsOfKeyword(pid), KV.subtopic);
+    return c.json({ success: true, data: items });
+  } catch (err) {
+    return serverError(c, "GET /subtopics", err);
+  }
+});
+
+content.get("/subtopics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const item = await kv.get(KV.subtopic(c.req.param("id")));
+    if (!item) return notFound(c, "SubTopic");
+    return c.json({ success: true, data: item });
+  } catch (err) {
+    return serverError(c, "GET /subtopics/:id", err);
+  }
+});
+
+content.put("/subtopics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const existing = await kv.get(KV.subtopic(id));
+    if (!existing) return notFound(c, "SubTopic");
+    const body = await c.req.json();
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      keyword_id: existing.keyword_id,
+      created_at: existing.created_at,
+      created_by: existing.created_by,
+      updated_at: new Date().toISOString(),
+    };
+    await kv.set(KV.subtopic(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return serverError(c, "PUT /subtopics/:id", err);
+  }
+});
+
+content.delete("/subtopics/:id", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const id = c.req.param("id");
+    const entity = await kv.get(KV.subtopic(id));
+    if (!entity) return notFound(c, "SubTopic");
+    // Leaf entity — no cascade needed
+    await kv.mdel([
+      KV.subtopic(id),
+      KV.IDX.subtopicOfKeyword(entity.keyword_id, id),
+    ]);
+    return c.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    return serverError(c, "DELETE /subtopics/:id", err);
+  }
 });
 
 // ================================================================
