@@ -75,16 +75,17 @@ import {
   notFound,
   validationError,
   serverError,
+  mgetOrdered,
 } from "./crud-factory.tsx";
 
 const dashboard = new Hono();
 
-// ═══════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════
 // NeedScore computation (server-side, D10)
 // Implemented here because fsrs-engine.ts is PROTECTED.
 // Formula: weighted sum of overdue, masteryGap, fragility,
 //          coverage gap, and priority.
-// ═══════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════
 function calculateNeedScore(
   overdue: number,
   masteryGap: number,
@@ -116,7 +117,7 @@ function getColorFromDelta(delta: number): BktColor {
   return "red";
 }
 
-// ── Date helpers ────────────────────────────────────────────
+// ── Date helpers ────────────────────────────────────────
 function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
@@ -125,7 +126,7 @@ function emptyByColor(): Record<string, number> {
   return { red: 0, orange: 0, yellow: 0, green: 0 };
 }
 
-// ── Hierarchy walk helpers ──────────────────────────────────
+// ── Hierarchy walk helpers ──────────────────────────────
 
 /** Get keyword IDs linked to a specific topic via summaries → keyword instances */
 async function getKeywordIdsForTopic(topicId: string): Promise<string[]> {
@@ -372,6 +373,10 @@ dashboard.get("/progress/keyword/:keywordId", async (c) => {
     );
 
     // Get BKT states + subtopic entities
+    // FIX A2: Use mgetOrdered() instead of kv.mget() for positional access.
+    // kv.mget() uses Supabase .in() which returns rows in arbitrary order
+    // and omits missing keys — causing wrong subtopic↔BKT pairing when
+    // accessed by index (bktStates[i], subtopics[i]).
     const bktKeys = (subtopicIds as string[]).map((stId) =>
       bktKey(user.id, stId)
     );
@@ -379,8 +384,8 @@ dashboard.get("/progress/keyword/:keywordId", async (c) => {
       subtopicKey(stId)
     );
     const [bktStates, subtopics] = await Promise.all([
-      bktKeys.length > 0 ? kv.mget(bktKeys) : [],
-      stKeys.length > 0 ? kv.mget(stKeys) : [],
+      bktKeys.length > 0 ? mgetOrdered(bktKeys) : [],
+      stKeys.length > 0 ? mgetOrdered(stKeys) : [],
     ]);
 
     // Check quiz coverage (D32)
@@ -1017,7 +1022,9 @@ dashboard.post("/study-plans/:id/recalculate", async (c) => {
     );
     const keysToDelete: string[] = [];
     if (existingTaskIds.length > 0) {
-      const existingTasks = await kv.mget(
+      // FIX A3: Use mgetOrdered() for positional access (task[i] ↔ taskId[i]).
+      // kv.mget() returns rows in arbitrary order, causing wrong task↔ID pairing.
+      const existingTasks = await mgetOrdered(
         (existingTaskIds as string[]).map((tid: string) => planTaskKey(tid))
       );
       for (let i = 0; i < existingTaskIds.length; i++) {
@@ -1326,7 +1333,7 @@ dashboard.post("/sessions/:id/finalize-stats", async (c) => {
     const today = todayStr();
     const userId = user.id;
 
-    // ── 1. Update DailyActivity ──────────────────────────
+    // ── 1. Update DailyActivity ──────────────────────
     let daily: DailyActivity | null = await kv.get(dailyKey(userId, today));
     if (!daily) {
       daily = {
@@ -1345,7 +1352,7 @@ dashboard.post("/sessions/:id/finalize-stats", async (c) => {
     daily.reviews_count += session.total_reviews ?? 0;
     daily.correct_count += session.correct_reviews ?? 0;
 
-    // ── 2. Update StudentStats ───────────────────────────
+    // ── 2. Update StudentStats ───────────────────────
     let stats: StudentStats | null = await kv.get(statsKey(userId));
     if (!stats) {
       stats = {
@@ -1370,7 +1377,7 @@ dashboard.post("/sessions/:id/finalize-stats", async (c) => {
     stats.last_study_date = today;
     stats.updated_at = new Date().toISOString();
 
-    // ── 3. Compute streak ────────────────────────────────
+    // ── 3. Compute streak ────────────────────────────
     // Only update streak on the FIRST session of the day (D2 fix).
     // daily.sessions_count was already incremented above, so
     // sessions_count === 1 means this is the first finalize today.
@@ -1418,7 +1425,7 @@ dashboard.post("/sessions/:id/finalize-stats", async (c) => {
       // Non-critical
     }
 
-    // ── 5. Persist ────────────────────────────────────────
+    // ── 5. Persist ────────────────────────────────────
     await kv.mset(
       [dailyKey(userId, today), statsKey(userId)],
       [daily, stats]
