@@ -146,7 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const returnFrom3D = useCallback(() => {
     setSelectedModelId(null);
-    setActiveView(viewBefor3DRef.current);
+    setActiveView(viewBefore3DRef.current);
   }, []);
 
   return (
