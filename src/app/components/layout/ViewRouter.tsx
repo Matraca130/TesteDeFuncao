@@ -21,6 +21,9 @@ import { AIChatPanel } from '@/app/components/ai/AIChatPanel';
 import { AIGeneratePanel } from '@/app/components/ai/AIGeneratePanel';
 import { BatchVerifier } from '@/app/components/content/BatchVerifier';
 
+// ── Diagnostics (Dev 1) ──
+import { DiagnosticsPanel } from '@/app/components/admin/DiagnosticsPanel';
+
 /**
  * ViewRouter — Maps activeView to the correct component.
  * When other devs' modules are integrated, replace PlaceholderView
@@ -99,6 +102,16 @@ export function ViewRouter() {
       // ── Batch Endpoint Verifier ──
       case 'batch-verify':
         return <BatchVerifier key="batch-verify" />;
+
+      // ── Diagnostics Panel (Dev 1 — 4-layer connectivity tests) ──
+      case 'diagnostic':
+        return (
+          <div key="diagnostic" className="h-full overflow-y-auto bg-[#f5f2ea]">
+            <div className="max-w-4xl mx-auto p-6">
+              <DiagnosticsPanel />
+            </div>
+          </div>
+        );
 
       // ── Dashboard (default) ──
       case 'dashboard':
