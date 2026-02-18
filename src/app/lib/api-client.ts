@@ -1,89 +1,124 @@
 // ============================================================
-// Axon v4.4 — Typed API Client (Infrastructure)
-// Path: /src/app/lib/api-client.ts
-// Wrapper tipado sobre fetch para llamadas al servidor Hono.
-//
-// Usage:
-//   const api = createApiClient(baseUrl, token);
-//   const cards = await api.get<DueFlashcardsRes>('/flashcards/due', { course_id });
-//   const result = await api.post<SubmitReviewReq, SubmitReviewRes>('/reviews', body);
+// Axon v4.4 — API Client (typed fetch wrapper)
+// Connects to the LIVE Supabase Edge Function backend
 // ============================================================
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-export class ApiClientError extends Error {
-  constructor(
-    public status: number,
-    public code: string | undefined,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApiClientError';
-  }
+const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-8cb6316a`;
+
+export interface ApiError {
+  success: false;
+  error: { code?: string; message: string; details?: unknown };
 }
+
+export interface ApiSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 
 export interface ApiClient {
-  get<TRes>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<TRes>;
-  post<TReq, TRes>(path: string, body: TReq): Promise<TRes>;
-  put<TReq, TRes>(path: string, body: TReq): Promise<TRes>;
-  del<TRes = void>(path: string): Promise<TRes>;
+  get: <T = unknown>(path: string, params?: Record<string, string>) => Promise<T>;
+  post: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) => Promise<TRes>;
+  put: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) => Promise<TRes>;
+  del: <T = unknown>(path: string) => Promise<T>;
+  /** Always uses publicAnonKey — bypasses authToken. For unauthenticated endpoints like /health */
+  publicGet: <T = unknown>(path: string, params?: Record<string, string>) => Promise<T>;
+  /** Always uses publicAnonKey — for auth endpoints like /auth/signin, /auth/signup */
+  publicPost: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) => Promise<TRes>;
+  setAuthToken: (token: string | null) => void;
+  getAuthToken: () => string | null;
 }
 
-export function createApiClient(baseUrl: string, token: string): ApiClient {
+export function createApiClient(): ApiClient {
+  let authToken: string | null = null;
+
+  function authHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken || publicAnonKey}`,
+    };
+  }
+
+  function publicHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${publicAnonKey}`,
+    };
+  }
+
   async function request<T>(
     method: string,
     path: string,
     body?: unknown,
-    params?: Record<string, string | number | boolean | undefined>,
+    params?: Record<string, string>,
+    usePublicKey = false,
   ): Promise<T> {
-    let url = `${baseUrl}${path}`;
-
-    // Append query params for GET
+    let url = `${BASE_URL}${path}`;
     if (params) {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(params)) {
-        if (v !== undefined) qs.set(k, String(v));
-      }
-      const qsStr = qs.toString();
-      if (qsStr) url += `?${qsStr}`;
+      const qs = new URLSearchParams(params).toString();
+      if (qs) url += `?${qs}`;
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    };
+    const hdrs = usePublicKey ? publicHeaders() : authHeaders();
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: hdrs,
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    } catch (networkErr) {
+      console.error(`[API] ${method} ${path} network error:`, networkErr);
+      throw new Error(`Network error calling ${method} ${path}: ${networkErr}`);
+    }
+
+    // Handle Supabase Edge Function JWT rejection (returns 401 before reaching our Hono router)
+    if (res.status === 401 && !usePublicKey) {
+      let body401: any;
+      try { body401 = await res.clone().json(); } catch { body401 = {}; }
+      const msg = body401?.message || body401?.error?.message || '';
+      // If it's a Supabase infra-level JWT rejection (not our app's UNAUTHORIZED),
+      // clear the stale token and throw a clear error
+      if (msg === 'Invalid JWT' || msg === 'JWT expired') {
+        console.warn(`[API] ${method} ${path}: Supabase rejected JWT (${msg}). Token may be expired.`);
+        throw new Error(`AUTH_EXPIRED: ${msg}`);
+      }
+    }
 
     let json: any;
     try {
       json = await res.json();
-    } catch {
-      throw new ApiClientError(res.status, undefined, `Non-JSON response from ${method} ${path}`);
+    } catch (parseErr) {
+      console.error(`[API] ${method} ${path} invalid JSON (status ${res.status}):`, parseErr);
+      throw new Error(`Invalid JSON from ${method} ${path} (HTTP ${res.status})`);
     }
 
-    if (!res.ok || !json.success) {
-      const err = json;
-      // Backend returns error as { code, message } object OR as string
-      const errorObj = err.error;
-      const code = typeof errorObj === 'object' ? errorObj?.code : err.code;
-      const message = typeof errorObj === 'object' ? errorObj?.message : (typeof errorObj === 'string' ? errorObj : `Request failed: ${method} ${path}`);
-      throw new ApiClientError(res.status, code, message);
+    if (!json.success) {
+      const err = json as ApiError;
+      console.error(`[API] ${method} ${path} failed:`, err.error || json);
+      throw new Error(err.error?.message || json?.message || `API error: ${res.status}`);
     }
 
-    return json.data as T;
+    return (json as ApiSuccess<T>).data;
   }
 
   return {
-    get: <TRes>(path: string, params?: Record<string, string | number | boolean | undefined>) =>
-      request<TRes>('GET', path, undefined, params),
-    post: <TReq, TRes>(path: string, body: TReq) =>
+    get: <T = unknown>(path: string, params?: Record<string, string>) =>
+      request<T>('GET', path, undefined, params),
+    post: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) =>
       request<TRes>('POST', path, body),
-    put: <TReq, TRes>(path: string, body: TReq) =>
+    put: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) =>
       request<TRes>('PUT', path, body),
-    del: <TRes = void>(path: string) =>
-      request<TRes>('DELETE', path),
+    del: <T = unknown>(path: string) =>
+      request<T>('DELETE', path),
+    publicGet: <T = unknown>(path: string, params?: Record<string, string>) =>
+      request<T>('GET', path, undefined, params, true),
+    publicPost: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) =>
+      request<TRes>('POST', path, body, undefined, true),
+    setAuthToken: (token: string | null) => { authToken = token; },
+    getAuthToken: () => authToken,
   };
 }
