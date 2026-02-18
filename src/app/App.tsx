@@ -15,6 +15,7 @@ import { AdminPanel, AdminLoginGate } from '@/app/components/content/AdminPanel'
 import { ContentApprovalList } from '@/app/components/ai/ContentApprovalList';
 import { AIGeneratePanel } from '@/app/components/ai/AIGeneratePanel';
 import { AIChatPanel } from '@/app/components/ai/AIChatPanel';
+import { QuizView } from '@/app/components/quiz/QuizView';
 import { KeywordPopup } from '@/app/components/ai/KeywordPopup';
 import { Sidebar, SidebarToggle } from '@/app/components/shared/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
@@ -67,11 +68,7 @@ function ViewRouter() {
         // Admin session is managed by AdminContext (independent module)
         return isAdmin ? <AdminPanel key="admin" /> : <AdminLoginGate key="admin-login" />;
       case 'quiz':
-        return (
-          <div key="quiz" className="h-full flex items-center justify-center bg-[#f5f2ea] text-gray-400 text-sm">
-            Modulo Quiz — em desenvolvimento em outra instancia
-          </div>
-        );
+        return <QuizView key="quiz" />;
 
       // ── Dev 6: AI Views ──
       case 'ai-generate':
