@@ -23,6 +23,7 @@ import {
   MessageCircle,
   ClipboardCheck,
   LogOut,
+  Box,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -41,14 +42,16 @@ const iconMap: Record<string, React.ElementType> = {
   Sparkles,
   MessageCircle,
   ClipboardCheck,
+  Box,
 };
 
-/** Modulos principales — estos son los 3 modulos independientes del proyecto */
+/** Modulos principales — estos son los modulos independientes del proyecto */
 const moduleItems: { id: ViewType; label: string; icon: string; description: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'LayoutDashboard', description: 'Visao geral' },
   { id: 'study', label: 'Estudar', icon: 'Monitor', description: 'Sessao de estudos' },
   { id: 'resumos', label: 'Resumos', icon: 'BookOpen', description: 'Resumos de estudo' },
   { id: 'quiz', label: 'Quiz', icon: 'GraduationCap', description: 'Testar conhecimento' },
+  { id: '3d', label: 'Visor 3D', icon: 'Box', description: 'Atlas anatomico 3D' },
 ];
 
 /** Items secundarios de navegacion */
@@ -257,9 +260,11 @@ export function Sidebar() {
                 <p className="text-xs text-sky-400 font-semibold">
                   {activeView === 'admin'
                     ? 'Administrador'
-                    : activeView.startsWith('ai-')
-                      ? aiItems.find((a) => a.id === activeView)?.label ?? 'IA'
-                      : (moduleItems.find((m) => m.id === activeView)?.label ?? 'Dashboard')}
+                    : activeView === '3d'
+                      ? 'Visor 3D'
+                      : activeView.startsWith('ai-')
+                        ? aiItems.find((a) => a.id === activeView)?.label ?? 'IA'
+                        : (moduleItems.find((m) => m.id === activeView)?.label ?? 'Dashboard')}
                 </p>
               </div>
             </div>

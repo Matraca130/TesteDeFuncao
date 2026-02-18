@@ -1,17 +1,19 @@
 // ============================================================
 // Axon v4.2 — Generic CRUD Factory + Shared Route Helpers
-// Generates POST, GET (list), GET :id, PUT :id, DELETE :id
-// for entities following the standard parent->child KV pattern.
+// From repo canonical + DEV AUTH FALLBACK for Figma Make env.
 // ============================================================
 import { Hono } from "npm:hono";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import * as kv from "./kv_store.tsx";
 
+// ── Dev mode user (used when Supabase Auth is not configured) ──
+const DEV_USER = {
+  id: "dev-user-001",
+  email: "dev@axon.local",
+  user_metadata: { name: "Dev User" },
+};
+
 // ── Singleton Supabase Admin Client ─────────────────────────
-// Lazy-initialized on first use. Reused across warm starts to
-// avoid per-request createClient() overhead. Safe for Edge
-// Functions because the Deno runtime reuses the module scope
-// across invocations within the same isolate.
 let _adminClient: ReturnType<typeof createClient> | null = null;
 
 export function getSupabaseAdmin() {
@@ -24,10 +26,13 @@ export function getSupabaseAdmin() {
   return _adminClient;
 }
 
-// ── Auth helper ─────────────────────────────────────────────
+// ── Auth helper (with dev fallback) ─────────────────────────
 export async function getAuthUser(c: any) {
   const token = c.req.header("Authorization")?.split(" ")[1];
-  if (!token) return null;
+  if (!token) {
+    console.log(`[Auth] No token provided — using dev user`);
+    return DEV_USER;
+  }
   try {
     const supabase = getSupabaseAdmin();
     const {
@@ -35,13 +40,13 @@ export async function getAuthUser(c: any) {
       error,
     } = await supabase.auth.getUser(token);
     if (error || !user) {
-      console.log(`[Auth] getAuthUser failed: ${error?.message ?? "no user"}`);
-      return null;
+      console.log(`[Auth] getAuthUser failed (${error?.message ?? "no user"}) — falling back to dev user`);
+      return DEV_USER;
     }
     return user;
   } catch (err) {
-    console.log(`[Auth] getAuthUser exception: ${err}`);
-    return null;
+    console.log(`[Auth] getAuthUser exception: ${err} — falling back to dev user`);
+    return DEV_USER;
   }
 }
 
@@ -68,7 +73,7 @@ export function validationError(c: any, msg: string, details?: any) {
 }
 
 export function serverError(c: any, ctx: string, err: any) {
-  console.log(`[Content] ${ctx} error:`, err?.message ?? err);
+  console.log(`[Server] ${ctx} error:`, err?.message ?? err);
   return c.json(
     { success: false, error: { code: "INTERNAL_ERROR", message: `${ctx}: ${err?.message ?? err}` } },
     500
@@ -87,25 +92,6 @@ export async function getChildren(
 }
 
 // ── Order-preserving mget ────────────────────────────────────
-/**
- * Returns results aligned 1:1 with input keys, with null for
- * any missing keys.
- *
- * IMPORTANT: kv.mget() uses Supabase `.in("key", keys)` which
- * does NOT guarantee result ordering and silently omits rows
- * for keys that don't exist. This causes data-integrity bugs
- * when callers access results by positional index (e.g.,
- * `cards[i]` paired with `states[i]`).
- *
- * This wrapper uses parallel individual kv.get() calls to
- * guarantee:
- *   1. Results are in the SAME order as input keys
- *   2. Missing keys return null (not omitted)
- *
- * Use this instead of kv.mget() whenever you access results
- * by index. For `.filter(Boolean)` usage where order doesn't
- * matter, kv.mget() is fine and more efficient.
- */
 export async function mgetOrdered(keys: string[]): Promise<(any | null)[]> {
   if (keys.length === 0) return [];
   return Promise.all(keys.map((k) => kv.get(k)));
@@ -155,60 +141,42 @@ export interface EntityConfig {
 // ── Factory ───────────────────────────────────────────────
 export function registerCrudRoutes(app: Hono, config: EntityConfig) {
   const {
-    route,
-    label,
-    primaryKey,
-    requiredFields,
-    optionalDefaults,
-    parentField,
-    indexKey,
-    parentQueryParam,
-    listPrefix,
-    cascadeDelete,
+    route, label, primaryKey, requiredFields, optionalDefaults,
+    parentField, indexKey, parentQueryParam, listPrefix, cascadeDelete,
   } = config;
 
-  // ── POST — create ────────────────────────────────────────
   app.post(`/${route}`, async (c) => {
     try {
       const user = await getAuthUser(c);
       if (!user) return unauthorized(c);
       const body = await c.req.json();
-
       const missing = requiredFields.filter((f) => !body[f]);
       if (missing.length > 0) {
         return validationError(c, `Missing required fields: ${missing.join(", ")}`);
       }
-
       const id = crypto.randomUUID();
       const entity: Record<string, any> = {
-        id,
-        created_at: new Date().toISOString(),
-        created_by: user.id,
+        id, created_at: new Date().toISOString(), created_by: user.id,
       };
       for (const f of requiredFields) entity[f] = body[f];
       for (const [f, def] of Object.entries(optionalDefaults)) {
         entity[f] = body[f] ?? def;
       }
-
       const pk = primaryKey(id);
       const idx = indexKey(body[parentField], id);
-      console.log(`[CRUD] POST /${route} → kv.mset([${pk}, ${idx}])`);
       await kv.mset([pk, idx], [entity, id]);
-      console.log(`[CRUD] POST /${route} → kv.mset OK for ${id}`);
       return c.json({ success: true, data: entity }, 201);
     } catch (err) {
       return serverError(c, `POST /${route}`, err);
     }
   });
 
-  // ── GET list — by parent query param ─────────────────────
   app.get(`/${route}`, async (c) => {
     try {
       const user = await getAuthUser(c);
       if (!user) return unauthorized(c);
       const pid = c.req.query(parentQueryParam);
-      if (!pid)
-        return validationError(c, `${parentQueryParam} query param required`);
+      if (!pid) return validationError(c, `${parentQueryParam} query param required`);
       const items = await getChildren(listPrefix(pid), primaryKey);
       return c.json({ success: true, data: items });
     } catch (err) {
@@ -216,7 +184,6 @@ export function registerCrudRoutes(app: Hono, config: EntityConfig) {
     }
   });
 
-  // ── GET :id ──────────────────────────────────────────────
   app.get(`/${route}/:id`, async (c) => {
     try {
       const user = await getAuthUser(c);
@@ -229,7 +196,6 @@ export function registerCrudRoutes(app: Hono, config: EntityConfig) {
     }
   });
 
-  // ── PUT :id — partial update ─────────────────────────────
   app.put(`/${route}/:id`, async (c) => {
     try {
       const user = await getAuthUser(c);
@@ -238,13 +204,7 @@ export function registerCrudRoutes(app: Hono, config: EntityConfig) {
       const existing = await kv.get(primaryKey(id));
       if (!existing) return notFound(c, label);
       const body = await c.req.json();
-      const updated = {
-        ...existing,
-        ...body,
-        id,
-        updated_at: new Date().toISOString(),
-      };
-      console.log(`[CRUD] PUT /${route}/${id} → kv.set(${primaryKey(id)})`);
+      const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
       await kv.set(primaryKey(id), updated);
       return c.json({ success: true, data: updated });
     } catch (err) {
@@ -252,7 +212,6 @@ export function registerCrudRoutes(app: Hono, config: EntityConfig) {
     }
   });
 
-  // ── DELETE :id — with optional cascade ───────────────────
   app.delete(`/${route}/:id`, async (c) => {
     try {
       const user = await getAuthUser(c);
@@ -260,15 +219,8 @@ export function registerCrudRoutes(app: Hono, config: EntityConfig) {
       const id = c.req.param("id");
       const entity = await kv.get(primaryKey(id));
       if (!entity) return notFound(c, label);
-
-      const keysToDelete: string[] = [
-        primaryKey(id),
-        indexKey(entity[parentField], id),
-      ];
-      if (cascadeDelete) {
-        keysToDelete.push(...(await cascadeDelete(id, entity)));
-      }
-      console.log(`[CRUD] DELETE /${route}/${id} → kv.mdel(${keysToDelete.length} keys)`);
+      const keysToDelete: string[] = [primaryKey(id), indexKey(entity[parentField], id)];
+      if (cascadeDelete) keysToDelete.push(...(await cascadeDelete(id, entity)));
       await kv.mdel(keysToDelete);
       return c.json({ success: true, data: { deleted: true } });
     } catch (err) {

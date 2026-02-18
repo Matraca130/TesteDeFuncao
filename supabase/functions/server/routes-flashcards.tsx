@@ -1,39 +1,46 @@
 // ============================================================
 // Axon v4.2 — Dev 3: Flashcard CRUD Routes
 // ============================================================
-// 6 routes: POST, GET, GET/due, GET/:id, PUT/:id, DELETE/:id
+// POST /flashcards    — Create a flashcard card (D39: student source)
+// GET  /flashcards    — List by summary_id or keyword_id
+// GET  /flashcards/due — Scheduling: due cards sorted by overdue
+// GET  /flashcards/:id — Get single card
+// PUT  /flashcards/:id — Update card fields
+// DELETE /flashcards/:id — Delete card + clean all indices
 //
-// Imports:
-//   ./kv-keys.ts       — Canonical key generation functions
-//   ./shared-types.ts   — Entity type definitions
-//   ./crud-factory.tsx  — Shared helpers (auth, errors, children)
-//   ./kv_store.tsx      — KV CRUD operations
+// Key decisions:
+//   D10 — Frontend ONLY sends grade; backend computes everything
+//   D16 — Flashcard uses self-evaluation (Again/Hard/Good/Easy)
+//   D24 — Sub-topic is the evaluable unit (BKT lives there)
+//   D27 — If keyword has no sub-topics, subtopic_id = keyword_id
+//   D30 — FLASHCARD_MULTIPLIER = 1.00
+//   D36 — Only flashcards have individual FSRS state
+//   D39 — Students can create personal flashcards (source='student')
+//   D44 — Student cards feed BKT with same multiplier
+//   D46 — response_time_ms saved but does NOT affect algorithms in v1
 //
-// KV Keys:
-//   fc:{id}                              → FlashcardCard
-//   fsrs:{studentId}:{cardId}             → CardFsrsState
-//   idx:kw-fc:{kwId}:{fcId}               → fcId
-//   idx:summary-fc:{sumId}:{fcId}         → fcId
-//   idx:due:{studentId}:{cardId}:{date}   → cardId
-//   idx:student-fsrs:{sId}:{cId}          → cardId
-//
-// Decisions: D16, D27, D30, D36, D39, D44
+// FlashcardCard contract (instruments.ts): exactly 12 fields
+//   id, summary_id, keyword_id, subtopic_id, institution_id,
+//   front, back, image_url, status, source, created_by, created_at
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import type {
-  FlashcardCard,
-  CardFsrsState,
-} from "./shared-types.ts";
+
+// Types — import ONLY the ones this file uses
+import type { FlashcardCard, DueFlashcardItem, CardFsrsState } from "./shared-types.ts";
+
+// Keys — canonical kv-keys.ts (ZERO references to kv-keys.tsx)
 import {
   fcKey,
   fsrsKey,
   idxKwFc,
   idxSummaryFc,
-  idxDue,
   idxStudentFsrs,
+  idxDue,
   KV_PREFIXES,
 } from "./kv-keys.ts";
+
+// Shared CRUD helpers
 import {
   getAuthUser,
   unauthorized,
@@ -41,36 +48,30 @@ import {
   validationError,
   serverError,
   getChildren,
-  mgetOrdered,
 } from "./crud-factory.tsx";
 
 const flashcards = new Hono();
 
-// ================================================================
+// Helper: error message extractor
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // POST /flashcards — Create a flashcard card
-// ================================================================
-// Body: { keyword_id, front, back, summary_id?, subtopic_id?,
-//         institution_id?, image_url?, status?, source? }
-// FlashcardCard: fields per contract + operational extras.
-// D39: default source='manual', D27: subtopic fallback = keyword
-// ================================================================
 flashcards.post("/flashcards", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
 
-    // Validate required fields (contract: front + back)
     if (!body.keyword_id || !body.front || !body.back) {
-      return validationError(
-        c,
-        "Missing required fields: keyword_id, front, back"
-      );
+      return validationError(c, "Missing required fields: keyword_id, front, back");
     }
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // FlashcardCard: exactly 12 fields per instruments.ts contract
     const card = {
       id,
       summary_id: body.summary_id ?? null,
@@ -80,40 +81,29 @@ flashcards.post("/flashcards", async (c) => {
       front: body.front,
       back: body.back,
       image_url: body.image_url ?? null,
-      status: body.status ?? "active",
-      source: body.source ?? "manual",
+      status: body.status ?? "approved",
+      source: body.source ?? "student", // D39: default student
       created_by: user.id,
       created_at: now,
-      updated_at: now,
     };
 
-    // Primary key + indices
-    const keys: string[] = [
-      fcKey(id),
-      idxKwFc(body.keyword_id, id),
-    ];
-    const vals: unknown[] = [card, id];
+    const keys: string[] = [fcKey(id), idxKwFc(body.keyword_id, id)];
+    const vals: any[] = [card, id];
 
-    // Optional: link to summary
     if (body.summary_id) {
       keys.push(idxSummaryFc(body.summary_id, id));
       vals.push(id);
     }
 
     await kv.mset(keys, vals);
-
-    console.log(
-      `[Flashcards] Created card ${id.slice(0, 8)}… kw=${body.keyword_id.slice(0, 8)}… by=${user.id.slice(0, 8)}… source=${card.source}`
-    );
+    console.log(`[Flashcards] Created card ${id} for keyword ${body.keyword_id} by ${user.id} (source: ${card.source})`);
     return c.json({ success: true, data: card }, 201);
   } catch (err) {
     return serverError(c, "POST /flashcards", err);
   }
 });
 
-// ================================================================
 // GET /flashcards — List by summary_id or keyword_id
-// ================================================================
 flashcards.get("/flashcards", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -123,42 +113,21 @@ flashcards.get("/flashcards", async (c) => {
     const keywordId = c.req.query("keyword_id");
 
     if (summaryId) {
-      const cards = await getChildren(
-        KV_PREFIXES.IDX_SUMMARY_FC + summaryId + ":",
-        fcKey
-      );
+      const cards = await getChildren(KV_PREFIXES.IDX_SUMMARY_FC + summaryId + ":", fcKey);
       return c.json({ success: true, data: cards });
     }
-
     if (keywordId) {
-      const cards = await getChildren(
-        KV_PREFIXES.IDX_KW_FC + keywordId + ":",
-        fcKey
-      );
+      const cards = await getChildren(KV_PREFIXES.IDX_KW_FC + keywordId + ":", fcKey);
       return c.json({ success: true, data: cards });
     }
-
-    return validationError(
-      c,
-      "summary_id or keyword_id query param required"
-    );
+    return validationError(c, "summary_id or keyword_id query param required");
   } catch (err) {
     return serverError(c, "GET /flashcards", err);
   }
 });
 
-// ================================================================
-// GET /flashcards/due — Scheduling: due cards sorted by overdue
-// ================================================================
-// IMPORTANT: This route MUST be registered BEFORE /flashcards/:id
-// to avoid Hono matching "due" as an :id param.
-// Uses canonical field `due` (not legacy `due_at`).
-//
-// FIX: Uses mgetOrdered() instead of kv.mget() to guarantee
-// positional correspondence between cards[i] and states[i].
-// kv.mget() uses Supabase .in() which returns rows in arbitrary
-// DB order and omits missing keys — causing wrong card/FSRS pairing.
-// ================================================================
+// GET /flashcards/due — Due cards sorted by overdue
+// MUST be registered BEFORE /flashcards/:id
 flashcards.get("/flashcards/due", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -167,216 +136,102 @@ flashcards.get("/flashcards/due", async (c) => {
     const limitParam = c.req.query("limit");
     const limit = limitParam ? parseInt(limitParam, 10) : 20;
 
-    // 1. Get all card IDs from due index
-    const allDueCardIds = await kv.getByPrefix(
-      KV_PREFIXES.IDX_DUE + user.id + ":"
-    );
-
+    const allDueCardIds = await kv.getByPrefix(KV_PREFIXES.IDX_DUE + user.id + ":");
     if (!allDueCardIds || allDueCardIds.length === 0) {
       return c.json({ success: true, data: [] });
     }
 
-    // 2. Deduplicate card IDs (old due entries may linger)
     const uniqueCardIds = [...new Set(allDueCardIds as string[])];
-
-    // 3. Load cards + FSRS states in parallel (order-preserving)
     const [cards, states] = await Promise.all([
-      mgetOrdered(uniqueCardIds.map((id: string) => fcKey(id))),
-      mgetOrdered(uniqueCardIds.map((id: string) => fsrsKey(user.id, id))),
+      kv.mget(uniqueCardIds.map((id: string) => fcKey(id))),
+      kv.mget(uniqueCardIds.map((id: string) => fsrsKey(user.id, id))),
     ]);
 
     const now = Date.now();
     const today = new Date().toISOString().split("T")[0];
+    const result: any[] = [];
 
-    // 4. Build result: only include cards that are actually overdue
-    const result: { card: any; fsrs_state: any; overdue_days: number }[] = [];
     for (let i = 0; i < uniqueCardIds.length; i++) {
       const card = cards[i];
-      const fsrsState = states[i] as CardFsrsState | null;
-
+      const fsrsState = states[i];
       if (!card || !fsrsState) continue;
-
-      // Canonical field: "due" (not "due_at")
       if (fsrsState.due) {
         const dueDate = fsrsState.due.split("T")[0];
         if (dueDate <= today) {
-          const overdueDays = Math.floor(
-            (now - Date.parse(fsrsState.due)) / 86_400_000
-          );
-          result.push({
-            card,
-            fsrs_state: fsrsState,
-            overdue_days: Math.max(0, overdueDays),
-          });
+          const overdueDays = Math.floor((now - Date.parse(fsrsState.due)) / 86_400_000);
+          result.push({ card, fsrs_state: fsrsState, overdue_days: Math.max(0, overdueDays) });
         }
       }
     }
 
-    // 5. Sort by most overdue first
     result.sort((a, b) => b.overdue_days - a.overdue_days);
-
-    // 6. Apply limit
-    console.log(
-      `[Flashcards] /due for ${user.id.slice(0, 8)}…: ${result.length} due (limit=${limit})`
-    );
     return c.json({ success: true, data: result.slice(0, limit) });
   } catch (err) {
     return serverError(c, "GET /flashcards/due", err);
   }
 });
 
-// ================================================================
-// GET /flashcards/:id — Get single card
-// ================================================================
-// Security: student-created cards are private to their creator.
-// Non-student cards (ai, manual, imported) are accessible to all.
-//
-// NOTE: FlashcardSource in shared-types.ts is "ai"|"manual"|"imported"
-// (no "student" value). POST /flashcards defaults source="manual".
-// This check protects cards that may be tagged source="student" by
-// other code paths (AI generation, seed data). If no such cards exist,
-// this guard is inert but harmless — defense in depth.
-// ================================================================
+// GET /flashcards/:id
 flashcards.get("/flashcards/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const card = await kv.get(fcKey(c.req.param("id")));
     if (!card) return notFound(c, "Flashcard");
-
-    // D39: Student-created cards are private to their creator
     if (card.source === "student" && card.created_by !== user.id) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            code: "FORBIDDEN",
-            message: "Cannot access another student's flashcard",
-          },
-        },
-        403
-      );
+      return c.json({ success: false, error: { code: "FORBIDDEN", message: "Cannot access another student's flashcard" } }, 403);
     }
-
     return c.json({ success: true, data: card });
   } catch (err) {
     return serverError(c, "GET /flashcards/:id", err);
   }
 });
 
-// ================================================================
-// PUT /flashcards/:id — Update card fields
-// ================================================================
-// Security: only the creator can edit any card.
-// Whitelist: only front, back, image_url, status are updatable.
-// Immutable: id, keyword_id, subtopic_id, institution_id,
-//            summary_id, source, created_by, created_at.
-// ================================================================
+// PUT /flashcards/:id
 flashcards.put("/flashcards/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-
     const id = c.req.param("id");
     const existing = await kv.get(fcKey(id));
     if (!existing) return notFound(c, "Flashcard");
-
-    // Security: only the original creator can edit a card (D39 generalized)
     if (existing.created_by !== user.id) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            code: "FORBIDDEN",
-            message: "Cannot edit another student's flashcard",
-          },
-        },
-        403
-      );
+      return c.json({ success: false, error: { code: "FORBIDDEN", message: "Cannot edit another student's flashcard" } }, 403);
     }
-
     const body = await c.req.json();
-
-    // Whitelist: only these fields are updatable on FlashcardCard
     const UPDATABLE = ["front", "back", "image_url", "status"];
     const updated = { ...existing };
     for (const field of UPDATABLE) {
-      if (body[field] !== undefined) {
-        updated[field] = body[field];
-      }
+      if (body[field] !== undefined) updated[field] = body[field];
     }
-    updated.updated_at = new Date().toISOString();
-
     await kv.set(fcKey(id), updated);
-
-    console.log(
-      `[Flashcards] Updated card ${id.slice(0, 8)}… by=${user.id.slice(0, 8)}…`
-    );
     return c.json({ success: true, data: updated });
   } catch (err) {
     return serverError(c, "PUT /flashcards/:id", err);
   }
 });
 
-// ================================================================
-// DELETE /flashcards/:id — Delete card + all indices
-// ================================================================
-// Security: only the original creator can delete any card.
-// Cleans: primary key, keyword index, summary index (if linked),
-//         FSRS state, student-FSRS index, due index entry.
-// ================================================================
+// DELETE /flashcards/:id
 flashcards.delete("/flashcards/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-
     const id = c.req.param("id");
     const card = await kv.get(fcKey(id));
     if (!card) return notFound(c, "Flashcard");
-
-    // Security: only the original creator can delete a card (D39 generalized)
     if (card.created_by !== user.id) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            code: "FORBIDDEN",
-            message: "Cannot delete another student's flashcard",
-          },
-        },
-        403
-      );
+      return c.json({ success: false, error: { code: "FORBIDDEN", message: "Cannot delete another student's flashcard" } }, 403);
     }
-
-    const keysToDelete: string[] = [
-      fcKey(id),
-      idxKwFc(card.keyword_id, id),
-    ];
-
-    // Remove summary index if linked
-    if (card.summary_id) {
-      keysToDelete.push(idxSummaryFc(card.summary_id, id));
-    }
-
-    // Remove FSRS state for deleting user
-    const fsrsState: CardFsrsState | null = await kv.get(
-      fsrsKey(user.id, id)
-    );
-    if (fsrsState) {
+    const keysToDelete: string[] = [fcKey(id), idxKwFc(card.keyword_id, id)];
+    if (card.summary_id) keysToDelete.push(idxSummaryFc(card.summary_id, id));
+    const cardFsrs = await kv.get(fsrsKey(user.id, id));
+    if (cardFsrs) {
       keysToDelete.push(fsrsKey(user.id, id));
       keysToDelete.push(idxStudentFsrs(user.id, id));
-      // Canonical field: "due" (not legacy "due_at")
-      if (fsrsState.due) {
-        const dueDate = fsrsState.due.split("T")[0];
-        keysToDelete.push(idxDue(user.id, id, dueDate));
-      }
+      if (cardFsrs.due) keysToDelete.push(idxDue(user.id, id, cardFsrs.due.split("T")[0]));
     }
-
     await kv.mdel(keysToDelete);
-
-    console.log(
-      `[Flashcards] Deleted card ${id.slice(0, 8)}… kw=${card.keyword_id.slice(0, 8)}… by=${user.id.slice(0, 8)}…`
-    );
+    console.log(`[Flashcards] Deleted card ${id} (keyword: ${card.keyword_id}) by ${user.id}`);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) {
     return serverError(c, "DELETE /flashcards/:id", err);
