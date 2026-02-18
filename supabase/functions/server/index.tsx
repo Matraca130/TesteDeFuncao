@@ -1,6 +1,6 @@
 // ============================================================
 // Axon v4.2 — Server Entry Point
-// Mounts: flashcards, reviews, sessions routes + seed endpoint
+// Mounts: flashcards, reviews, sessions, model3d routes + seed endpoint
 // Prefix: /make-server-7a20cd7d
 // ============================================================
 import { Hono } from "npm:hono";
@@ -12,6 +12,7 @@ import * as kv from "./kv_store.tsx";
 import flashcards from "./routes-flashcards.tsx";
 import reviews from "./routes-reviews.tsx";
 import sessions from "./routes-sessions.tsx";
+import model3d from "./routes-model3d.tsx";
 
 // KV key functions (for seed)
 import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
@@ -34,12 +35,13 @@ app.use(
 );
 
 app.get(`${PREFIX}/health`, (c) => {
-  return c.json({ status: "ok", routes: ["flashcards", "reviews", "sessions", "seed"] });
+  return c.json({ status: "ok", routes: ["flashcards", "reviews", "sessions", "models3d", "seed"] });
 });
 
 app.route(PREFIX, flashcards);
 app.route(PREFIX, reviews);
 app.route(PREFIX, sessions);
+app.route(PREFIX, model3d);
 
 app.post(`${PREFIX}/seed`, async (c) => {
   try {
