@@ -29,15 +29,27 @@ export interface ApiClient {
   publicPost: <TBody = unknown, TRes = unknown>(path: string, body?: TBody) => Promise<TRes>;
   setAuthToken: (token: string | null) => void;
   getAuthToken: () => string | null;
+  /** Set an async token getter (e.g. from Supabase client session). Takes priority over static authToken. */
+  setTokenGetter: (fn: (() => Promise<string | null>) | null) => void;
 }
 
 export function createApiClient(): ApiClient {
   let authToken: string | null = null;
+  let tokenGetter: (() => Promise<string | null>) | null = null;
 
-  function authHeaders(): Record<string, string> {
+  async function getAuthHeaders(): Promise<Record<string, string>> {
+    let token = authToken;
+    if (tokenGetter) {
+      try {
+        const freshToken = await tokenGetter();
+        if (freshToken) token = freshToken;
+      } catch (e) {
+        console.warn('[API] Token getter failed, falling back to static token:', e);
+      }
+    }
     return {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${authToken || publicAnonKey}`,
+      Authorization: `Bearer ${token || publicAnonKey}`,
     };
   }
 
@@ -61,7 +73,7 @@ export function createApiClient(): ApiClient {
       if (qs) url += `?${qs}`;
     }
 
-    const hdrs = usePublicKey ? publicHeaders() : authHeaders();
+    const hdrs = usePublicKey ? publicHeaders() : await getAuthHeaders();
 
     let res: Response;
     try {
@@ -120,5 +132,6 @@ export function createApiClient(): ApiClient {
       request<TRes>('POST', path, body, undefined, true),
     setAuthToken: (token: string | null) => { authToken = token; },
     getAuthToken: () => authToken,
+    setTokenGetter: (fn: (() => Promise<string | null>) | null) => { tokenGetter = fn; },
   };
 }

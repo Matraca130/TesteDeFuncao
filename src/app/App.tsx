@@ -17,6 +17,7 @@ import {
 
 // API
 import { ApiProvider, useApi } from './lib/api-provider';
+import { supabase } from './lib/supabase-client';
 
 // Components
 import { CourseManager } from './components/admin/CourseManager';
@@ -216,83 +217,207 @@ function AdminPanel() {
   const [selectedCourse, setSelectedCourse] = useState<Course>(MOCK_COURSES[0]);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
 
-  // ── Restore session on mount ──
-  useEffect(() => {
-    const savedToken = localStorage.getItem('axon_token');
-    if (!savedToken) {
-      setAuthChecking(false);
-      return;
-    }
-    api.setAuthToken(savedToken);
+  // ── Helper: extract AuthUser from Supabase User ──
+  const extractAuthUser = useCallback((user: { id: string; email?: string; user_metadata?: Record<string, any> }): AuthUser => ({
+    id: user.id,
+    email: user.email || '',
+    name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+    avatar_url: user.user_metadata?.avatar_url || null,
+    is_super_admin: user.user_metadata?.is_super_admin || false,
+  }), []);
 
-    // Step 1: get user identity from /auth/me
-    // Step 2: immediately probe a JWT-strict endpoint (/courses) to confirm
-    // the token is actually accepted by Supabase — /auth/me may use a softer
-    // validation path when the Edge Function runs with verify_jwt=false.
-    api.get<{ user: AuthUser }>('/auth/me')
-      .then(async (data) => {
-        if (!data?.user) {
-          localStorage.removeItem('axon_token');
-          api.setAuthToken(null);
-          return;
-        }
-        // Probe a JWT-strict endpoint to catch tokens that /auth/me accepts
-        // but Supabase rejects (expired tokens, rotate-invalidated tokens, etc.)
-        try {
-          await api.get('/courses', { institution_id: INST_ID, _probe: '1' });
-          // Token is valid for Supabase-protected endpoints → restore session
-          setAuthUser(data.user);
-          console.log('[Auth] Session restored and validated for', data.user.email);
-        } catch (probeErr: any) {
-          const msg = (probeErr?.message || '').toLowerCase();
-          if (msg.startsWith('auth_expired') || msg.includes('invalid jwt') || msg.includes('jwt expired')) {
-            // Token expired/invalid for Supabase → clear session, go to AuthScreen
-            console.log('[Auth] Token accepted by /auth/me but rejected by Supabase — clearing session');
-            localStorage.removeItem('axon_token');
-            api.setAuthToken(null);
-          } else {
-            // Non-auth error (network, 500, etc.) → restore session anyway
-            // safeGet in loadFromBackend acts as secondary safety net
-            console.log('[Auth] JWT probe inconclusive, restoring session anyway:', probeErr?.message);
-            setAuthUser(data.user);
-          }
-        }
-      })
-      .catch((err) => {
-        console.log('[Auth] Session restore failed:', err);
-        localStorage.removeItem('axon_token');
-        api.setAuthToken(null);
-      })
-      .finally(() => setAuthChecking(false));
+  // ── Wire token getter so api-client always uses a fresh Supabase token ──
+  useEffect(() => {
+    api.setTokenGetter(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || null;
+    });
+    return () => api.setTokenGetter(null);
   }, [api]);
+
+  // ── Startup connectivity diagnostic ──
+  useEffect(() => {
+    (async () => {
+      const baseUrl = `https://xdnciktarvxyhkrokbng.supabase.co`;
+      console.log('[Diag] Starting connectivity check...');
+
+      // Test 1: Can we reach the Supabase Auth API?
+      try {
+        const r = await fetch(`${baseUrl}/auth/v1/settings`, {
+          headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkbmNpa3RhcnZ4eWhrcm9rYm5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMTM4NjAsImV4cCI6MjA4Njc4OTg2MH0._nCGOiOh1bMWvqtQ62d368LlYj5xPI6e7pcsdjDEiYQ' },
+        });
+        console.log(`[Diag] Auth API: status=${r.status}, ok=${r.ok}`);
+        if (r.ok) {
+          const settings = await r.json();
+          console.log('[Diag] Auth settings:', JSON.stringify({
+            autoconfirm: settings.autoconfirm,
+            mailer_autoconfirm: settings.mailer_autoconfirm,
+            disable_signup: settings.disable_signup,
+          }));
+        }
+      } catch (e: any) {
+        console.error('[Diag] Auth API UNREACHABLE:', e.name, e.message);
+      }
+
+      // Test 2: Can we reach the Edge Function?
+      try {
+        const r = await fetch(`${baseUrl}/functions/v1/make-server-8cb6316a/health`, {
+          headers: { 'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkbmNpa3RhcnZ4eWhrcm9rYm5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMTM4NjAsImV4cCI6MjA4Njc4OTg2MH0._nCGOiOh1bMWvqtQ62d368LlYj5xPI6e7pcsdjDEiYQ' },
+        });
+        console.log(`[Diag] Edge Function: status=${r.status}, ok=${r.ok}`);
+        if (r.ok) {
+          const body = await r.json();
+          console.log('[Diag] Edge Function health:', JSON.stringify(body));
+        } else {
+          const text = await r.text();
+          console.error(`[Diag] Edge Function returned ${r.status}:`, text.substring(0, 500));
+        }
+      } catch (e: any) {
+        console.error('[Diag] Edge Function UNREACHABLE:', e.name, e.message);
+      }
+    })();
+  }, []);
+
+  // ── Restore session on mount + listen for auth state changes ──
+  useEffect(() => {
+    // Check for existing Supabase session (auto-refreshes expired tokens)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAuthUser(extractAuthUser(session.user));
+        console.log('[Auth] Session restored for', session.user.email);
+      } else {
+        // Clean up any legacy token from previous implementation
+        localStorage.removeItem('axon_token');
+      }
+      setAuthChecking(false);
+    }).catch((err) => {
+      console.log('[Auth] Session check failed:', err);
+      setAuthChecking(false);
+    });
+
+    // Listen for auth state changes (token refresh, sign out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setAuthUser(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('[Auth] Token refreshed automatically');
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        // Update user in case metadata changed
+        setAuthUser(extractAuthUser(session.user));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [extractAuthUser]);
 
   // ── Auth handlers ──
   const handleSignIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
-    // Use publicPost to avoid sending a stale/expired authToken — signin doesn't need user JWT
-    // IMPORTANTE: não fazemos auto-signup aqui. Se o login falhar, o erro sobe diretamente
-    // para o AuthScreen, que exibe o feedback correto ao usuário (noAccountHint / mensagem de erro).
-    const data = await api.publicPost<any, { user: AuthUser; access_token: string }>('/auth/signin', { email, password });
-    if (!data?.access_token) throw new Error('No access token returned');
-    localStorage.setItem('axon_token', data.access_token);
-    api.setAuthToken(data.access_token);
-    console.log('[Auth] Signed in successfully:', data.user.email);
-    return data;
-  }, [api]);
+    console.log('[Auth] Sign-in attempt for:', email);
+    // Sign in directly via Supabase client — handles session persistence + refresh tokens
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('[Auth] signInWithPassword error:', error.name, error.message, error.status);
+      throw new Error(error.message || 'Sign in failed');
+    }
+    if (!data.session) throw new Error('No session returned');
+    const user = extractAuthUser(data.user);
+    localStorage.removeItem('axon_token');
+    console.log('[Auth] Signed in successfully:', user.email);
+    return { user, access_token: data.session.access_token };
+  }, [extractAuthUser]);
 
   const handleSignUp = useCallback(async (email: string, password: string, name: string): Promise<AuthResult> => {
-    // Use publicPost to avoid sending a stale/expired authToken — signup doesn't need user JWT
-    const data = await api.publicPost<any, { user: AuthUser; access_token: string }>('/auth/signup', { email, password, name });
-    if (!data?.access_token) throw new Error('No access token returned');
-    localStorage.setItem('axon_token', data.access_token);
-    api.setAuthToken(data.access_token);
-    return data;
-  }, [api]);
+    console.log('[Auth] Sign-up attempt for:', email);
 
-  const handleSignOut = useCallback(() => {
-    api.post('/auth/signout').catch(() => {});
+    // ── Strategy (inverted): try Supabase Auth API FIRST (always available),
+    //    fall back to Edge Function only if email confirmation is needed. ──
+
+    // Step 1: Try direct signup via Supabase Auth API
+    let sessionFromSignUp = false;
+    try {
+      console.log('[Auth] Step 1: supabase.auth.signUp()...');
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      });
+
+      if (signUpErr) {
+        console.warn('[Auth] supabase.auth.signUp error:', signUpErr.name, signUpErr.message, signUpErr.status);
+        const msg = signUpErr.message.toLowerCase();
+        // If user already exists, skip to sign-in
+        if (msg.includes('already') || msg.includes('registered')) {
+          console.log('[Auth] User already exists, will sign in directly');
+        } else {
+          // Genuine error — throw it
+          throw new Error(signUpErr.message);
+        }
+      } else if (signUpData?.session) {
+        // Email confirmation NOT required — we have a session directly!
+        console.log('[Auth] Direct signup succeeded with session!');
+        const user = extractAuthUser(signUpData.user!);
+        user.name = name;
+        localStorage.removeItem('axon_token');
+        // Non-blocking: notify backend to create KV profile
+        api.publicPost('/auth/signup', { email, password, name }).catch(e =>
+          console.warn('[Auth] Backend profile sync failed (non-blocking):', e.message)
+        );
+        return { user, access_token: signUpData.session.access_token };
+      } else if (signUpData?.user && !signUpData?.session) {
+        // User created but email confirmation required
+        console.log('[Auth] User created but no session (email confirmation required)');
+        // Try backend to auto-confirm via admin API
+        try {
+          console.log('[Auth] Step 2: Trying backend admin.createUser to bypass email confirmation...');
+          await api.publicPost('/auth/signup', { email, password, name });
+          console.log('[Auth] Backend signup succeeded');
+        } catch (backendErr: any) {
+          console.warn('[Auth] Backend also failed:', backendErr.message);
+          // User was created but can't be confirmed — they'll need manual confirmation
+        }
+      }
+    } catch (signUpError: any) {
+      console.error('[Auth] Signup attempt error:', signUpError.message);
+      // If the error is NOT a "user already exists" type, try the backend as last resort
+      const msg = (signUpError?.message || '').toLowerCase();
+      if (!msg.includes('already') && !msg.includes('registered')) {
+        // Try backend signup (may also fail if backend is down)
+        try {
+          console.log('[Auth] Fallback: trying backend signup...');
+          await api.publicPost('/auth/signup', { email, password, name });
+          console.log('[Auth] Backend signup succeeded');
+        } catch (backendFallbackErr: any) {
+          console.error('[Auth] Backend fallback also failed:', backendFallbackErr.message);
+          // Re-throw the original error with more context
+          throw new Error(`${signUpError.message}. Backend tambem indisponivel.`);
+        }
+      }
+    }
+
+    // Step 3: Sign in via Supabase client (user should exist by now)
+    console.log('[Auth] Step 3: signInWithPassword()...');
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('[Auth] signInWithPassword after signup error:', error.name, error.message, error.status);
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        throw new Error('Conta criada mas email nao confirmado. O servidor de email nao esta configurado — entre em contato com o administrador.');
+      }
+      throw new Error(error.message);
+    }
+    if (!data.session) throw new Error('No session returned after signup');
+    const user = extractAuthUser(data.user);
+    user.name = name;
     localStorage.removeItem('axon_token');
+    console.log('[Auth] Signed up and signed in:', user.email);
+    return { user, access_token: data.session.access_token };
+  }, [api, extractAuthUser]);
+
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
     api.setAuthToken(null);
     setAuthUser(null);
+    localStorage.removeItem('axon_token');
+    console.log('[Auth] Signed out');
   }, [api]);
 
   const handleAuthenticated = useCallback((result: AuthResult) => {
@@ -306,21 +431,18 @@ function AdminPanel() {
 
     async function loadFromBackend() {
       // ── JWT expiry tracking ──
-      // Some backend endpoints validate JWT against Supabase; if the stored token
-      // is expired, those calls fail with AUTH_EXPIRED. We track this via safeGet
-      // so existing inner catch blocks keep working, and we sign out at the end.
       let jwtExpired = false;
 
       async function safeGet<T>(path: string, params?: Record<string, string>): Promise<T | null> {
-        if (jwtExpired) return null; // short-circuit: stop making calls once expired
+        if (jwtExpired) return null;
         try {
           return await api.get<T>(path, params);
         } catch (e: any) {
           if ((e?.message || '').startsWith('AUTH_EXPIRED')) {
             jwtExpired = true;
-            return null; // absorb — callers check for null gracefully
+            return null;
           }
-          throw e; // re-throw other errors to existing catch blocks
+          throw e;
         }
       }
 
@@ -332,7 +454,7 @@ function AdminPanel() {
       let loadedKeywords: Keyword[] = [];
 
       try {
-        // Health check uses publicAnonKey (no user JWT needed, avoids Supabase JWT validation issues)
+        // Health check uses publicAnonKey (no user JWT needed)
         const health = await api.publicGet<{ status: string }>('/health');
         if (cancelled) return;
         if (health?.status !== 'ok') {
@@ -397,7 +519,7 @@ function AdminPanel() {
           }
         } catch (e) { console.log('[Admin] Could not load keywords:', e); }
 
-        // Load approval queue — try dedicated endpoint first, then derive from loaded data
+        // Load approval queue
         try {
           const data = await safeGet<ApprovalItem[]>('/content/approval-queue');
           if (!cancelled && data && data.length > 0) {
@@ -410,7 +532,6 @@ function AdminPanel() {
           if (!cancelled) {
             const derived: ApprovalItem[] = [];
 
-            // Add summaries
             for (const sum of allSums.length > 0 ? allSums : MOCK_SUMMARIES) {
               const topicObj = (allTopics.length > 0 ? allTopics : MOCK_TOPICS).find(t => t.id === sum.topic_id);
               const heading = sum.content_markdown.match(/^# (.+)$/m)?.[1];
@@ -425,7 +546,6 @@ function AdminPanel() {
               });
             }
 
-            // Add keywords
             const kwList = loadedKeywords.length > 0 ? loadedKeywords : MOCK_KEYWORDS;
             for (const kw of kwList) {
               derived.push({
@@ -437,7 +557,6 @@ function AdminPanel() {
                 created_at: kw.created_at,
               });
 
-              // Add subtopics from this keyword
               for (const st of (kw.subtopics || [])) {
                 derived.push({
                   entity_type: 'subtopic',
@@ -578,7 +697,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to update summary:', err); return null; }
   }, [api]);
 
-  // Gap 4: Delete summary
   const handleDeleteSummary = useCallback(async (id: string) => {
     try { await api.del(`/summaries/${id}`); return true; }
     catch (err) { console.error('[Admin] Failed to delete summary:', err); return false; }
@@ -615,7 +733,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete subtopic:', err); return false; }
   }, [api]);
 
-  // Gap 5: Update subtopic
   const handleUpdateSubTopic = useCallback(async (id: string, data: { title?: string; description?: string | null }) => {
     try { return await api.put<any, SubTopic>(`/subtopics/${id}`, data); }
     catch (err) { console.error('[Admin] Failed to update subtopic:', err); return null; }
@@ -632,7 +749,7 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete connection:', err); return false; }
   }, [api]);
 
-  // ── Approval queue: status change handler (Gap 3) ──
+  // ── Approval queue: status change handler ──
   const handleApprovalStatusChange = useCallback((changes: { entity_type: string; id: string; new_status: ContentStatus }[]) => {
     for (const change of changes) {
       if (change.entity_type === 'summary') {
@@ -645,7 +762,6 @@ function AdminPanel() {
           subtopics: k.subtopics?.map(st => st.id === change.id ? { ...st, status: change.new_status } : st),
         })));
       }
-      // Update the approval items state too
       setApprovalItems(prev => prev.map(item =>
         item.id === change.id ? { ...item, status: change.new_status } : item
       ));
