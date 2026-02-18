@@ -245,13 +245,14 @@ function AdminPanel() {
   // ── Auth handlers ──
   const handleSignIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     // Use publicPost to avoid sending a stale/expired authToken — signin doesn't need user JWT
+    // IMPORTANTE: não fazemos auto-signup aqui. Se o login falhar, o erro sobe diretamente
+    // para o AuthScreen, que exibe o feedback correto ao usuário (noAccountHint / mensagem de erro).
     const data = await api.publicPost<any, { user: AuthUser; access_token: string }>('/auth/signin', { email, password });
     if (!data?.access_token) throw new Error('No access token returned');
     localStorage.setItem('axon_token', data.access_token);
     api.setAuthToken(data.access_token);
+    console.log('[Auth] Signed in successfully:', data.user.email);
     return data;
-    // Errors propagate to AuthScreen which translates them via translateAuthError()
-    // and shows noAccountHint banner with a link to create an account
   }, [api]);
 
   const handleSignUp = useCallback(async (email: string, password: string, name: string): Promise<AuthResult> => {
