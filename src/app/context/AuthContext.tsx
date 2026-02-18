@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 // ════════════════════════════════════════════════════════════
@@ -11,10 +11,23 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-0c4f6a3c`;
 
-const supabase = createClient(
-  `https://${projectId}.supabase.co`,
-  publicAnonKey
-);
+// ── Singleton Supabase Client ──
+// Survives Vite HMR reloads — prevents "Multiple GoTrueClient instances" warning.
+// Symbol.for guarantees the same symbol across module re-evaluations.
+const SUPA_KEY = Symbol.for('axon-supabase');
+
+function getSupabaseClient(): SupabaseClient {
+  const g = globalThis as Record<symbol, unknown>;
+  if (!g[SUPA_KEY]) {
+    g[SUPA_KEY] = createClient(
+      `https://${projectId}.supabase.co`,
+      publicAnonKey
+    );
+  }
+  return g[SUPA_KEY] as SupabaseClient;
+}
+
+const supabase = getSupabaseClient();
 
 export interface AuthUser {
   id: string;
@@ -172,9 +185,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMemberships(result.data.memberships || []);
       console.log('[Auth] Login successful:', email);
       return true;
-    } catch (err: any) {
-      console.error('[Auth] Login error:', err.message);
-      setError(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Auth] Login error:', msg);
+      setError(msg);
       return false;
     }
   }, []);
@@ -205,9 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMemberships([]);
       console.log('[Auth] Signup successful:', email);
       return true;
-    } catch (err: any) {
-      console.error('[Auth] Signup error:', err.message);
-      setError(err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Auth] Signup error:', msg);
+      setError(msg);
       return false;
     }
   }, []);
