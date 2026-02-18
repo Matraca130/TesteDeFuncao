@@ -4,6 +4,12 @@
 // 6 routes: reading-state CRUD, annotations CRUD
 // 1 shared route: GET /topics/:topicId/full
 //
+// Imports:
+//   ./kv-keys.ts      — Canonical key generation functions
+//   ./shared-types.ts  — Entity type definitions
+//   ./crud-factory.tsx — Shared helpers (auth, errors, children)
+//   ./kv_store.tsx     — KV CRUD operations
+//
 // KV Keys used:
 //   reading:{studentId}:{summaryId}  → SummaryReadingState
 //   annotation:{id}                  → SummaryAnnotation
@@ -15,7 +21,25 @@
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import { KV } from "./kv-keys.tsx";
+import type {
+  SummaryReadingState,
+  SummaryAnnotation,
+  HighlightColor,
+} from "./shared-types.ts";
+import {
+  readingKey,
+  annotationKey,
+  idxStudentReading,
+  idxStudentAnnotations,
+  topicKey,
+  summaryKey,
+  kwKey,
+  subtopicKey,
+  fcKey,
+  quizKey,
+  fsrsKey,
+  KV_PREFIXES,
+} from "./kv-keys.ts";
 import {
   getAuthUser,
   unauthorized,
@@ -27,8 +51,14 @@ import {
 
 const reading = new Hono();
 
-// ── Valid highlight colors (D34 HighlightColor enum) ──────
-const VALID_HIGHLIGHT_COLORS = ["yellow", "blue", "green", "pink"] as const;
+// ── Valid highlight colors (canonical HighlightColor enum) ─
+const VALID_HIGHLIGHT_COLORS: HighlightColor[] = [
+  "yellow",
+  "green",
+  "blue",
+  "pink",
+  "purple",
+];
 
 // ================================================================
 // PUT /reading-state — Upsert reading progress
@@ -48,10 +78,10 @@ reading.put("/reading-state", async (c) => {
       return validationError(c, "summary_id is required");
     }
 
-    const key = KV.readingState(userId, body.summary_id);
-    const existing = await kv.get(key);
+    const key = readingKey(userId, body.summary_id);
+    const existing: SummaryReadingState | null = await kv.get(key);
 
-    const state = {
+    const state: SummaryReadingState = {
       student_id: userId,
       summary_id: body.summary_id,
       scroll_position: body.scroll_position ?? existing?.scroll_position ?? 0,
@@ -61,12 +91,14 @@ reading.put("/reading-state", async (c) => {
         (body.reading_time_seconds ?? 0),
       // Once completed, stays completed
       completed: body.completed || existing?.completed || false,
+      furthest_chunk_index:
+        body.furthest_chunk_index ?? existing?.furthest_chunk_index ?? undefined,
       last_read_at: new Date().toISOString(),
     };
 
     // Write primary + index atomically
     await kv.mset(
-      [key, KV.IDX.readingOfStudent(userId, body.summary_id)],
+      [key, idxStudentReading(userId, body.summary_id)],
       [state, body.summary_id]
     );
 
@@ -93,7 +125,9 @@ reading.get("/reading-state/:summaryId", async (c) => {
     if (!user) return unauthorized(c);
 
     const summaryId = c.req.param("summaryId");
-    const state = await kv.get(KV.readingState(user.id, summaryId));
+    const state: SummaryReadingState | null = await kv.get(
+      readingKey(user.id, summaryId)
+    );
 
     return c.json({ success: true, data: state || null });
   } catch (err) {
@@ -104,8 +138,9 @@ reading.get("/reading-state/:summaryId", async (c) => {
 // ================================================================
 // POST /annotations — Create a new highlight/annotation
 // ================================================================
-// Body: { summary_id, selected_text, note?, color?, start_offset?, end_offset? }
-// Color defaults to "yellow" if not provided or invalid.
+// Body: { summary_id, selected_text, note?, highlight_color?,
+//         chunk_id?, start_offset?, end_offset? }
+// highlight_color defaults to "yellow" if not provided or invalid.
 // ================================================================
 reading.post("/annotations", async (c) => {
   try {
@@ -121,23 +156,26 @@ reading.post("/annotations", async (c) => {
       );
     }
 
-    // Validate color — default to yellow
-    const color = VALID_HIGHLIGHT_COLORS.includes(body.color)
-      ? body.color
+    // Validate highlight_color — default to yellow
+    const highlight_color: HighlightColor = VALID_HIGHLIGHT_COLORS.includes(
+      body.highlight_color
+    )
+      ? body.highlight_color
       : "yellow";
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    const annotation = {
+    const annotation: SummaryAnnotation = {
       id,
       student_id: userId,
       summary_id: body.summary_id,
+      chunk_id: body.chunk_id ?? undefined,
       selected_text: body.selected_text,
       note: body.note ?? "",
-      color,
-      start_offset: body.start_offset ?? null,
-      end_offset: body.end_offset ?? null,
+      highlight_color,
+      start_offset: body.start_offset ?? 0,
+      end_offset: body.end_offset ?? 0,
       created_at: now,
       updated_at: now,
     };
@@ -145,14 +183,14 @@ reading.post("/annotations", async (c) => {
     // Write primary + index
     await kv.mset(
       [
-        KV.annotation(id),
-        KV.IDX.annotationOfStudent(userId, body.summary_id, id),
+        annotationKey(id),
+        idxStudentAnnotations(userId, body.summary_id, id),
       ],
       [annotation, id]
     );
 
     console.log(
-      `[Reading] Annotation created: ${id.slice(0, 8)}… color=${color} ` +
+      `[Reading] Annotation created: ${id.slice(0, 8)}… color=${highlight_color} ` +
         `student=${userId.slice(0, 8)}… summary=${body.summary_id.slice(0, 8)}…`
     );
 
@@ -180,7 +218,7 @@ reading.get("/annotations", async (c) => {
 
     // getByPrefix returns VALUES (annotation IDs stored in index)
     const annotationIds = await kv.getByPrefix(
-      KV.PREFIX.annotationsOfStudentSummary(user.id, summaryId)
+      KV_PREFIXES.IDX_STUDENT_ANNOTATIONS + user.id + ":" + summaryId + ":"
     );
 
     if (!annotationIds || annotationIds.length === 0) {
@@ -189,7 +227,7 @@ reading.get("/annotations", async (c) => {
 
     // Fetch annotation objects by primary key
     const annotations = await kv.mget(
-      annotationIds.map((id: string) => KV.annotation(id))
+      annotationIds.map((id: string) => annotationKey(id))
     );
 
     return c.json({
@@ -202,7 +240,7 @@ reading.get("/annotations", async (c) => {
 });
 
 // ================================================================
-// PUT /annotations/:id — Update an annotation (note, color)
+// PUT /annotations/:id — Update an annotation (note, highlight_color)
 // ================================================================
 // Only the owning student can update. Cannot change summary_id
 // or selected_text (immutable after creation).
@@ -213,7 +251,7 @@ reading.put("/annotations/:id", async (c) => {
     if (!user) return unauthorized(c);
 
     const id = c.req.param("id");
-    const existing = await kv.get(KV.annotation(id));
+    const existing: SummaryAnnotation | null = await kv.get(annotationKey(id));
     if (!existing) return notFound(c, "Annotation");
 
     // Ownership check
@@ -232,21 +270,22 @@ reading.put("/annotations/:id", async (c) => {
 
     const body = await c.req.json();
 
-    const updated = {
+    const updated: SummaryAnnotation = {
       ...existing,
       // Mutable fields only
       note: body.note !== undefined ? body.note : existing.note,
-      color:
-        body.color && VALID_HIGHLIGHT_COLORS.includes(body.color)
-          ? body.color
-          : existing.color,
+      highlight_color:
+        body.highlight_color &&
+        VALID_HIGHLIGHT_COLORS.includes(body.highlight_color)
+          ? body.highlight_color
+          : existing.highlight_color,
       updated_at: new Date().toISOString(),
     };
 
-    await kv.set(KV.annotation(id), updated);
+    await kv.set(annotationKey(id), updated);
 
     console.log(
-      `[Reading] Annotation updated: ${id.slice(0, 8)}… color=${updated.color}`
+      `[Reading] Annotation updated: ${id.slice(0, 8)}… color=${updated.highlight_color}`
     );
 
     return c.json({ success: true, data: updated });
@@ -266,7 +305,7 @@ reading.delete("/annotations/:id", async (c) => {
     if (!user) return unauthorized(c);
 
     const id = c.req.param("id");
-    const annotation = await kv.get(KV.annotation(id));
+    const annotation: SummaryAnnotation | null = await kv.get(annotationKey(id));
     if (!annotation) return notFound(c, "Annotation");
 
     // Ownership check
@@ -285,8 +324,8 @@ reading.delete("/annotations/:id", async (c) => {
 
     // Delete primary + index
     await kv.mdel([
-      KV.annotation(id),
-      KV.IDX.annotationOfStudent(
+      annotationKey(id),
+      idxStudentAnnotations(
         annotation.student_id,
         annotation.summary_id,
         id
@@ -321,18 +360,18 @@ reading.get("/topics/:topicId/full", async (c) => {
     const topicId = c.req.param("topicId");
 
     // ── 1. Topic ──────────────────────────────────────────
-    const topic = await kv.get(KV.topic(topicId));
+    const topic = await kv.get(topicKey(topicId));
     if (!topic) return notFound(c, "Topic");
 
     // ── 2. Summaries ──────────────────────────────────────
     const summaryIds: string[] = await kv.getByPrefix(
-      KV.PREFIX.summariesOfTopic(topicId)
+      KV_PREFIXES.IDX_TOPIC_SUMMARIES + topicId + ":"
     );
 
     let summaries: any[] = [];
     if (summaryIds.length > 0) {
       const raw = await kv.mget(
-        summaryIds.map((id: string) => KV.summary(id))
+        summaryIds.map((id: string) => summaryKey(id))
       );
       // D13: Only published summaries are visible to students
       summaries = raw.filter(
@@ -349,23 +388,23 @@ reading.get("/topics/:topicId/full", async (c) => {
 
     for (const sumId of pubSummaryIds) {
       const kwIds: string[] = await kv.getByPrefix(
-        KV.PREFIX.keywordsOfSummary(sumId)
+        KV_PREFIXES.IDX_SUMMARY_KW + sumId + ":"
       );
       for (const kwId of kwIds) {
         if (seenKwIds.has(kwId)) continue;
         seenKwIds.add(kwId);
 
-        const kw = await kv.get(KV.keyword(kwId));
+        const kw = await kv.get(kwKey(kwId));
         if (!kw) continue;
 
         // Subtopics for this keyword
         const stIds: string[] = await kv.getByPrefix(
-          KV.PREFIX.subtopicsOfKeyword(kwId)
+          KV_PREFIXES.IDX_KW_SUBTOPICS + kwId + ":"
         );
         let subtopics: any[] = [];
         if (stIds.length > 0) {
           subtopics = (
-            await kv.mget(stIds.map((id: string) => KV.subtopic(id)))
+            await kv.mget(stIds.map((id: string) => subtopicKey(id)))
           ).filter(Boolean);
         }
 
@@ -377,11 +416,11 @@ reading.get("/topics/:topicId/full", async (c) => {
     const allFlashcards: any[] = [];
     for (const kw of allKeywords) {
       const fcIds: string[] = await kv.getByPrefix(
-        KV.PREFIX.flashcardsOfKeyword(kw.id)
+        KV_PREFIXES.IDX_KW_FC + kw.id + ":"
       );
       if (fcIds.length > 0) {
         const fcs = (
-          await kv.mget(fcIds.map((id: string) => KV.flashcard(id)))
+          await kv.mget(fcIds.map((id: string) => fcKey(id)))
         ).filter(Boolean);
         allFlashcards.push(...fcs);
       }
@@ -391,20 +430,20 @@ reading.get("/topics/:topicId/full", async (c) => {
     const allQuizQuestions: any[] = [];
     for (const kw of allKeywords) {
       const qIds: string[] = await kv.getByPrefix(
-        KV.PREFIX.quizOfKeyword(kw.id)
+        KV_PREFIXES.IDX_KW_QUIZ + kw.id + ":"
       );
       if (qIds.length > 0) {
         const qs = (
-          await kv.mget(qIds.map((id: string) => KV.quizQuestion(id)))
+          await kv.mget(qIds.map((id: string) => quizKey(id)))
         ).filter(Boolean);
         allQuizQuestions.push(...qs);
       }
     }
 
     // ── 6. Reading states (this student, all summaries) ───
-    const readingStates: any[] = [];
+    const readingStates: SummaryReadingState[] = [];
     for (const sumId of pubSummaryIds) {
-      const rs = await kv.get(KV.readingState(userId, sumId));
+      const rs = await kv.get(readingKey(userId, sumId));
       if (rs) readingStates.push(rs);
     }
 
@@ -419,22 +458,22 @@ reading.get("/topics/:topicId/full", async (c) => {
     }
 
     // ── 8. Card FSRS states (this student, all flashcards)
-    // Key pattern: card-fsrs:{studentId}:{cardId}
+    // Key pattern: fsrs:{studentId}:{cardId}
     const cardFsrsStates: any[] = [];
     for (const fc of allFlashcards) {
-      const fsrs = await kv.get(`card-fsrs:${userId}:${fc.id}`);
+      const fsrs = await kv.get(fsrsKey(userId, fc.id));
       if (fsrs) cardFsrsStates.push(fsrs);
     }
 
     // ── 9. Annotations (this student, all published summaries)
-    const allAnnotations: any[] = [];
+    const allAnnotations: SummaryAnnotation[] = [];
     for (const sumId of pubSummaryIds) {
       const annIds: string[] = await kv.getByPrefix(
-        KV.PREFIX.annotationsOfStudentSummary(userId, sumId)
+        KV_PREFIXES.IDX_STUDENT_ANNOTATIONS + userId + ":" + sumId + ":"
       );
       if (annIds.length > 0) {
         const anns = (
-          await kv.mget(annIds.map((id: string) => KV.annotation(id)))
+          await kv.mget(annIds.map((id: string) => annotationKey(id)))
         ).filter(Boolean);
         allAnnotations.push(...anns);
       }
