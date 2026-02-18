@@ -21,8 +21,8 @@ import { AIChatPanel } from '@/app/components/ai/AIChatPanel';
 import { AIGeneratePanel } from '@/app/components/ai/AIGeneratePanel';
 import { BatchVerifier } from '@/app/components/content/BatchVerifier';
 
-// ── Diagnostics (Dev 1) ──
-import { DiagnosticsPanel } from '@/app/components/admin/DiagnosticsPanel';
+// ── Layout ──
+import { ContentLayout } from './ContentLayout';
 
 /**
  * ViewRouter — Maps activeView to the correct component.
@@ -64,54 +64,38 @@ export function ViewRouter() {
       // ── AI Generate (Dev 6) ──
       case 'ai-generate':
         return (
-          <div key="ai-generate" className="h-full overflow-y-auto bg-[#f5f2ea]">
-            <div className="max-w-4xl mx-auto p-6">
-              <h1 className="text-xl font-bold text-gray-900 mb-2">Gerar Conteudo com IA</h1>
-              <p className="text-sm text-gray-500 mb-6">
-                Cole o texto de um resumo e a Gemini AI gerara keywords, sub-topicos, flashcards e quiz automaticamente.
-                O conteudo gerado fica como rascunho ate ser aprovado por um professor (D20).
-              </p>
-              <AIGeneratePanel />
-            </div>
-          </div>
+          <ContentLayout key="ai-generate">
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Gerar Conteudo com IA</h1>
+            <p className="text-sm text-gray-500 mb-6">
+              Cole o texto de um resumo e a Gemini AI gerara keywords, sub-topicos, flashcards e quiz automaticamente.
+              O conteudo gerado fica como rascunho ate ser aprovado por um professor (D20).
+            </p>
+            <AIGeneratePanel />
+          </ContentLayout>
         );
 
       // ── AI Chat (Dev 6) ──
       case 'ai-chat':
         return (
-          <div key="ai-chat" className="h-full bg-[#f5f2ea] flex flex-col">
-            <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col p-6 min-h-0">
-              <h1 className="text-xl font-bold text-gray-900 mb-4">Chat com Axon AI</h1>
-              <div className="flex-1 min-h-0">
-                <AIChatPanel />
-              </div>
+          <ContentLayout key="ai-chat" maxWidth="2xl" flex>
+            <h1 className="text-xl font-bold text-gray-900 mb-4">Chat com Axon AI</h1>
+            <div className="flex-1 min-h-0">
+              <AIChatPanel />
             </div>
-          </div>
+          </ContentLayout>
         );
 
       // ── AI Approval Queue (Dev 6) ──
       case 'ai-approval':
         return (
-          <div key="ai-approval" className="h-full overflow-y-auto bg-[#f5f2ea]">
-            <div className="max-w-4xl mx-auto p-6">
-              <ContentApprovalList />
-            </div>
-          </div>
+          <ContentLayout key="ai-approval">
+            <ContentApprovalList />
+          </ContentLayout>
         );
 
       // ── Batch Endpoint Verifier ──
       case 'batch-verify':
         return <BatchVerifier key="batch-verify" />;
-
-      // ── Diagnostics Panel (Dev 1 — 4-layer connectivity tests) ──
-      case 'diagnostic':
-        return (
-          <div key="diagnostic" className="h-full overflow-y-auto bg-[#f5f2ea]">
-            <div className="max-w-4xl mx-auto p-6">
-              <DiagnosticsPanel />
-            </div>
-          </div>
-        );
 
       // ── Dashboard (default) ──
       case 'dashboard':

@@ -1,64 +1,22 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useApi } from '../../lib/api-provider';
 import {
-  Sparkles, Loader2, Check, X, ChevronDown, ChevronUp,
+  Sparkles, Loader2, Check,
   BookOpen, HelpCircle, Link2, Tag, FileText
 } from 'lucide-react';
 
-// -- Typed interfaces for AI-generated content --
+// ── Extracted types (single source of truth) ──
+import type {
+  GeneratedKeyword,
+  GeneratedFlashcard,
+  GeneratedQuizQuestion,
+  GeneratedConnection,
+  GeneratedDraft,
+} from './ai-generate-types';
 
-interface GeneratedSubtopic {
-  id: string;
-  title: string;
-  description?: string;
-  status?: string;
-}
-
-interface GeneratedKeyword {
-  id: string;
-  term: string;
-  definition: string;
-  priority: number;
-  status?: string;
-  subtopics: GeneratedSubtopic[];
-}
-
-interface GeneratedFlashcard {
-  id: string;
-  front: string;
-  back: string;
-  keyword_term?: string;
-  subtopic_title?: string;
-  status?: string;
-}
-
-interface GeneratedQuizQuestion {
-  id: string;
-  quiz_type: 'multiple_choice' | 'write_in' | 'fill_blank';
-  question: string;
-  options?: string[];
-  correct_answer?: number;
-  explanation?: string;
-  keyword_term?: string;
-  status?: string;
-}
-
-interface GeneratedConnection {
-  id: string;
-  keyword_a_term: string;
-  keyword_b_term: string;
-  label: string;
-  status?: string;
-}
-
-interface GeneratedDraft {
-  id: string;
-  status: string;
-  keywords: GeneratedKeyword[];
-  flashcards: GeneratedFlashcard[];
-  quiz_questions: GeneratedQuizQuestion[];
-  suggested_connections: GeneratedConnection[];
-}
+// ── Extracted submodules (Step 3: wiring) ──
+import { DraftSection } from './DraftSection';
+import { KeywordCard, FlashcardCard, QuizCard, ConnectionCard } from './DraftItemCards';
 
 // -- Component --
 
@@ -69,7 +27,7 @@ interface AIGeneratePanelProps {
 }
 
 export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIGeneratePanelProps) {
-  const { apiFetch } = useAuth();
+  const { api } = useApi();
   const [content, setContent] = useState('');
   const [generating, setGenerating] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -94,13 +52,10 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
     setDraft(null);
 
     try {
-      const data = await apiFetch('/ai/generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          summary_id: summaryId,
-          content: content.trim(),
-          course_id: courseId,
-        }),
+      const data = await api.post<any, GeneratedDraft>('/ai/generate', {
+        summary_id: summaryId,
+        content: content.trim(),
+        course_id: courseId,
       });
 
       setDraft(data);
@@ -122,15 +77,12 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
     setError('');
 
     try {
-      await apiFetch('/ai/generate/approve', {
-        method: 'POST',
-        body: JSON.stringify({
-          draft_id: draft.id,
-          approved_keyword_ids: Array.from(selectedKeywords),
-          approved_flashcard_ids: Array.from(selectedFlashcards),
-          approved_quiz_ids: Array.from(selectedQuiz),
-          approved_connection_ids: Array.from(selectedConnections),
-        }),
+      await api.post('/ai/generate/approve', {
+        draft_id: draft.id,
+        approved_keyword_ids: Array.from(selectedKeywords),
+        approved_flashcard_ids: Array.from(selectedFlashcards),
+        approved_quiz_ids: Array.from(selectedQuiz),
+        approved_connection_ids: Array.from(selectedConnections),
       });
 
       setDraft(null);
@@ -254,46 +206,12 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onDeselectAll={() => deselectAll(setSelectedKeywords)}
           >
             {draft.keywords.map((kw) => (
-              <div
+              <KeywordCard
                 key={kw.id}
-                onClick={() => toggleItem(selectedKeywords, setSelectedKeywords, kw.id)}
-                className={`p-3 rounded-lg border cursor-pointer transition ${
-                  selectedKeywords.has(kw.id)
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-gray-200 bg-gray-50 opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
-                    selectedKeywords.has(kw.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
-                  }`}>
-                    {selectedKeywords.has(kw.id) && <Check className="w-3 h-3" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-gray-900">{kw.term}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        kw.priority === 0 ? 'bg-red-100 text-red-700' :
-                        kw.priority === 1 ? 'bg-orange-100 text-orange-700' :
-                        kw.priority === 2 ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        P{kw.priority}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">{kw.definition}</p>
-                    {kw.subtopics?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {kw.subtopics.map((st) => (
-                          <span key={st.id} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
-                            {st.title}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                keyword={kw}
+                selected={selectedKeywords.has(kw.id)}
+                onToggle={() => toggleItem(selectedKeywords, setSelectedKeywords, kw.id)}
+              />
             ))}
           </DraftSection>
 
@@ -308,32 +226,12 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onDeselectAll={() => deselectAll(setSelectedFlashcards)}
           >
             {draft.flashcards.map((fc) => (
-              <div
+              <FlashcardCard
                 key={fc.id}
-                onClick={() => toggleItem(selectedFlashcards, setSelectedFlashcards, fc.id)}
-                className={`p-3 rounded-lg border cursor-pointer transition ${
-                  selectedFlashcards.has(fc.id)
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-gray-200 bg-gray-50 opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
-                    selectedFlashcards.has(fc.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
-                  }`}>
-                    {selectedFlashcards.has(fc.id) && <Check className="w-3 h-3" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{fc.front}</p>
-                    <p className="text-xs text-gray-500 mt-1">{fc.back}</p>
-                    {fc.keyword_term && (
-                      <span className="inline-block text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded mt-1">
-                        {fc.keyword_term}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+                flashcard={fc}
+                selected={selectedFlashcards.has(fc.id)}
+                onToggle={() => toggleItem(selectedFlashcards, setSelectedFlashcards, fc.id)}
+              />
             ))}
           </DraftSection>
 
@@ -348,36 +246,12 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
             onDeselectAll={() => deselectAll(setSelectedQuiz)}
           >
             {draft.quiz_questions.map((q) => (
-              <div
+              <QuizCard
                 key={q.id}
-                onClick={() => toggleItem(selectedQuiz, setSelectedQuiz, q.id)}
-                className={`p-3 rounded-lg border cursor-pointer transition ${
-                  selectedQuiz.has(q.id)
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-gray-200 bg-gray-50 opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
-                    selectedQuiz.has(q.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
-                  }`}>
-                    {selectedQuiz.has(q.id) && <Check className="w-3 h-3" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{q.quiz_type}</span>
-                    <p className="text-sm text-gray-900 mt-1">{q.question}</p>
-                    {q.options && (
-                      <div className="mt-1 space-y-0.5">
-                        {q.options.map((opt, i) => (
-                          <p key={i} className={`text-xs ${i === q.correct_answer ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
-                            {opt}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                question={q}
+                selected={selectedQuiz.has(q.id)}
+                onToggle={() => toggleItem(selectedQuiz, setSelectedQuiz, q.id)}
+              />
             ))}
           </DraftSection>
 
@@ -393,75 +267,15 @@ export function AIGeneratePanel({ courseId, summaryId, onApprovalComplete }: AIG
               onDeselectAll={() => deselectAll(setSelectedConnections)}
             >
               {draft.suggested_connections.map((conn) => (
-                <div
+                <ConnectionCard
                   key={conn.id}
-                  onClick={() => toggleItem(selectedConnections, setSelectedConnections, conn.id)}
-                  className={`p-3 rounded-lg border cursor-pointer transition ${
-                    selectedConnections.has(conn.id)
-                      ? 'border-green-300 bg-green-50'
-                      : 'border-gray-200 bg-gray-50 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${
-                      selectedConnections.has(conn.id) ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
-                    }`}>
-                      {selectedConnections.has(conn.id) && <Check className="w-3 h-3" />}
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{conn.keyword_a_term}</span>
-                    <span className="text-xs text-gray-400">—{conn.label}—</span>
-                    <span className="text-sm font-medium text-gray-900">{conn.keyword_b_term}</span>
-                  </div>
-                </div>
+                  connection={conn}
+                  selected={selectedConnections.has(conn.id)}
+                  onToggle={() => toggleItem(selectedConnections, setSelectedConnections, conn.id)}
+                />
               ))}
             </DraftSection>
           )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DraftSection({
-  title, icon, count, selectedCount, expanded, onToggle, onSelectAll, onDeselectAll, children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  count: number;
-  selectedCount: number;
-  expanded: boolean;
-  onToggle: () => void;
-  onSelectAll: () => void;
-  onDeselectAll: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
-      >
-        <span className="text-indigo-500">{icon}</span>
-        <span className="text-sm font-medium text-gray-900 flex-1 text-left">{title}</span>
-        <span className="text-xs text-gray-500">
-          {selectedCount}/{count} selecionados
-        </span>
-        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-      </button>
-      {expanded && (
-        <div className="px-4 pb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <button onClick={onSelectAll} className="text-xs text-indigo-600 hover:underline">
-              Selecionar todos
-            </button>
-            <span className="text-xs text-gray-300">|</span>
-            <button onClick={onDeselectAll} className="text-xs text-gray-500 hover:underline">
-              Deselecionar todos
-            </button>
-          </div>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {children}
-          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useApi } from '../../lib/api-provider';
 import { AIGeneratePanel } from './AIGeneratePanel';
 import {
   FileText, Loader2, RefreshCw, Clock, CheckCircle2, Tag,
@@ -19,7 +19,7 @@ interface Draft {
 }
 
 export function ContentApprovalList() {
-  const { apiFetch } = useAuth();
+  const { api } = useApi();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,7 +34,7 @@ export function ContentApprovalList() {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch('/ai/drafts');
+      const data = await api.get<Draft[]>('/ai/drafts');
       setDrafts(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));

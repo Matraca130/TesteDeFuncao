@@ -14,6 +14,7 @@ import { useAuth } from './AuthContext';
 
 interface AdminContextType {
   isAdmin: boolean;
+  hasAdminRole: boolean;
   adminLogin: (password: string) => boolean;
   adminLogout: () => void;
   sessionStartedAt: Date | null;
@@ -23,6 +24,7 @@ interface AdminContextType {
 const noop = () => {};
 const AdminContext = createContext<AdminContextType>({
   isAdmin: false,
+  hasAdminRole: false,
   adminLogin: () => false,
   adminLogout: noop,
   sessionStartedAt: null,
@@ -77,6 +79,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     <AdminContext.Provider
       value={{
         isAdmin,
+        hasAdminRole,
         adminLogin,
         adminLogout,
         sessionStartedAt,

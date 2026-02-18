@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useApi } from '../../lib/api-provider';
 import { Send, Loader2, Bot, User, Sparkles, Trash2 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import type { AIChatMessage } from '../../services/types';
@@ -18,7 +18,7 @@ const SANITIZE_CONFIG = {
 };
 
 export function AIChatPanel({ keywordId, keywordTerm, context, initialMessages }: AIChatPanelProps) {
-  const { apiFetch, isAuthenticated } = useAuth();
+  const { api, isAuthenticated } = useApi();
   const [messages, setMessages] = useState<AIChatMessage[]>(initialMessages || []);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,13 +43,10 @@ export function AIChatPanel({ keywordId, keywordTerm, context, initialMessages }
     setSending(true);
 
     try {
-      const data = await apiFetch('/ai/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          keyword_id: keywordId,
-          message: userMessage,
-          context,
-        }),
+      const data = await api.post<any, { reply: string }>('/ai/chat', {
+        keyword_id: keywordId,
+        message: userMessage,
+        context,
       });
 
       const assistantMsg: AIChatMessage = {
