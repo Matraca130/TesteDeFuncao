@@ -10,10 +10,12 @@ import { SignupPage } from '@/app/components/auth/SignupPage';
 import { DashboardView } from '@/app/components/content/DashboardView';
 import { ResumosView } from '@/app/components/content/ResumosView';
 import { StudyView } from '@/app/components/content/StudyView';
+import { ThreeDView } from '@/app/components/content/ThreeDView';
 import { AdminPanel, AdminLoginGate } from '@/app/components/content/AdminPanel';
 import { ContentApprovalList } from '@/app/components/ai/ContentApprovalList';
 import { AIGeneratePanel } from '@/app/components/ai/AIGeneratePanel';
 import { AIChatPanel } from '@/app/components/ai/AIChatPanel';
+import { KeywordPopup } from '@/app/components/ai/KeywordPopup';
 import { Sidebar, SidebarToggle } from '@/app/components/shared/Sidebar';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -91,6 +93,10 @@ function ViewRouter() {
           </div>
         );
 
+      // ── Oleada 3-4: 3D Atlas View ──
+      case '3d':
+        return <ThreeDView key="3d" />;
+
       case 'dashboard':
       default:
         return <DashboardView key="dashboard" />;
@@ -113,7 +119,13 @@ function ViewRouter() {
   );
 }
 
+/**
+ * AppShell — Main layout (Sidebar + ViewRouter + Global Overlays)
+ * Oleada 3-4: Added global KeywordPopup overlay controlled by AppContext
+ */
 function AppShell() {
+  const { kwPopupOpen, kwPopupId, closeKeywordPopup, openKeywordPopup, navigateTo3D } = useApp();
+
   return (
     <div className="h-screen w-screen overflow-hidden flex">
       <Sidebar />
@@ -121,6 +133,22 @@ function AppShell() {
       <main className="flex-1 min-w-0 h-full overflow-hidden">
         <ViewRouter />
       </main>
+
+      {/* ── Oleada 3-4: Global Keyword Popup ──
+       * Mounted once here, controlled by AppContext.
+       * Any component can trigger it via openKeywordPopup(id).
+       * Circular navigation: popup → related keyword → popup → 3D → back
+       */}
+      <AnimatePresence>
+        {kwPopupOpen && kwPopupId && (
+          <KeywordPopup
+            keywordId={kwPopupId}
+            onClose={closeKeywordPopup}
+            onNavigateToKeyword={(id) => openKeywordPopup(id)}
+            onNavigateTo3D={navigateTo3D}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -129,10 +157,10 @@ function AppShell() {
  * Provider hierarchy:
  *   AuthProvider (Supabase Auth — outermost)
  *     AuthGuard (gates on isAuthenticated, fallback = login/signup)
- *       AppProvider (navigation state, current course)
+ *       AppProvider (navigation state, current course, keyword popup, 3D nav)
  *         AdminProvider (reads useAuth for is_super_admin)
  *           StudentDataProvider (FSRS, study data)
- *             AppShell (Sidebar + ViewRouter)
+ *             AppShell (Sidebar + ViewRouter + global KeywordPopup overlay)
  */
 export default function App() {
   return (
