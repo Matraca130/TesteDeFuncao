@@ -281,6 +281,25 @@ function AdminPanel() {
     let cancelled = false;
 
     async function loadFromBackend() {
+      // ── JWT expiry tracking ──
+      // Some backend endpoints validate JWT against Supabase; if the stored token
+      // is expired, those calls fail with AUTH_EXPIRED. We track this via safeGet
+      // so existing inner catch blocks keep working, and we sign out at the end.
+      let jwtExpired = false;
+
+      async function safeGet<T>(path: string, params?: Record<string, string>): Promise<T | null> {
+        if (jwtExpired) return null; // short-circuit: stop making calls once expired
+        try {
+          return await api.get<T>(path, params);
+        } catch (e: any) {
+          if ((e?.message || '').startsWith('AUTH_EXPIRED')) {
+            jwtExpired = true;
+            return null; // absorb — callers check for null gracefully
+          }
+          throw e; // re-throw other errors to existing catch blocks
+        }
+      }
+
       // Hoisted accumulators for cross-block access
       let allSems: Semester[] = [];
       let allSecs: Section[] = [];
@@ -301,7 +320,7 @@ function AdminPanel() {
 
         // Load courses
         try {
-          const data = await api.get<Course[]>('/courses', { institution_id: INST_ID });
+          const data = await safeGet<Course[]>('/courses', { institution_id: INST_ID });
           if (!cancelled && data && data.length > 0) {
             setCourses(data);
             setSelectedCourse(data[0]);
@@ -309,22 +328,22 @@ function AdminPanel() {
 
             for (const course of data) {
               try {
-                const sems = await api.get<Semester[]>('/semesters', { course_id: course.id });
+                const sems = await safeGet<Semester[]>('/semesters', { course_id: course.id });
                 if (sems) allSems.push(...sems);
 
                 for (const sem of (sems || [])) {
                   try {
-                    const secs = await api.get<Section[]>('/sections', { semester_id: sem.id });
+                    const secs = await safeGet<Section[]>('/sections', { semester_id: sem.id });
                     if (secs) allSecs.push(...secs);
 
                     for (const sec of (secs || [])) {
                       try {
-                        const tops = await api.get<Topic[]>('/topics', { section_id: sec.id });
+                        const tops = await safeGet<Topic[]>('/topics', { section_id: sec.id });
                         if (tops) allTopics.push(...tops);
 
                         for (const top of (tops || [])) {
                           try {
-                            const sums = await api.get<Summary[]>('/summaries', { topic_id: top.id });
+                            const sums = await safeGet<Summary[]>('/summaries', { topic_id: top.id });
                             if (sums) allSums.push(...sums);
                           } catch (_e) { /* no summaries for this topic */ }
                         }
@@ -346,7 +365,7 @@ function AdminPanel() {
 
         // Load keywords
         try {
-          const data = await api.get<Keyword[]>('/keywords', { institution_id: INST_ID });
+          const data = await safeGet<Keyword[]>('/keywords', { institution_id: INST_ID });
           if (!cancelled && data && data.length > 0) {
             loadedKeywords = data;
             setKeywords(data);
@@ -356,7 +375,7 @@ function AdminPanel() {
 
         // Load approval queue — try dedicated endpoint first, then derive from loaded data
         try {
-          const data = await api.get<ApprovalItem[]>('/content/approval-queue');
+          const data = await safeGet<ApprovalItem[]>('/content/approval-queue');
           if (!cancelled && data && data.length > 0) {
             setApprovalItems(data);
             console.log(`[Admin] Loaded ${data.length} approval items from endpoint`);
@@ -411,6 +430,14 @@ function AdminPanel() {
             setApprovalItems(derived);
             console.log(`[Admin] Derived ${derived.length} approval items from loaded data`);
           }
+        }
+
+        // ── JWT expiry: sign out gracefully after all loads complete ──
+        if (jwtExpired && !cancelled) {
+          console.log('[Admin] JWT expired during data load — clearing session, please log in again.');
+          localStorage.removeItem('axon_token');
+          api.setAuthToken(null);
+          setAuthUser(null);
         }
 
       } catch (err) {
