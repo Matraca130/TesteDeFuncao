@@ -2,12 +2,40 @@
 // Axon v4.4 — BatchVerifier API Helper
 // Low-level fetch wrapper + KV inspect utility.
 // Extracted from BatchVerifier.tsx for modularity.
+//
+// ⚠️  INTENTIONALLY separate from lib/api-client.ts (Step 8 audit).
+// Reasons this does NOT use the centralized ApiClient:
+//
+//   1. Dual-token auth — sends publicAnonKey as Authorization
+//      (gateway HS256) AND user JWT via X-Auth-Token (server ES256).
+//      ApiClient only supports a single Authorization header.
+//
+//   2. No-throw design — returns { ok, status, data, ms } instead
+//      of throwing ApiClientError. Test runner needs this to report
+//      pass/fail without try/catch overhead on every test case.
+//
+//   3. Built-in timing — tracks performance.now() per request,
+//      which ApiClient doesn't expose.
+//
+//   4. Self-contained diagnostic — batch-verifier is a standalone
+//      test tool that runs independently of app auth state.
+//
+// DO NOT migrate to ApiClient without addressing all 4 points.
 // ============================================================
 
 import type { ApiResponse, KvKeyResult } from './types';
 
 // HARDCODED — backend lives on project xdnciktarvxyhkrokbng
 const API = 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d';
+
+/**
+ * Extract the "payload" from a server response.
+ * The server may wrap data as `{ data: { ... } }` or return flat `{ ... }`.
+ */
+export function extractPayload(data: any): any {
+  if (data?.data && typeof data.data === 'object') return data.data;
+  return data ?? {};
+}
 
 /**
  * Raw fetch helper for batch verification.
@@ -60,24 +88,31 @@ export async function kvInspect(
   bearerToken: string
 ): Promise<KvKeyResult[]> {
   const res = await apiFetch('POST', '/dev/kv-inspect', bearerToken, { keys });
-  if (res.ok && res.data?.data?.results) {
-    const d = res.data.data;
-    if (d.mismatches > 0 || d.mget_error) {
+  const payload = extractPayload(res.data);
+  const results = payload?.results;
+
+  if (res.ok && Array.isArray(results)) {
+    if (payload.mismatches > 0 || payload.mget_error) {
       console.log('[KV-INSPECT DIAGNOSTIC]', JSON.stringify({
-        mismatches: d.mismatches,
-        mget_error: d.mget_error,
-        mget_raw_length: d.mget_raw_length,
-        mget_raw_types: d.mget_raw_types,
-        results: d.results,
+        mismatches: payload.mismatches,
+        mget_error: payload.mget_error,
+        mget_raw_length: payload.mget_raw_length,
+        mget_raw_types: payload.mget_raw_types,
+        results: payload.results,
       }, null, 2));
     }
-    return d.results.map((r: any) => ({
+    return results.map((r: any) => ({
       key: r.key,
       exists: r.exists,
       mget_exists: r.mget_exists,
       get_exists: r.get_exists,
       mismatch: r.mismatch,
     }));
+  }
+
+  // Log diagnostic when kv-inspect fails
+  if (!res.ok) {
+    console.warn('[KV-INSPECT FAIL]', { status: res.status, data: res.data });
   }
   return keys.map(k => ({ key: k, exists: false }));
 }
