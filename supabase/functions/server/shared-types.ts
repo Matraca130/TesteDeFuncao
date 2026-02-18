@@ -199,6 +199,7 @@ export interface QuizQuestion {
   status: QuizStatus;
   options?: QuizOption[];
   correct_answer?: string;
+  accepted_variations?: string[]; // for fill_blank and open types
   explanation?: string;
   difficulty_tier?: number;
   created_at: ISODate;
