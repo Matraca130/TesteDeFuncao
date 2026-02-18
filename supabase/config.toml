@@ -12,6 +12,6 @@ schemas = ["public"]
 [db]
 port = 54322
 
-[functions.server]
+[functions.make-server-7a20cd7d]
 verify_jwt = false
 entrypoint = "./functions/server/index.ts"
