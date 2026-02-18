@@ -12,7 +12,7 @@ import { Course, Topic, courses } from '@/app/data/courses';
 //   - admin (AdminContext gerencia sessao independente)
 //
 // Oleada 3-4 additions (Dev 6):
-//   - Keyword Popup global state (kwPopupOpen, kwPopupId)
+//   - Keyword Popup global state (kwPopupOpen derived from kwPopupId)
 //   - 3D navigation (selectedModelId, navigateTo3D, returnFrom3D)
 // ================================================================
 
@@ -116,8 +116,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
 
   // ── Oleada 3-4: Keyword Popup state ──
-  const [kwPopupOpen, setKwPopupOpen] = useState(false);
+  // kwPopupOpen is DERIVED from kwPopupId (single source of truth).
+  // This eliminates the impossible state where open=true but id=null.
   const [kwPopupId, setKwPopupId] = useState<string | null>(null);
+  const kwPopupOpen = kwPopupId !== null;
+
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
   // Ref to save the view BEFORE navigating to 3D, so returnFrom3D
@@ -127,11 +130,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const openKeywordPopup = useCallback((keywordId: string) => {
     setKwPopupId(keywordId);
-    setKwPopupOpen(true);
   }, []);
 
   const closeKeywordPopup = useCallback(() => {
-    setKwPopupOpen(false);
     setKwPopupId(null);
   }, []);
 
@@ -140,9 +141,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // (React batching ensures this is the value BEFORE setActiveView('3d'))
     viewBefore3DRef.current = activeView;
     setSelectedModelId(modelId);
-    closeKeywordPopup();
+    setKwPopupId(null); // close popup
     setActiveView('3d');
-  }, [activeView, closeKeywordPopup]);
+  }, [activeView]);
 
   const returnFrom3D = useCallback(() => {
     setSelectedModelId(null);
