@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
@@ -120,6 +120,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [kwPopupId, setKwPopupId] = useState<string | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
+  // Ref to save the view BEFORE navigating to 3D, so returnFrom3D
+  // can restore it. Uses ref (not state) to avoid extra re-renders
+  // and to keep the AppContextType interface unchanged.
+  const viewBefore3DRef = useRef<ViewType>('dashboard');
+
   const openKeywordPopup = useCallback((keywordId: string) => {
     setKwPopupId(keywordId);
     setKwPopupOpen(true);
@@ -131,14 +136,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const navigateTo3D = useCallback((modelId: string) => {
+    // Save current view before switching — reads activeView at call time
+    // (React batching ensures this is the value BEFORE setActiveView('3d'))
+    viewBefore3DRef.current = activeView;
     setSelectedModelId(modelId);
     closeKeywordPopup();
     setActiveView('3d');
-  }, [closeKeywordPopup]);
+  }, [activeView, closeKeywordPopup]);
 
   const returnFrom3D = useCallback(() => {
     setSelectedModelId(null);
-    setActiveView('dashboard');
+    setActiveView(viewBefor3DRef.current);
   }, []);
 
   return (
