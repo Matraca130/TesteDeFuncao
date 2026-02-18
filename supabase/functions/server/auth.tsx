@@ -2,22 +2,15 @@
 // Axon — Auth Routes (Dev 6)
 // ============================================================
 import { Hono } from "npm:hono";
-import { createClient } from "npm:@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
 import {
   userKey,
   memberKey,
   KV_PREFIXES,
 } from "./kv-keys.ts";
+import { getSupabaseAdmin } from "./crud-factory.tsx";
 
 const auth = new Hono();
-
-function getSupabaseAdmin() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
-}
 
 // ── Error message extractor (type-safe) ──────────────────────
 function errMsg(err: unknown): string {
