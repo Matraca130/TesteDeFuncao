@@ -10,6 +10,9 @@ import { supabase } from '../services/supabaseClient';
 // Uses singleton Supabase client from supabaseClient.ts
 // to prevent "Multiple GoTrueClient instances" warning.
 //
+// NOTE: apiFetch was removed in Step 5a — all consumers
+// now use useApi() from api-provider.tsx instead.
+//
 // Backend: https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d
 // ════════════════════════════════════════════════════════════
 
@@ -46,8 +49,6 @@ interface AuthContextType {
   signup: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
-  /** Helper to make authenticated API calls */
-  apiFetch: (path: string, options?: RequestInit) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -61,7 +62,6 @@ const AuthContext = createContext<AuthContextType>({
   signup: async () => false,
   logout: async () => {},
   clearError: () => {},
-  apiFetch: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -71,37 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Ref to always read the latest accessToken — avoids stale closure in apiFetch
+  // Ref to always read the latest accessToken — used by logout to avoid stale closure
   const accessTokenRef = useRef<string | null>(null);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
 
   const clearError = useCallback(() => setError(null), []);
-
-  // ── Authenticated fetch helper ──
-  // Uses ref so the callback identity is stable and always reads the latest token
-  const apiFetch = useCallback(async (path: string, options: RequestInit = {}) => {
-    const token = accessTokenRef.current;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      headers['Authorization'] = `Bearer ${publicAnonKey}`;
-    }
-
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-    const data = await res.json();
-
-    if (!res.ok || data.success === false) {
-      const msg = data.error?.message || data.error || `Request failed: ${res.status}`;
-      console.error(`[API] ${path} error:`, msg);
-      throw new Error(msg);
-    }
-
-    return data.data !== undefined ? data.data : data;
-  }, []); // stable — no dependency on accessToken, reads from ref
 
   // ── Session restore on mount ──
   useEffect(() => {
@@ -255,7 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         clearError,
-        apiFetch,
       }}
     >
       {children}
