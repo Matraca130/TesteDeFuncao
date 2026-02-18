@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
 
-// ================================================================
+// ════════════════════════════════════════════════════════════════
 // APP CONTEXT — Estado do aluno e navegacao
 //
 // ViewTypes incluem os modulos de todos os devs:
@@ -11,10 +11,10 @@ import { Course, Topic, courses } from '@/app/data/courses';
 //   - ai-generate, ai-chat, ai-approval (Dev 6 — Auth & AI)
 //   - admin (AdminContext gerencia sessao independente)
 //
-// Oleada 3-4 additions (Dev 6):
-//   - Keyword Popup global state (kwPopupOpen derived from kwPopupId)
-//   - 3D navigation (selectedModelId, navigateTo3D, returnFrom3D)
-// ================================================================
+// Dev 6 additions (Oleada 3-4):
+//   - KeywordPopup state (global overlay)
+//   - 3D navigation (navigateTo3D / returnFrom3D)
+// ════════════════════════════════════════════════════════════════
 
 export type ViewType =
   | 'home'
@@ -39,35 +39,13 @@ export type ViewType =
   // Dev 6 — Auth & AI views
   | 'ai-generate'
   | 'ai-chat'
-  | 'ai-approval';
+  | 'ai-approval'
+  | 'batch-verify';
 
 export type ThemeType = 'dark' | 'light';
 
-export interface StudyPlanTask {
-  id: string;
-  date: Date;
-  title: string;
-  subject: string;
-  subjectColor: string;
-  method: string;
-  estimatedMinutes: number;
-  completed: boolean;
-}
-
-export interface StudyPlan {
-  id: string;
-  name: string;
-  subjects: { id: string; name: string; color: string }[];
-  methods: string[];
-  selectedTopics: { courseId: string; courseName: string; sectionTitle: string; topicTitle: string; topicId: string }[];
-  completionDate: Date;
-  weeklyHours: number[];
-  tasks: StudyPlanTask[];
-  createdAt: Date;
-  totalEstimatedHours: number;
-}
-
 interface AppContextType {
+  // ── Original (Devs 1-5) ──
   currentCourse: Course;
   setCurrentCourse: (course: Course) => void;
   currentTopic: Topic | null;
@@ -76,12 +54,14 @@ interface AppContextType {
   setActiveView: (view: ViewType) => void;
   isSidebarOpen: boolean;
   setSidebarOpen: (isOpen: boolean) => void;
-  // ── Oleada 3-4: Keyword Popup global state ──
+
+  // ── Dev 6: KeywordPopup (global overlay) ──
   kwPopupOpen: boolean;
   kwPopupId: string | null;
   openKeywordPopup: (keywordId: string) => void;
   closeKeywordPopup: () => void;
-  // ── Oleada 3-4: 3D navigation ──
+
+  // ── Dev 6: 3D Navigation ──
   selectedModelId: string | null;
   navigateTo3D: (modelId: string) => void;
   returnFrom3D: () => void;
@@ -97,7 +77,8 @@ const AppContext = createContext<AppContextType>({
   setActiveView: noop,
   isSidebarOpen: true,
   setSidebarOpen: noop,
-  // ── Oleada 3-4 defaults ──
+
+  // Dev 6 defaults
   kwPopupOpen: false,
   kwPopupId: null,
   openKeywordPopup: noop,
@@ -108,6 +89,7 @@ const AppContext = createContext<AppContextType>({
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  // ── Original state ──
   const [currentCourse, setCurrentCourse] = useState<Course>(courses[0]);
   const [currentTopic, setCurrentTopic] = useState<Topic | null>(
     courses[0].semesters[0].sections[0].topics[0]
@@ -115,19 +97,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
 
-  // ── Oleada 3-4: Keyword Popup state ──
-  // kwPopupOpen is DERIVED from kwPopupId (single source of truth).
-  // This eliminates the impossible state where open=true but id=null.
+  // ── Dev 6: KeywordPopup state ──
+  // kwPopupOpen derived from kwPopupId (single source of truth — eliminates impossible state)
   const [kwPopupId, setKwPopupId] = useState<string | null>(null);
   const kwPopupOpen = kwPopupId !== null;
 
+  // ── Dev 6: 3D navigation state ──
+  const [returnToView, setReturnToView] = useState<ViewType | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
-  // Ref to save the view BEFORE navigating to 3D, so returnFrom3D
-  // can restore it. Uses ref (not state) to avoid extra re-renders
-  // and to keep the AppContextType interface unchanged.
-  const viewBefore3DRef = useRef<ViewType>('dashboard');
-
+  // ── Dev 6: KeywordPopup actions ──
   const openKeywordPopup = useCallback((keywordId: string) => {
     setKwPopupId(keywordId);
   }, []);
@@ -136,23 +115,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setKwPopupId(null);
   }, []);
 
+  // ── Dev 6: 3D navigation actions ──
   const navigateTo3D = useCallback((modelId: string) => {
-    // Save current view before switching — reads activeView at call time
-    // (React batching ensures this is the value BEFORE setActiveView('3d'))
-    viewBefore3DRef.current = activeView;
+    setReturnToView(activeView);
     setSelectedModelId(modelId);
-    setKwPopupId(null); // close popup
     setActiveView('3d');
   }, [activeView]);
 
   const returnFrom3D = useCallback(() => {
+    if (returnToView) {
+      setActiveView(returnToView);
+      setReturnToView(null);
+    } else {
+      setActiveView('dashboard');
+    }
     setSelectedModelId(null);
-    setActiveView(viewBefore3DRef.current);
-  }, []);
+  }, [returnToView]);
 
   return (
     <AppContext.Provider
       value={{
+        // Original
         currentCourse,
         setCurrentCourse,
         currentTopic,
@@ -161,11 +144,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveView,
         isSidebarOpen,
         setSidebarOpen,
-        // ── Oleada 3-4 ──
+
+        // Dev 6: KeywordPopup
         kwPopupOpen,
         kwPopupId,
         openKeywordPopup,
         closeKeywordPopup,
+
+        // Dev 6: 3D Navigation
         selectedModelId,
         navigateTo3D,
         returnFrom3D,

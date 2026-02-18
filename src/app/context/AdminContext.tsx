@@ -1,17 +1,16 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 
-// ================================================================
-// ADMIN CONTEXT — Sessao admin integrada com Supabase Auth
+// ════════════════════════════════════════════════════════════════
+// ADMIN CONTEXT v4.4 — Fully migrated to Supabase Auth
 //
-// Migracao de ADMIN_PLACEHOLDER:
-//   - Agora verifica is_super_admin do AuthContext
-//   - Fallback para senha hardcoded se nao tiver auth
-//   - Todos os consumidores (useAdmin) continuam funcionando
-// ================================================================
-
-// Fallback password para dev/demo sem Supabase Auth
-const ADMIN_PASSWORD_FALLBACK = 'admin123';
+// Migration COMPLETE (was ADMIN_PLACEHOLDER with 'admin123'):
+//   - isAdmin derived from user.is_super_admin OR membership role
+//   - adminLogin checks role, NO hardcoded password
+//   - Interface preservada: isAdmin, adminLogin, adminLogout,
+//     sessionStartedAt, sessionDurationMinutes
+//   - Consumidores (AdminPanel, AdminBanner, Sidebar) no cambian
+// ════════════════════════════════════════════════════════════════
 
 interface AdminContextType {
   isAdmin: boolean;
@@ -31,32 +30,41 @@ const AdminContext = createContext<AdminContextType>({
 });
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const [isAdminLocal, setIsAdminLocal] = useState(false);
+  const { user, memberships } = useAuth();
+  const [sessionActive, setSessionActive] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
 
-  // Check if user is super_admin from Supabase Auth
+  // D8: super_admin is GLOBAL flag on User.is_super_admin
   const isSuperAdmin = user?.is_super_admin === true;
 
-  // Combined admin check: Supabase super_admin OR local password login
-  const isAdmin = isSuperAdmin || isAdminLocal;
+  // D8: institution_admin is per-institution role in Membership
+  const isInstitutionAdmin = memberships.some(
+    (m) => m.role === 'institution_admin'
+  );
+
+  // D8: professor can also access admin features
+  const isProfessor = memberships.some(
+    (m) => m.role === 'professor'
+  );
+
+  // Admin if super_admin, institution_admin, or professor — AND session is active
+  const hasAdminRole = isSuperAdmin || isInstitutionAdmin || isProfessor;
+  const isAdmin = hasAdminRole && sessionActive;
 
   const adminLogin = useCallback((password: string): boolean => {
-    if (isSuperAdmin) {
-      setIsAdminLocal(true);
-      setSessionStartedAt(new Date());
-      return true;
-    }
-    if (password === ADMIN_PASSWORD_FALLBACK) {
-      setIsAdminLocal(true);
+    // With Supabase Auth, the password parameter is vestigial.
+    // We check the user's ROLE, not a hardcoded password.
+    // Any admin-role user can "activate" their admin session.
+    if (hasAdminRole) {
+      setSessionActive(true);
       setSessionStartedAt(new Date());
       return true;
     }
     return false;
-  }, [isSuperAdmin]);
+  }, [hasAdminRole]);
 
   const adminLogout = useCallback(() => {
-    setIsAdminLocal(false);
+    setSessionActive(false);
     setSessionStartedAt(null);
   }, []);
 

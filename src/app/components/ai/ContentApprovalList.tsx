@@ -36,8 +36,8 @@ export function ContentApprovalList() {
     try {
       const data = await apiFetch('/ai/drafts');
       setDrafts(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -48,6 +48,7 @@ export function ContentApprovalList() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Conteudo Gerado por IA</h2>
@@ -73,6 +74,7 @@ export function ContentApprovalList() {
         </div>
       </div>
 
+      {/* Generator */}
       {showGenerator && (
         <div className="mb-6">
           <AIGeneratePanel
@@ -84,18 +86,21 @@ export function ContentApprovalList() {
         </div>
       )}
 
+      {/* Error */}
       {error && (
         <div className="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
           {error}
         </div>
       )}
 
+      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" />
         </div>
       )}
 
+      {/* Pending drafts */}
       {!loading && pendingDrafts.length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-amber-600 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -152,6 +157,7 @@ export function ContentApprovalList() {
         </div>
       )}
 
+      {/* Processed drafts */}
       {!loading && processedDrafts.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-green-600 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -174,6 +180,7 @@ export function ContentApprovalList() {
         </div>
       )}
 
+      {/* Empty state */}
       {!loading && drafts.length === 0 && !showGenerator && (
         <div className="text-center py-16">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />

@@ -1,33 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { publicAnonKey } from '/utils/supabase/info';
+import { supabase } from '../services/supabaseClient';
 
-// ══════════════════════════════════════════════════════════
-// AUTH CONTEXT — Supabase Auth integration for Axon
+// ════════════════════════════════════════════════════════════
+// AUTH CONTEXT — Supabase Auth integration for Axon v4.4
 //
 // Provides: login, signup, logout, session restore
 // Auth header is auto-set after login for all API calls.
-// ══════════════════════════════════════════════════════════
+// Uses singleton Supabase client from supabaseClient.ts
+// to prevent "Multiple GoTrueClient instances" warning.
+//
+// Backend: https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d
+// ════════════════════════════════════════════════════════════
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-0c4f6a3c`;
-
-// ── Singleton Supabase Client ──
-// Survives Vite HMR reloads — prevents "Multiple GoTrueClient instances" warning.
-// Symbol.for guarantees the same symbol across module re-evaluations.
-const SUPA_KEY = Symbol.for('axon-supabase');
-
-function getSupabaseClient(): SupabaseClient {
-  const g = globalThis as Record<symbol, unknown>;
-  if (!g[SUPA_KEY]) {
-    g[SUPA_KEY] = createClient(
-      `https://${projectId}.supabase.co`,
-      publicAnonKey
-    );
-  }
-  return g[SUPA_KEY] as SupabaseClient;
-}
-
-const supabase = getSupabaseClient();
+// HARDCODED — the backend lives on project xdnciktarvxyhkrokbng.
+// DO NOT use projectId from /utils/supabase/info for this URL.
+const API_BASE = 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d';
 
 export interface AuthUser {
   id: string;
@@ -40,9 +28,11 @@ export interface AuthUser {
 }
 
 export interface Membership {
-  institution_id: string;
-  user_id: string;
-  role: string;
+  id: string;                    // UUID
+  user_id: string;               // FK a User.id
+  institution_id: string;        // FK a Institution.id
+  role: 'institution_admin' | 'professor' | 'student'; // D8: per-institution role
+  joined_at: string;             // ISO 8601
 }
 
 interface AuthContextType {
@@ -57,7 +47,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   clearError: () => void;
   /** Helper to make authenticated API calls */
-  apiFetch: (path: string, options?: RequestInit) => Promise<unknown>;
+  apiFetch: (path: string, options?: RequestInit) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -136,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setMemberships(data.data.memberships || []);
           console.log('[Auth] Session restored for:', data.data.user.email);
         }
-      } catch (err: unknown) {
+      } catch (err) {
         console.log('[Auth] Session restore failed (user not logged in)');
       } finally {
         setIsLoading(false);
@@ -150,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
-      // Step 1: Sign in via Supabase client (sets local session cookie)
+      // Sign in via Supabase client (sets local session cookie)
       const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -167,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Step 2: Get user data from our server
+      // Get user data from our server
       const res = await fetch(`${API_BASE}/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
@@ -176,9 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await res.json();
 
       if (!result.success) {
-        // Cleanup: Step 1 created a Supabase session, but Step 2 failed.
-        // Without cleanup, an orphaned session persists in localStorage,
-        // causing restoreSession to behave unpredictably on next page load.
+        // Cleanup: Supabase session created in step 1, but backend
+        // rejected in step 2. Sign out to avoid orphaned session.
         await supabase.auth.signOut().catch(() => {});
         setError(result.error?.message || 'Login failed');
         return false;

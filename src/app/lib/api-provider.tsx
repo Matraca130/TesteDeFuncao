@@ -1,33 +1,32 @@
 // ============================================================
-// Axon v4.2 — API Provider (Infrastructure)
+// Axon v4.4 — API Provider (Infrastructure)
 // Path: /src/app/lib/api-provider.tsx
 // React Context + hook useApi() para acceso tipado al servidor.
 //
 // Usage:
 //   <ApiProvider> wraps the app
-//   const { api, userId, isAuthenticated } = useApi();
+//   const { api, userId, isAuthenticated, login, logout } = useApi();
 //   api.get('/flashcards/due', { course_id });
 //
-// When backend is not ready, components use MOCK data directly
-// from /src/app/lib/mock-data.ts. When backend is ready, swap
-// to api.get/post calls — the same hook, different data source.
+// Integrates with AuthContext: when user logs in via AuthContext,
+// call login(accessToken, userId) to wire the API client.
 // ============================================================
 
-import { createContext, useContext, useState, useMemo } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type ApiClient } from './api-client';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { publicAnonKey } from '/utils/supabase/info';
 
-const SERVER_PREFIX = '/make-server-7a20cd7d';
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1${SERVER_PREFIX}`;
+// HARDCODED — backend URL. DO NOT use projectId for this.
+const API_BASE_URL = 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d';
 
 interface ApiContextValue {
   api: ApiClient;
   userId: string | null;
   accessToken: string | null;
   isAuthenticated: boolean;
-  setAccessToken: (token: string | null) => void;
-  setUserId: (id: string | null) => void;
+  login: (token: string, uid: string) => void;
+  logout: () => void;
 }
 
 const ApiContext = createContext<ApiContextValue | null>(null);
@@ -38,9 +37,19 @@ export function ApiProvider({ children }: { children: ReactNode }) {
 
   // Create API client — uses accessToken if available, falls back to publicAnonKey
   const api = useMemo(
-    () => createApiClient(BASE_URL, accessToken ?? publicAnonKey),
+    () => createApiClient(API_BASE_URL, accessToken ?? publicAnonKey),
     [accessToken],
   );
+
+  const login = useCallback((token: string, uid: string) => {
+    setAccessToken(token);
+    setUserId(uid);
+  }, []);
+
+  const logout = useCallback(() => {
+    setAccessToken(null);
+    setUserId(null);
+  }, []);
 
   const value = useMemo<ApiContextValue>(
     () => ({
@@ -48,10 +57,10 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       userId,
       accessToken,
       isAuthenticated: !!accessToken && !!userId,
-      setAccessToken,
-      setUserId,
+      login,
+      logout,
     }),
-    [api, userId, accessToken],
+    [api, userId, accessToken, login, logout],
   );
 
   return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;

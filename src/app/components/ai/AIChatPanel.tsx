@@ -2,12 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Send, Loader2, Bot, User, Sparkles, Trash2 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-
-interface AIChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
+import type { AIChatMessage } from '../../services/types';
 
 interface AIChatPanelProps {
   keywordId?: string;
