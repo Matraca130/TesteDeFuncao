@@ -403,6 +403,38 @@ export interface AIGenerationResult {
   created_at: ISODate;
 }
 
+// ────────────────── Dev 1/6: 3D MODELS ──────────────────
+
+export interface Model3DAnnotation {
+  id: UUID;
+  label: string;
+  description: string;
+  position: [number, number, number];
+  color: string;
+  keyword_id?: UUID;
+}
+
+export interface Model3DAsset {
+  id: UUID;
+  name: string;
+  description: string;
+  summary_id: UUID;
+  topic_id: UUID;
+  keyword_ids: UUID[];
+  file_path: string;
+  file_size_bytes: number;
+  file_format: 'glb' | 'gltf';
+  thumbnail_path?: string;
+  annotations: Model3DAnnotation[];
+  camera_position: [number, number, number];
+  camera_target: [number, number, number];
+  scale: number;
+  created_by: UUID;
+  created_at: ISODate;
+  updated_at: ISODate;
+  status: 'active' | 'processing' | 'draft';
+}
+
 // ────────────────── API RESPONSE WRAPPERS ──────────────────
 
 export interface ApiResponse<T> {

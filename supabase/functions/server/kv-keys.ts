@@ -56,6 +56,9 @@ export const aiDraftKey  = (summaryId: string) => `ai-draft:${summaryId}`;
 export const readingKey    = (studentId: string, summaryId: string) => `reading:${studentId}:${summaryId}`;
 export const annotationKey = (id: string) => `annotation:${id}`;
 
+// Dev 1/6: 3D Models
+export const model3dKey    = (id: string) => `model3d:${id}`;
+
 // ────────────────── INDEX KEYS ──────────────────
 
 // Dev 6: Auth indices
@@ -106,6 +109,11 @@ export const idxPlanTasks    = (planId: string, courseId: string, taskId: string
 export const idxStudentAnnotations = (studentId: string, summaryId: string, annotationId: string) => `idx:student-annotations:${studentId}:${summaryId}:${annotationId}`;
 export const idxStudentReading     = (studentId: string, summaryId: string) => `idx:student-reading:${studentId}:${summaryId}`;
 
+// Dev 1/6: 3D Model indices
+export const idxSummaryModel3d = (summaryId: string, modelId: string) => `idx:summary-model3d:${summaryId}:${modelId}`;
+export const idxTopicModel3d   = (topicId: string, modelId: string) => `idx:topic-model3d:${topicId}:${modelId}`;
+export const idxKwModel3d      = (kwId: string, modelId: string) => `idx:kw-model3d:${kwId}:${modelId}`;
+
 // ────────────────── PREFIX CONSTANTS (for getByPrefix queries) ──────────────────
 
 export const KV_PREFIXES = {
@@ -119,6 +127,7 @@ export const KV_PREFIXES = {
   PLAN: "plan:", PLAN_TASK: "plan-task:", STATS: "stats:",
   CHAT: "chat:", AI_DRAFT: "ai-draft:",
   READING: "reading:", ANNOTATION: "annotation:",
+  MODEL3D: "model3d:",
   // Index
   IDX_INST_MEMBERS: "idx:inst-members:",
   IDX_USER_INSTS: "idx:user-insts:",
@@ -150,4 +159,7 @@ export const KV_PREFIXES = {
   IDX_PLAN_TASKS: "idx:plan-tasks:",
   IDX_STUDENT_ANNOTATIONS: "idx:student-annotations:",
   IDX_STUDENT_READING: "idx:student-reading:",
+  IDX_SUMMARY_MODEL3D: "idx:summary-model3d:",
+  IDX_TOPIC_MODEL3D: "idx:topic-model3d:",
+  IDX_KW_MODEL3D: "idx:kw-model3d:",
 } as const;
