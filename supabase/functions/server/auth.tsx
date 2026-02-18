@@ -4,6 +4,11 @@
 import { Hono } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
+import {
+  userKey,
+  memberKey,
+  KV_PREFIXES,
+} from "./kv-keys.ts";
 
 const auth = new Hono();
 
@@ -79,7 +84,7 @@ auth.post("/auth/signup", async (c) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    await kv.set(`user:${data.user.id}`, user);
+    await kv.set(userKey(data.user.id), user);
 
     // Sign in to get access_token
     const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
@@ -139,7 +144,7 @@ auth.post("/auth/signin", async (c) => {
     }
 
     // Get user from KV
-    let user = await kv.get(`user:${data.user.id}`);
+    let user = await kv.get(userKey(data.user.id));
 
     // If user doesn't exist in KV yet (e.g. pre-existing Supabase user), create it
     if (!user) {
@@ -152,16 +157,18 @@ auth.post("/auth/signin", async (c) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      await kv.set(`user:${data.user.id}`, user);
+      await kv.set(userKey(data.user.id), user);
     }
 
     // Get memberships (multi-tenancy D9)
     let memberships: unknown[] = [];
     try {
-      const instIds = await kv.getByPrefix(`idx:user-insts:${data.user.id}:`);
+      const instIds = await kv.getByPrefix(
+        KV_PREFIXES.IDX_USER_INSTS + data.user.id + ":"
+      );
       if (instIds.length > 0) {
         memberships = (await kv.mget(
-          instIds.map((instId: string) => `membership:${instId}:${data.user.id}`)
+          instIds.map((instId: string) => memberKey(instId, data.user.id))
         )).filter(Boolean);
       }
     } catch (_e) {
@@ -200,7 +207,7 @@ auth.get("/auth/me", async (c) => {
       );
     }
 
-    const user = await kv.get(`user:${result.userId}`);
+    const user = await kv.get(userKey(result.userId));
     if (!user) {
       return c.json(
         { success: false, error: { code: "NOT_FOUND", message: "User not found in KV store" } },
@@ -211,10 +218,12 @@ auth.get("/auth/me", async (c) => {
     // Get memberships
     let memberships: unknown[] = [];
     try {
-      const instIds = await kv.getByPrefix(`idx:user-insts:${result.userId}:`);
+      const instIds = await kv.getByPrefix(
+        KV_PREFIXES.IDX_USER_INSTS + result.userId + ":"
+      );
       if (instIds.length > 0) {
         memberships = (await kv.mget(
-          instIds.map((instId: string) => `membership:${instId}:${result.userId}`)
+          instIds.map((instId: string) => memberKey(instId, result.userId))
         )).filter(Boolean);
       }
     } catch (_e) {}
