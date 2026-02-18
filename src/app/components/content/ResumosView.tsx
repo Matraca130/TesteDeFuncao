@@ -28,7 +28,7 @@ const CARD = 'bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] borde
 const CARD_SM = 'bg-white rounded-2xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100 hover:shadow-md transition-all';
 
 export function ResumosView() {
-  const { currentCourse } = useApp();
+  const { currentCourse, openKeywordPopup } = useApp();
 
   const [summaries, setSummaries] = useState<StudySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,6 +207,7 @@ export function ResumosView() {
                 <SummaryDetail
                   summary={selectedSummary}
                   onToggleBookmark={() => handleToggleBookmark(selectedSummary)}
+                  onOpenKeywordPopup={openKeywordPopup}
                 />
               </motion.div>
             )}
@@ -302,8 +303,8 @@ function SummaryRow({ summary, onOpen, onToggleBookmark }: {
 // ══════════════════════════════════════════════
 // Summary Detail — Read-only (no edit/delete)
 // ══════════════════════════════════════════════
-function SummaryDetail({ summary, onToggleBookmark }: {
-  summary: StudySummary; onToggleBookmark: () => void;
+function SummaryDetail({ summary, onToggleBookmark, onOpenKeywordPopup }: {
+  summary: StudySummary; onToggleBookmark: () => void; onOpenKeywordPopup?: (keywordId: string) => void;
 }) {
   const accentColor = colors.courseAccents[summary.courseId] || colors.courseAccents.anatomy;
 
@@ -355,18 +356,28 @@ function SummaryDetail({ summary, onToggleBookmark }: {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-900" style={headingStyle}>Palavras-chave</h3>
-              <p className="text-sm text-gray-500">{Object.keys(summary.keywordMastery).length} termos rastreados</p>
+              <p className="text-sm text-gray-500">{Object.keys(summary.keywordMastery).length} termos rastreados — clique para explorar</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {Object.entries(summary.keywordMastery).map(([kw, level]) => {
               const kwData = findKeyword(kw);
               const config = masteryConfig[level as MasteryLevel] || masteryConfig.green;
+              const keywordId = kwData?.id || ('kw-' + kw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
               return (
-                <div key={kw} className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium', config.bgLight, config.borderColor, config.textColor)}>
+                <button
+                  key={kw}
+                  onClick={() => onOpenKeywordPopup?.(keywordId)}
+                  title={`Ver detalhes de "${kwData?.term || kw}"`}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all',
+                    config.bgLight, config.borderColor, config.textColor,
+                    onOpenKeywordPopup && 'cursor-pointer hover:scale-105 hover:shadow-sm active:scale-95'
+                  )}
+                >
                   <div className={clsx('w-2 h-2 rounded-full', config.bgDot)} />
                   <span className="capitalize">{kwData?.term || kw}</span>
-                </div>
+                </button>
               );
             })}
           </div>

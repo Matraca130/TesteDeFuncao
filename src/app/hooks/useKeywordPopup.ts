@@ -16,10 +16,13 @@ export function useKeywordPopup(keywordId: string | null) {
   useEffect(() => {
     if (!keywordId) {
       setData(null);
+      setLoading(false);
+      setError(null);
       return;
     }
 
     let cancelled = false;
+    setData(null); // Clear stale data from previous keyword
     setLoading(true);
     setError(null);
 

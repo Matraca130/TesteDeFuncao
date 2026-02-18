@@ -2,12 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // AUTH CONTEXT — Supabase Auth integration for Axon
 //
 // Provides: login, signup, logout, session restore
 // Auth header is auto-set after login for all API calls.
-// ════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 
 const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-0c4f6a3c`;
 
@@ -57,7 +57,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   clearError: () => void;
   /** Helper to make authenticated API calls */
-  apiFetch: (path: string, options?: RequestInit) => Promise<any>;
+  apiFetch: (path: string, options?: RequestInit) => Promise<unknown>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setMemberships(data.data.memberships || []);
           console.log('[Auth] Session restored for:', data.data.user.email);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.log('[Auth] Session restore failed (user not logged in)');
       } finally {
         setIsLoading(false);
@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     try {
-      // Sign in via Supabase client (sets local session cookie)
+      // Step 1: Sign in via Supabase client (sets local session cookie)
       const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Get user data from our server
+      // Step 2: Get user data from our server
       const res = await fetch(`${API_BASE}/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
@@ -176,6 +176,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await res.json();
 
       if (!result.success) {
+        // Cleanup: Step 1 created a Supabase session, but Step 2 failed.
+        // Without cleanup, an orphaned session persists in localStorage,
+        // causing restoreSession to behave unpredictably on next page load.
+        await supabase.auth.signOut().catch(() => {});
         setError(result.error?.message || 'Login failed');
         return false;
       }
@@ -238,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
       await supabase.auth.signOut();
-    } catch (err) {
+    } catch (err: unknown) {
       console.log('[Auth] Logout cleanup error (non-fatal):', err);
     } finally {
       setUser(null);

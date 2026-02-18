@@ -20,7 +20,7 @@ import type {
   SubTopicBktState,
 } from './types';
 
-// ── Mock Data ──────────────────────────────────────────────
+// ── Mock Data ─────────────────────────────────────────────────
 
 const MOCK_KEYWORD: Keyword = {
   id: 'kw-plexo-braquial',
@@ -131,7 +131,7 @@ const MOCK_DB: Record<string, KeywordPopupData> = {
   },
 };
 
-// ── API Functions (Capa 3) ─────────────────────────────────
+// ── API Functions (Capa 3) ─────────────────────────────────────
 
 export async function getKeywordPopup(keywordId: string): Promise<KeywordPopupData> {
   await new Promise((r) => setTimeout(r, 300));
@@ -141,7 +141,9 @@ export async function getKeywordPopup(keywordId: string): Promise<KeywordPopupDa
 
 export async function getChatHistory(keywordId: string): Promise<AIChatHistory | null> {
   await new Promise((r) => setTimeout(r, 200));
-  return MOCK_CHAT;
+  // Return the chat_history for the requested keyword (may be null)
+  const data = MOCK_DB[keywordId];
+  return data ? data.chat_history : null;
 }
 
 export async function sendChatMessage(

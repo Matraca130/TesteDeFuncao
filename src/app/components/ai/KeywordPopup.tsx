@@ -17,14 +17,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useKeywordPopup } from '../../hooks/useKeywordPopup';
 import { useKeywordChat } from '../../hooks/useKeywordChat';
-import type { DeltaColor, SubTopicBktState, AIChatMessage } from '../../services/types';
+import type { DeltaColor, SubTopicBktState } from '../../services/types';
 import {
   X, Loader2, BookOpen, HelpCircle, Link2, MessageCircle,
-  Layers, ChevronRight, Box, Send, Bot, User, Sparkles, Info,
+  Layers, ChevronRight, Box, Send, Bot, User, Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── Props ───────────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────────
 
 interface KeywordPopupProps {
   keywordId: string;
@@ -33,7 +33,7 @@ interface KeywordPopupProps {
   onNavigateTo3D?: (modelId: string) => void;
 }
 
-// ── Priority label + color mapping ──────────────────────────
+// ── Priority label + color mapping ──────────────────────────────
 
 function getPriorityLabel(p: number) {
   switch (p) {
@@ -45,7 +45,7 @@ function getPriorityLabel(p: number) {
   }
 }
 
-// ── BKT delta color mapping ─────────────────────────────────
+// ── BKT delta color mapping ─────────────────────────────────────
 
 const DELTA_COLORS: Record<DeltaColor, { bg: string; bar: string; text: string }> = {
   red:    { bg: 'bg-red-50',    bar: 'bg-red-500',    text: 'text-red-700' },
@@ -55,7 +55,7 @@ const DELTA_COLORS: Record<DeltaColor, { bg: string; bar: string; text: string }
   blue:   { bg: 'bg-blue-50',   bar: 'bg-blue-500',   text: 'text-blue-700' },
 };
 
-// ── Chat Sub-Component ──────────────────────────────────────
+// ── Chat Sub-Component ────────────────────────────────────────
 
 function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTerm: string }) {
   const { messages, sendMessage, sending } = useKeywordChat(keywordId);
@@ -91,7 +91,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+          <div key={`${msg.timestamp}-${i}`} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-indigo-100 text-indigo-600' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
               {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
             </div>
@@ -144,7 +144,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
   );
 }
 
-// ── Main Component ──────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────
 
 export function KeywordPopup({
   keywordId,
@@ -254,8 +254,13 @@ export function KeywordPopup({
                     <Layers className="w-3.5 h-3.5" /> Sub-topicos ({data.subtopics.length})
                   </h3>
                   <div className="space-y-2">
-                    {data.subtopics.map((st, i) => (
-                      <SubTopicCard key={st.id} title={st.title} description={st.description} state={data.subtopic_states?.[i]} />
+                    {data.subtopics.map((st) => (
+                      <SubTopicCard
+                        key={st.id}
+                        title={st.title}
+                        description={st.description}
+                        state={data.subtopic_states?.find(s => s?.subtopic_id === st.id) ?? null}
+                      />
                     ))}
                   </div>
                 </div>
@@ -328,7 +333,7 @@ export function KeywordPopup({
   );
 }
 
-// ── SubTopic Card with BKT delta bar ────────────────────────
+// ── SubTopic Card with BKT delta bar ────────────────────────────
 
 function SubTopicCard({ title, description, state }: {
   title: string;
@@ -348,7 +353,7 @@ function SubTopicCard({ title, description, state }: {
   }
 
   const colors = DELTA_COLORS[state.color];
-  const pct = Math.round(state.delta * 100);
+  const pct = Math.min(Math.round(state.delta * 100), 100);
 
   return (
     <div className={`p-3 rounded-xl border ${colors.bg} border-gray-200`}>
@@ -360,7 +365,7 @@ function SubTopicCard({ title, description, state }: {
         <span className={`text-xs font-bold ${colors.text} flex-shrink-0 ml-2`}>{pct}%</span>
       </div>
       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-        <div className={`h-full ${colors.bar} rounded-full transition-all duration-500`} style={{ width: `${Math.min(pct, 100)}%` }} />
+        <div className={`h-full ${colors.bar} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
       </div>
       <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
         <span>{state.exposures} exposicoes</span>

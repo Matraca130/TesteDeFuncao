@@ -50,8 +50,18 @@ export interface SubTopicBktState {
   updated_at: string;
 }
 
+/**
+ * Chat message role:
+ *   'user'      — student message
+ *   'assistant'  — AI reply (used by our popup chat)
+ *   'model'      — AI reply (used by aiService.ts / Gemini API)
+ *
+ * Both 'assistant' and 'model' are valid AI response roles.
+ * Our UI checks `role === 'user'` for alignment, so both
+ * non-user roles render identically as AI messages.
+ */
 export interface AIChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'model';
   content: string;
   timestamp: string;
 }
