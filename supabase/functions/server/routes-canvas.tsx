@@ -48,19 +48,6 @@ import {
 
 const canvas = new Hono();
 
-// ================================================================
-// PUT /resumo-blocks/:courseId/:topicId — Save canvas blocks
-// ================================================================
-// Body: { blocks: CanvasBlock[] }
-// Overwrites the entire block array for the given course+topic.
-// Used by the admin canvas editor (SummarySessionNew.tsx).
-// Students see these blocks in read-only mode via PreviewBlock.
-//
-// Validation:
-//   - blocks must be a non-empty array
-//   - each block must have id, type, and content
-//   - type must be one of the valid BlockType values
-// ================================================================
 const VALID_BLOCK_TYPES = [
   "heading", "subheading", "text", "image",
   "callout", "divider", "list", "quote",
@@ -74,7 +61,6 @@ canvas.put("/resumo-blocks/:courseId/:topicId", async (c) => {
     const courseId = c.req.param("courseId");
     const topicId = c.req.param("topicId");
 
-    // Validate course exists
     const course = await kv.get(courseKey(courseId));
     if (!course) return notFound(c, "Course");
 
@@ -85,7 +71,6 @@ canvas.put("/resumo-blocks/:courseId/:topicId", async (c) => {
       return validationError(c, "blocks must be an array");
     }
 
-    // Validate each block structure
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
       if (!block.id) {
@@ -97,7 +82,6 @@ canvas.put("/resumo-blocks/:courseId/:topicId", async (c) => {
           `blocks[${i}].type must be one of: ${VALID_BLOCK_TYPES.join(", ")}`
         );
       }
-      // content can be empty string for dividers, but must exist
       if (block.content === undefined || block.content === null) {
         return validationError(c, `blocks[${i}].content is required (can be empty string)`);
       }
@@ -114,7 +98,6 @@ canvas.put("/resumo-blocks/:courseId/:topicId", async (c) => {
       updated_by: user.id,
     };
 
-    // Write primary key + index atomically
     await kv.mset(
       [
         resumoBlocksKey(courseId, topicId),
@@ -141,13 +124,6 @@ canvas.put("/resumo-blocks/:courseId/:topicId", async (c) => {
   }
 });
 
-// ================================================================
-// GET /resumo-blocks/:courseId/:topicId — Get blocks for a topic
-// ================================================================
-// Returns the saved canvas blocks for a specific course+topic.
-// If no blocks exist yet, returns an empty blocks array.
-// Students call this to render the summary in read-only mode.
-// ================================================================
 canvas.get("/resumo-blocks/:courseId/:topicId", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -161,7 +137,6 @@ canvas.get("/resumo-blocks/:courseId/:topicId", async (c) => {
     );
 
     if (!doc) {
-      // Return empty — frontend treats this as "no content yet"
       return c.json({
         success: true,
         data: {
@@ -180,16 +155,6 @@ canvas.get("/resumo-blocks/:courseId/:topicId", async (c) => {
   }
 });
 
-// ================================================================
-// GET /resumo-blocks/:courseId — Get ALL blocks for a course
-// ================================================================
-// Returns an array of ResumoBlocksDocument for every topic that
-// has saved blocks in this course. Uses the index prefix
-// idx:course-resumo-blocks:{courseId}: to find all topic IDs,
-// then fetches each document.
-//
-// Useful for: course overview, search, export, bulk operations.
-// ================================================================
 canvas.get("/resumo-blocks/:courseId", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -197,7 +162,6 @@ canvas.get("/resumo-blocks/:courseId", async (c) => {
 
     const courseId = c.req.param("courseId");
 
-    // Get all topic IDs that have blocks in this course
     const topicIds: string[] = await kv.getByPrefix(
       KV_PREFIXES.IDX_COURSE_RESUMO_BLOCKS + courseId + ":"
     );
@@ -206,7 +170,6 @@ canvas.get("/resumo-blocks/:courseId", async (c) => {
       return c.json({ success: true, data: [], total: 0 });
     }
 
-    // Fetch all block documents
     const docs = await kv.mget(
       topicIds.map((topicId: string) => resumoBlocksKey(courseId, topicId))
     );
@@ -228,22 +191,6 @@ canvas.get("/resumo-blocks/:courseId", async (c) => {
   }
 });
 
-// ================================================================
-// POST /curriculum/:courseId — Save curriculum tree
-// ================================================================
-// Body: { semesters: EditableSemester[] }
-// Overwrites the entire curriculum tree for the course.
-// Used by CurriculumAdminView + useCurriculumCrud.ts.
-//
-// The curriculum tree is a hierarchical structure:
-//   Course → Semesters → Sections → Topics
-//
-// Validation:
-//   - semesters must be an array (can be empty for "reset")
-//   - each semester must have id and name
-//   - each section within must have id and name
-//   - each topic within must have id and name
-// ================================================================
 canvas.post("/curriculum/:courseId", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -251,7 +198,6 @@ canvas.post("/curriculum/:courseId", async (c) => {
 
     const courseId = c.req.param("courseId");
 
-    // Validate course exists
     const course = await kv.get(courseKey(courseId));
     if (!course) return notFound(c, "Course");
 
@@ -262,7 +208,6 @@ canvas.post("/curriculum/:courseId", async (c) => {
       return validationError(c, "semesters must be an array");
     }
 
-    // Deep validation of the curriculum tree
     for (let si = 0; si < semesters.length; si++) {
       const sem = semesters[si];
       if (!sem.id || !sem.name) {
@@ -309,7 +254,6 @@ canvas.post("/curriculum/:courseId", async (c) => {
 
     await kv.set(curriculumKey(courseId), doc);
 
-    // Count totals for logging
     let totalSections = 0;
     let totalTopics = 0;
     for (const sem of semesters) {
@@ -331,13 +275,6 @@ canvas.post("/curriculum/:courseId", async (c) => {
   }
 });
 
-// ================================================================
-// GET /curriculum/:courseId — Get curriculum for a course
-// ================================================================
-// Returns the saved curriculum tree. If none exists, returns
-// an empty semesters array (not 404) — frontend treats this
-// as "curriculum not configured yet".
-// ================================================================
 canvas.get("/curriculum/:courseId", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -350,7 +287,6 @@ canvas.get("/curriculum/:courseId", async (c) => {
     );
 
     if (!doc) {
-      // Return empty — frontend initializes from static data or blank
       return c.json({
         success: true,
         data: {
