@@ -28,8 +28,10 @@ export function useKeywordPopup(keywordId: string | null) {
       .then((result) => {
         if (!cancelled) setData(result);
       })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
