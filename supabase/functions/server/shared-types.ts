@@ -171,7 +171,7 @@ export interface FlashcardCard {
   updated_at: ISODate;
 }
 
-/** Item returned by GET /flashcards/due — used by the study session UI */
+/** Item returned by GET /flashcards/due - used by the study session UI */
 export interface DueFlashcardItem {
   cardId: UUID;
   front: string;
@@ -282,7 +282,7 @@ export interface DailyActivity {
 
 // ────────────────── Dev 3-5: REVIEW REQUEST/RESPONSE ──────────────────
 
-/** POST /reviews — body sent by client after grading a card */
+/** POST /reviews - body sent by client after grading a card */
 export interface ReviewRequest {
   session_id: UUID;
   item_id: UUID;
@@ -291,7 +291,7 @@ export interface ReviewRequest {
   response_time_ms?: number;
 }
 
-/** POST /reviews — response from server with updated states */
+/** POST /reviews - response from server with updated states */
 export interface ReviewResponse {
   review_id: UUID;
   fsrs_update: {
