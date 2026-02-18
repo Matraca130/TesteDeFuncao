@@ -72,7 +72,6 @@ registerCrudRoutes(content, {
   parentQueryParam: "institution_id",
   listPrefix: KV.PREFIX.coursesOfInst,
   cascadeDelete: async (courseId) => {
-    // Level 0-2: semesters -> sections -> topics
     const keys = await cascadeCollect(courseId, [
       {
         childPrefix: KV.PREFIX.semestersOfCourse,
@@ -90,7 +89,6 @@ registerCrudRoutes(content, {
         childIndexKey: KV.IDX.topicOfSection,
       },
     ]);
-    // Level 3+: summaries -> chunks + keyword cross-refs
     const topicIds = keys
       .filter((k) => k.startsWith("topic:"))
       .map((k) => k.slice(6));
@@ -175,6 +173,64 @@ registerCrudRoutes(content, {
   cascadeDelete: (topicId) => collectSummaryCascadeKeys(topicId),
 });
 
+// ── GET /topics/:id/full — Complete topic view ──────────────
+// Returns topic + summaries + keywords (with subtopics & connections)
+content.get("/topics/:id/full", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const topicId = c.req.param("id");
+    const topic = await kv.get(KV.topic(topicId));
+    if (!topic) return notFound(c, "Topic");
+
+    // Load summaries for this topic
+    const summaries = await getChildren(
+      KV.PREFIX.summariesOfTopic(topicId),
+      KV.summary
+    );
+
+    // For each summary, load its keywords
+    const allKeywordIds = new Set<string>();
+    for (const summary of summaries) {
+      const kwIds = await kv.getByPrefix(
+        KV.PREFIX.keywordsOfSummary(summary.id)
+      );
+      for (const kwId of kwIds) allKeywordIds.add(kwId);
+    }
+
+    // Load keyword objects
+    let keywords: any[] = [];
+    if (allKeywordIds.size > 0) {
+      keywords = (
+        await kv.mget(
+          Array.from(allKeywordIds).map((kwId) => KV.keyword(kwId))
+        )
+      ).filter(Boolean);
+    }
+
+    // For each keyword, load subtopics
+    const keywordsWithSubtopics = [];
+    for (const kw of keywords) {
+      const subtopics = await getChildren(
+        KV.PREFIX.subtopicsOfKeyword(kw.id),
+        KV.subtopic
+      );
+      keywordsWithSubtopics.push({ ...kw, subtopics });
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        ...topic,
+        summaries,
+        keywords: keywordsWithSubtopics,
+      },
+    });
+  } catch (err) {
+    return serverError(c, "GET /topics/:id/full", err);
+  }
+});
+
 registerCrudRoutes(content, {
   route: "subtopics",
   label: "SubTopic",
@@ -185,7 +241,6 @@ registerCrudRoutes(content, {
   indexKey: KV.IDX.subtopicOfKeyword,
   parentQueryParam: "keyword_id",
   listPrefix: KV.PREFIX.subtopicsOfKeyword,
-  // Leaf entity — no cascade needed
 });
 
 // ================================================================
@@ -210,7 +265,6 @@ content.post("/institutions", async (c) => {
     };
     await kv.set(KV.institution(id), inst);
 
-    // Auto-add creator as admin member
     const membership = {
       id: crypto.randomUUID(),
       institution_id: id,
@@ -338,7 +392,7 @@ content.post("/summaries", async (c) => {
       [KV.summary(id), KV.IDX.summaryOfTopic(body.topic_id, id)],
       [summary, id]
     );
-    console.log(`[Content] POST /summaries → kv.mset OK for summary:${id}`);
+    console.log(`[Content] POST /summaries \u2192 kv.mset OK for summary:${id}`);
     return c.json({ success: true, data: summary }, 201);
   } catch (err) {
     return serverError(c, "POST /summaries", err);
