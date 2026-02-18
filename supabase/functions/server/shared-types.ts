@@ -1,8 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
-// AXON — Shared Type Definitions (Contract v2)
+// AXON — Shared Type Definitions (Contract v3)
 // This file is the SINGLE SOURCE OF TRUTH for all entity types.
 // All devs import from here. DO NOT duplicate types.
-// Generated: 2026-02-18
+// Updated: 2026-02-18 — Aligned with runtime shapes from:
+//   routes-reviews.tsx, routes-sessions.tsx, routes-flashcards.tsx,
+//   routes-quiz.tsx
 // ═══════════════════════════════════════════════════════════════
 
 // ────────────────── COMMON ──────────────────
@@ -160,13 +162,17 @@ export interface FlashcardCard {
   id: UUID;
   summary_id: UUID;
   keyword_id: UUID;
+  subtopic_id?: UUID;         // D27: defaults to keyword_id if not provided
+  institution_id?: UUID;
   front: string;
   back: string;
+  image_url?: string;
   status: FlashcardStatus;
   source: FlashcardSource;
   hint?: string;
   tags?: string[];
   difficulty_tier?: number;
+  created_by?: UUID;          // User who created the card
   created_at: ISODate;
   updated_at: ISODate;
 }
@@ -194,13 +200,16 @@ export interface QuizQuestion {
   id: UUID;
   summary_id: UUID;
   keyword_id: UUID;
+  subtopic_id?: UUID;                 // D27: defaults to keyword_id
   question: string;
   quiz_type: QuizType;
   status: QuizStatus;
   options?: QuizOption[];
   correct_answer?: string;
+  accepted_variations?: string[];     // For fill_blank and open types
   explanation?: string;
   difficulty_tier?: number;
+  created_by?: UUID;                  // User who created the question
   created_at: ISODate;
   updated_at: ISODate;
 }
@@ -267,6 +276,11 @@ export interface StudySession {
   total_reviews: number;
   correct_reviews: number;
   duration_seconds?: number;
+  avg_grade?: number;                 // Computed on PUT /sessions/:id/end
+  keywords_touched?: string[];        // Keyword IDs touched during reviews
+  subtopics_touched?: string[];       // Subtopic IDs touched during reviews
+  created_at?: ISODate;
+  updated_at?: ISODate;
 }
 
 export interface DailyActivity {
@@ -282,33 +296,31 @@ export interface DailyActivity {
 
 // ────────────────── Dev 3-5: REVIEW REQUEST/RESPONSE ──────────────────
 
-/** POST /reviews — body sent by client after grading a card */
+/** POST /reviews — body sent by client after grading a card/quiz */
 export interface ReviewRequest {
   session_id: UUID;
   item_id: UUID;
   instrument_type: InstrumentType;
+  subtopic_id: UUID;          // Required: BKT lives at subtopic level (D24)
+  keyword_id: UUID;           // Required: for BKT→keyword lookup
   grade: FsrsGrade;
   response_time_ms?: number;
 }
 
-/** POST /reviews — response from server with updated states */
+/** POST /reviews — response from server with updated states and feedback */
 export interface ReviewResponse {
-  review_id: UUID;
-  fsrs_update: {
-    due: ISODate;
-    stability: number;
-    difficulty: number;
-    state: FsrsState;
-    reps: number;
-    lapses: number;
+  review_log: ReviewLog;
+  updated_bkt: SubTopicBktState;
+  updated_card_fsrs: CardFsrsState | null;  // null for quiz (D36)
+  feedback: {
+    delta_before: number;
+    delta_after: number;
+    color_before: BktColor;
+    color_after: BktColor;
+    mastery: number;                        // new p_know value
+    stability: number | null;               // null for quiz
+    next_due: ISODate | null;               // null for quiz
   };
-  bkt_update?: {
-    p_know: number;
-    color: BktColor;
-    delta: number;
-  };
-  color_before?: BktColor;
-  color_after?: BktColor;
 }
 
 // ────────────────── Dev 2: READING & ANNOTATIONS ──────────────────

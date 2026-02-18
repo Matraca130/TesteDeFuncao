@@ -56,7 +56,6 @@ import type { FsrsCard } from "./fsrs-engine.ts";
 import {
   getAuthUser,
   unauthorized,
-  notFound,
   validationError,
   serverError,
 } from "./crud-factory.tsx";
@@ -150,6 +149,27 @@ const VALID_GRADES = [1, 2, 3, 4];
 // ================================================================
 // POST /reviews — THE CRITICAL CASCADE ROUTE
 // ================================================================
+// Flow: validate → session ownership check → BKT read →
+//       FSRS compute → BKT update → delta+color → review log →
+//       persist mset → session counters
+//
+// IMPORTANT: Session ownership is checked BEFORE any state
+// mutations (kv.mset). This prevents persisting orphaned review
+// state when the session belongs to another student.
+//
+// Cascade steps:
+//   1. Validate input
+//   2. Early session ownership check (BEFORE mutations)
+//   3. Read/create BKT state
+//   4. FSRS scheduling (flashcard only — D36)
+//   5. Update BKT mastery (classic Bayesian update)
+//   6. Recompute delta & color
+//   7. Update BKT state
+//   8. Create review log
+//   9. Persist EVERYTHING atomically
+//  10. Update session counters (using pre-fetched session)
+//  11. Return SubmitReviewRes with inline feedback
+// ================================================================
 reviews.post("/reviews", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -166,7 +186,7 @@ reviews.post("/reviews", async (c) => {
       response_time_ms,
     } = body;
 
-    // ── Validate required fields ─────────────────────────
+    // ── 1. Validate required fields ─────────────────────────
     if (
       !session_id ||
       !item_id ||
@@ -200,7 +220,35 @@ reviews.post("/reviews", async (c) => {
     const now = new Date().toISOString();
     const correct = grade >= 3;
 
-    // ── 1. Read current BKT state (or create initial) ──────
+    // ── 2. Early session ownership check ────────────────────
+    // MUST validate BEFORE any state mutations (kv.mset) to
+    // prevent persisting review logs for sessions that belong
+    // to another student. The pre-fetched session is reused
+    // in step 10 for counter updates (saves 1 KV read).
+    let sessionForUpdate: any = null;
+    try {
+      sessionForUpdate = await kv.get(sessionKey(session_id));
+      if (sessionForUpdate && sessionForUpdate.student_id !== userId) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: "FORBIDDEN",
+              message: "Cannot submit review to another student's session",
+            },
+          },
+          403
+        );
+      }
+    } catch (_e) {
+      // Non-critical: if session read fails, proceed without
+      // session update. The review itself is still valid.
+      console.log(
+        `[Reviews] Warning: failed to read session ${session_id.slice(0, 8)}… for ownership check`
+      );
+    }
+
+    // ── 3. Read current BKT state (or create initial) ──────
     const bktK = bktKey(userId, subtopic_id);
     let bkt: SubTopicBktState = await kv.get(bktK);
     if (!bkt) {
@@ -208,7 +256,7 @@ reviews.post("/reviews", async (c) => {
     }
     const colorBefore = bkt.color;
 
-    // ── 2. FSRS (flashcard only — D36) ───────────────────
+    // ── 4. FSRS (flashcard only — D36) ───────────────────
     let fsrsState: CardFsrsState | null = null;
     let oldDueDate: string | null = null;
     let newDueDate: string | null = null;
@@ -245,7 +293,7 @@ reviews.post("/reviews", async (c) => {
       newDueDate = result.card.due.split("T")[0];
     }
 
-    // ── 3. Update BKT mastery ──────────────────────────
+    // ── 5. Update BKT mastery ──────────────────────────
     const newPKnow = updateBktMastery(
       bkt.p_know,
       bkt.p_slip,
@@ -254,7 +302,7 @@ reviews.post("/reviews", async (c) => {
       correct
     );
 
-    // ── 4. Compute delta & color ─────────────────────
+    // ── 6. Compute delta & color ─────────────────────
     const kwData = await kv.get(kwKey(keyword_id));
     const priority = kwData?.priority ?? 1;
     const threshold = getThreshold(priority);
@@ -262,7 +310,7 @@ reviews.post("/reviews", async (c) => {
     const delta = threshold > 0 ? newPKnow / threshold : 0;
     const colorAfter = getColorFromDelta(delta);
 
-    // ── 5. Update BKT state ────────────────────────────
+    // ── 7. Update BKT state ────────────────────────────
     const updatedBkt: SubTopicBktState = {
       ...bkt,
       p_know: newPKnow,
@@ -273,7 +321,7 @@ reviews.post("/reviews", async (c) => {
       review_count: bkt.review_count + 1,
     };
 
-    // ── 6. Create review log ────────────────────────────
+    // ── 8. Create review log ────────────────────────────
     const reviewId = crypto.randomUUID();
     const reviewLog: ReviewLog = {
       id: reviewId,
@@ -288,7 +336,7 @@ reviews.post("/reviews", async (c) => {
       created_at: now,
     };
 
-    // ── 7. Persist EVERYTHING atomically ──────────────────
+    // ── 9. Persist EVERYTHING atomically ──────────────────
     const keys: string[] = [
       bktK,
       reviewKey(reviewId),
@@ -331,52 +379,43 @@ reviews.post("/reviews", async (c) => {
       }
     }
 
-    // ── 8. Update session counters (with ownership check) ───
-    try {
-      const session = await kv.get(sessionKey(session_id));
-      if (session) {
-        if (session.student_id !== userId) {
-          return c.json(
-            {
-              success: false,
-              error: {
-                code: "FORBIDDEN",
-                message: "Cannot update another student's session",
-              },
-            },
-            403
-          );
-        }
-        session.total_reviews = (session.total_reviews ?? 0) + 1;
+    // ── 10. Update session counters ─────────────────────────
+    // Session was already fetched and ownership-verified in step 2.
+    // Reuse the pre-fetched object (saves 1 KV read).
+    if (sessionForUpdate) {
+      try {
+        sessionForUpdate.total_reviews = (sessionForUpdate.total_reviews ?? 0) + 1;
         if (correct) {
-          session.correct_reviews = (session.correct_reviews ?? 0) + 1;
+          sessionForUpdate.correct_reviews = (sessionForUpdate.correct_reviews ?? 0) + 1;
         }
         if (
-          !session.keywords_touched ||
-          !Array.isArray(session.keywords_touched)
+          !sessionForUpdate.keywords_touched ||
+          !Array.isArray(sessionForUpdate.keywords_touched)
         ) {
-          session.keywords_touched = [];
+          sessionForUpdate.keywords_touched = [];
         }
-        if (!session.keywords_touched.includes(keyword_id)) {
-          session.keywords_touched.push(keyword_id);
+        if (!sessionForUpdate.keywords_touched.includes(keyword_id)) {
+          sessionForUpdate.keywords_touched.push(keyword_id);
         }
         if (
-          !session.subtopics_touched ||
-          !Array.isArray(session.subtopics_touched)
+          !sessionForUpdate.subtopics_touched ||
+          !Array.isArray(sessionForUpdate.subtopics_touched)
         ) {
-          session.subtopics_touched = [];
+          sessionForUpdate.subtopics_touched = [];
         }
-        if (!session.subtopics_touched.includes(subtopic_id)) {
-          session.subtopics_touched.push(subtopic_id);
+        if (!sessionForUpdate.subtopics_touched.includes(subtopic_id)) {
+          sessionForUpdate.subtopics_touched.push(subtopic_id);
         }
-        session.updated_at = now;
-        await kv.set(sessionKey(session_id), session);
+        sessionForUpdate.updated_at = now;
+        await kv.set(sessionKey(session_id), sessionForUpdate);
+      } catch (_e) {
+        console.log(
+          `[Reviews] Warning: failed to update session ${session_id.slice(0, 8)}… counters`
+        );
       }
-    } catch (_e) {
-      console.log(`[Reviews] Warning: failed to update session ${session_id.slice(0, 8)}… counters`);
     }
 
-    // ── 9. Return response ─────────────────────────────
+    // ── 11. Return response ─────────────────────────────
     console.log(
       `[Reviews] ${instrument_type} review: item=${item_id.slice(0, 8)}… by=${userId.slice(0, 8)}… ` +
         `grade=${grade} mastery=${newPKnow.toFixed(3)} delta=${delta.toFixed(3)} color=${colorAfter}`
@@ -407,6 +446,11 @@ reviews.post("/reviews", async (c) => {
 
 // ================================================================
 // GET /bkt — Get BKT states for current student
+// ================================================================
+// Query params:
+//   ?subtopic_id=X  → single BKT state
+//   ?keyword_id=X   → all subtopic BKTs for that keyword
+//   (none)          → all BKT states for the student
 // ================================================================
 reviews.get("/bkt", async (c) => {
   try {
@@ -463,6 +507,10 @@ reviews.get("/bkt", async (c) => {
 
 // ================================================================
 // GET /fsrs — Get FSRS states for current student
+// ================================================================
+// Query params:
+//   ?card_id=X  → single FSRS state
+//   (none)      → all FSRS states for the student
 // ================================================================
 reviews.get("/fsrs", async (c) => {
   try {

@@ -350,6 +350,14 @@ quiz.get("/quiz-questions", async (c) => {
 // ================================================================
 // GET /quiz-questions/:id — Get single question
 // ================================================================
+// NOTE: No IDOR check here. Unlike flashcards which have a
+// "source" field to distinguish student-private vs shared cards,
+// quiz questions don't have an equivalent field. All quiz
+// questions are accessible to authenticated users.
+// If student-private quiz questions become a requirement,
+// add a "source" field to QuizQuestion and mirror the
+// flashcard IDOR pattern.
+// ================================================================
 quiz.get("/quiz-questions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -365,7 +373,9 @@ quiz.get("/quiz-questions/:id", async (c) => {
 // ================================================================
 // PUT /quiz-questions/:id — Update question fields
 // ================================================================
-// D39: Students can only edit their own questions.
+// Security: Only the creator can edit (D39). Consistent with
+// flashcard PUT IDOR pattern using strict `created_by !== user.id`.
+//
 // Whitelist: question, options, correct_answer, accepted_variations,
 //            explanation, status, difficulty_tier
 // Immutable: id, keyword_id, subtopic_id, summary_id,
@@ -380,8 +390,9 @@ quiz.put("/quiz-questions/:id", async (c) => {
     const existing = await kv.get(quizKey(id));
     if (!existing) return notFound(c, "Quiz question");
 
-    // D39: Students can only edit their own questions
-    if (existing.created_by && existing.created_by !== user.id) {
+    // D39: Only the creator can edit. Strict check — consistent
+    // with flashcard PUT IDOR (no bypass when created_by is null).
+    if (existing.created_by !== user.id) {
       return c.json(
         {
           success: false,
@@ -428,7 +439,8 @@ quiz.put("/quiz-questions/:id", async (c) => {
 // ================================================================
 // DELETE /quiz-questions/:id — Delete question + clean all indices
 // ================================================================
-// D39: Students can only delete their own questions.
+// Security: Only the creator can delete (D39). Strict check —
+// consistent with flashcard DELETE IDOR.
 // Cleans: primary key, keyword index, summary index (if linked).
 // Quiz has NO FSRS state (D36), so no FSRS cleanup needed.
 // ================================================================
@@ -441,8 +453,9 @@ quiz.delete("/quiz-questions/:id", async (c) => {
     const question = await kv.get(quizKey(id));
     if (!question) return notFound(c, "Quiz question");
 
-    // D39: Students can only delete their own questions
-    if (question.created_by && question.created_by !== user.id) {
+    // D39: Only the creator can delete. Strict check — consistent
+    // with flashcard DELETE IDOR (no bypass when created_by is null).
+    if (question.created_by !== user.id) {
       return c.json(
         {
           success: false,
