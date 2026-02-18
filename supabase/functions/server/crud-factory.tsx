@@ -7,15 +7,29 @@ import { Hono } from "npm:hono";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import * as kv from "./kv_store.tsx";
 
+// ── Singleton Supabase Admin Client ─────────────────────────
+// Lazy-initialized on first use. Reused across warm starts to
+// avoid per-request createClient() overhead. Safe for Edge
+// Functions because the Deno runtime reuses the module scope
+// across invocations within the same isolate.
+let _adminClient: ReturnType<typeof createClient> | null = null;
+
+export function getSupabaseAdmin() {
+  if (!_adminClient) {
+    _adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+  }
+  return _adminClient;
+}
+
 // ── Auth helper ─────────────────────────────────────────────
 export async function getAuthUser(c: any) {
   const token = c.req.header("Authorization")?.split(" ")[1];
   if (!token) return null;
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabase = getSupabaseAdmin();
     const {
       data: { user },
       error,
