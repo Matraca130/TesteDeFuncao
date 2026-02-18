@@ -1,0 +1,13 @@
+# Axon — Supabase CLI Configuration
+# Required for Edge Functions deployment via CI/CD
+# Generated 2026-03-20
+
+project_id = "axon"
+
+[api]
+enabled = false
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
