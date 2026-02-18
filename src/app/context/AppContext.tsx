@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Course, Topic, courses } from '@/app/data/courses';
 
 // @refresh reset
@@ -10,6 +10,10 @@ import { Course, Topic, courses } from '@/app/data/courses';
 //   - dashboard, study, resumos, quiz, flashcards (Devs 1-5)
 //   - ai-generate, ai-chat, ai-approval (Dev 6 — Auth & AI)
 //   - admin (AdminContext gerencia sessao independente)
+//
+// Oleada 3-4 additions (Dev 6):
+//   - Keyword Popup global state (kwPopupOpen, kwPopupId)
+//   - 3D navigation (selectedModelId, navigateTo3D, returnFrom3D)
 // ================================================================
 
 export type ViewType =
@@ -72,6 +76,15 @@ interface AppContextType {
   setActiveView: (view: ViewType) => void;
   isSidebarOpen: boolean;
   setSidebarOpen: (isOpen: boolean) => void;
+  // ── Oleada 3-4: Keyword Popup global state ──
+  kwPopupOpen: boolean;
+  kwPopupId: string | null;
+  openKeywordPopup: (keywordId: string) => void;
+  closeKeywordPopup: () => void;
+  // ── Oleada 3-4: 3D navigation ──
+  selectedModelId: string | null;
+  navigateTo3D: (modelId: string) => void;
+  returnFrom3D: () => void;
 }
 
 const noop = () => {};
@@ -84,6 +97,14 @@ const AppContext = createContext<AppContextType>({
   setActiveView: noop,
   isSidebarOpen: true,
   setSidebarOpen: noop,
+  // ── Oleada 3-4 defaults ──
+  kwPopupOpen: false,
+  kwPopupId: null,
+  openKeywordPopup: noop,
+  closeKeywordPopup: noop,
+  selectedModelId: null,
+  navigateTo3D: noop,
+  returnFrom3D: noop,
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -93,6 +114,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+  // ── Oleada 3-4: Keyword Popup state ──
+  const [kwPopupOpen, setKwPopupOpen] = useState(false);
+  const [kwPopupId, setKwPopupId] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+
+  const openKeywordPopup = useCallback((keywordId: string) => {
+    setKwPopupId(keywordId);
+    setKwPopupOpen(true);
+  }, []);
+
+  const closeKeywordPopup = useCallback(() => {
+    setKwPopupOpen(false);
+    setKwPopupId(null);
+  }, []);
+
+  const navigateTo3D = useCallback((modelId: string) => {
+    setSelectedModelId(modelId);
+    closeKeywordPopup();
+    setActiveView('3d');
+  }, [closeKeywordPopup]);
+
+  const returnFrom3D = useCallback(() => {
+    setSelectedModelId(null);
+    setActiveView('dashboard');
+  }, []);
 
   return (
     <AppContext.Provider
@@ -105,6 +152,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveView,
         isSidebarOpen,
         setSidebarOpen,
+        // ── Oleada 3-4 ──
+        kwPopupOpen,
+        kwPopupId,
+        openKeywordPopup,
+        closeKeywordPopup,
+        selectedModelId,
+        navigateTo3D,
+        returnFrom3D,
       }}
     >
       {children}
