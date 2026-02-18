@@ -2,13 +2,13 @@
 // Axon v4.2 — Server Entry Point
 // ============================================================
 // Modular Hono router. Each vertical owns a route file:
-//   - auth.tsx           (Dev 6) — signup, signin, me, signout
-//   - ai-routes.tsx      (Dev 6) — generate, approve, chat, keyword-popup
-//   - routes-content     (Dev 1) — CRUD for all content entities (~47 routes)
-//   - routes-reading     (Dev 2) — reading state, annotations, topics/:id/full
-//   - routes-flashcards  (Dev 3) — flashcard CRUD + /due
-//   - routes-reviews     (Dev 3) — POST /reviews, GET /bkt, GET /fsrs
-//   - routes-sessions    (Dev 3) — study sessions CRUD
+//   - auth.tsx             (Dev 6) — signup, signin, me, signout
+//   - ai-routes.tsx        (Dev 6) — generate, approve, chat, keyword-popup
+//   - routes-content.tsx   (Dev 1) — CRUD for all content entities (~47 routes)
+//   - routes-reading.tsx   (Dev 2) — reading state, annotations, topics/:id/full
+//   - routes-flashcards.tsx(Dev 3) — flashcard CRUD + /due (6 routes)
+//   - routes-reviews.tsx   (Dev 3→4) — POST /reviews, GET /bkt, GET /fsrs
+//   - routes-sessions.tsx  (Dev 3→5) — session CRUD (4 routes)
 //
 // CONSERVED: gemini.tsx (imported by ai-routes), seed.tsx
 // ============================================================
@@ -93,6 +93,17 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
         "routes-reviews",
         "routes-sessions",
       ],
+      flashcard_routes: [
+        "POST /flashcards", "GET /flashcards", "GET /flashcards/due",
+        "GET /flashcards/:id", "PUT /flashcards/:id", "DELETE /flashcards/:id",
+      ],
+      review_routes: [
+        "POST /reviews", "GET /bkt", "GET /fsrs",
+      ],
+      session_routes: [
+        "POST /sessions", "GET /sessions",
+        "GET /sessions/:id", "PUT /sessions/:id/end",
+      ],
       content_routes: [
         "POST /courses", "GET /courses", "GET /courses/:id", "PUT /courses/:id", "DELETE /courses/:id",
         "POST /semesters", "GET /semesters", "GET /semesters/:id", "PUT /semesters/:id", "DELETE /semesters/:id",
@@ -105,16 +116,6 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
         "POST /keywords", "GET /keywords", "GET /keywords/:id", "PUT /keywords/:id", "DELETE /keywords/:id",
         "POST /connections", "GET /connections", "GET /connections/:id", "DELETE /connections/:id",
         "PUT /content/batch-status",
-      ],
-      flashcard_routes: [
-        "POST /flashcards", "GET /flashcards", "GET /flashcards/due",
-        "GET /flashcards/:id", "PUT /flashcards/:id", "DELETE /flashcards/:id",
-      ],
-      review_routes: [
-        "POST /reviews", "GET /bkt/:subtopicId", "GET /fsrs/:cardId",
-      ],
-      session_routes: [
-        "POST /sessions", "GET /sessions", "GET /sessions/:id", "PUT /sessions/:id/end",
       ],
     },
   });
@@ -132,13 +133,13 @@ app.route(PREFIX, contentRoutes);
 // Mount reading/annotation routes (Dev 2 — 7 routes)
 app.route(PREFIX, readingRoutes);
 
-// Mount flashcard routes (Dev 3 — 6 routes: FC CRUD + /due)
+// Mount flashcard CRUD routes (Dev 3 — 6 routes)
 app.route(PREFIX, flashcardRoutes);
 
-// Mount review routes (Dev 3 → Dev 4 — 3 routes: reviews, BKT, FSRS)
+// Mount review cascade + learning state routes (Dev 3→4 — 3 routes)
 app.route(PREFIX, reviewRoutes);
 
-// Mount session routes (Dev 3 → Dev 5 — 4 routes: sessions CRUD)
+// Mount session management routes (Dev 3→5 — 4 routes)
 app.route(PREFIX, sessionRoutes);
 
 Deno.serve(app.fetch);
