@@ -36,13 +36,14 @@ export function useKeywordChat(keywordId: string) {
       try {
         const result = await api.sendChatMessage(keywordId, content);
         setMessages((prev) => [...prev, result.reply]);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         console.error('[useKeywordChat] Send error:', err);
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            content: `Erro ao enviar mensagem: ${err.message}`,
+            content: `Erro ao enviar mensagem: ${message}`,
             timestamp: new Date().toISOString(),
           },
         ]);
