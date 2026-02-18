@@ -61,7 +61,7 @@ export interface Course {
   id: UUID;
   institution_id: UUID;
   name: string;
-  color: string; // hex color
+  color: string;
   description?: string;
   semester_count?: number;
   created_at: ISODate;
@@ -122,7 +122,7 @@ export interface Keyword {
   institution_id: UUID;
   term: string;
   definition: string;
-  priority: number; // 1-5
+  priority: number;
   synonyms?: string[];
   created_at: ISODate;
   updated_at: ISODate;
@@ -150,7 +150,7 @@ export interface KeywordConnection {
   keyword_a_id: UUID;
   keyword_b_id: UUID;
   relationship_type?: string;
-  strength?: number; // 0-1
+  strength?: number;
   created_at: ISODate;
 }
 
@@ -171,7 +171,6 @@ export interface FlashcardCard {
   updated_at: ISODate;
 }
 
-/** Item returned by GET /flashcards/due — used by the study session UI */
 export interface DueFlashcardItem {
   cardId: UUID;
   front: string;
@@ -217,7 +216,7 @@ export interface SubTopicBktState {
   student_id: UUID;
   subtopic_id: UUID;
   keyword_id: UUID;
-  p_know: number;    // 0-1
+  p_know: number;
   p_slip: number;
   p_guess: number;
   p_transit: number;
@@ -248,7 +247,7 @@ export interface ReviewLog {
   id: UUID;
   session_id: UUID;
   student_id: UUID;
-  item_id: UUID;          // card or quiz ID
+  item_id: UUID;
   instrument_type: InstrumentType;
   grade: FsrsGrade;
   response_time_ms?: number;
@@ -282,7 +281,6 @@ export interface DailyActivity {
 
 // ────────────────── Dev 3-5: REVIEW REQUEST/RESPONSE ──────────────────
 
-/** POST /reviews — body sent by client after grading a card */
 export interface ReviewRequest {
   session_id: UUID;
   item_id: UUID;
@@ -291,7 +289,6 @@ export interface ReviewRequest {
   response_time_ms?: number;
 }
 
-/** POST /reviews — response from server with updated states */
 export interface ReviewResponse {
   review_id: UUID;
   fsrs_update: {
@@ -316,7 +313,7 @@ export interface ReviewResponse {
 export interface SummaryReadingState {
   student_id: UUID;
   summary_id: UUID;
-  scroll_position: number;  // 0-100 percentage
+  scroll_position: number;
   reading_time_seconds: number;
   last_read_at: ISODate;
   completed: boolean;
@@ -376,63 +373,6 @@ export interface StudentStats {
   cards_new: number;
   last_study_date?: DateOnly;
   updated_at: ISODate;
-}
-
-// ────────────────── Dev 6: AI ──────────────────
-
-export interface AIChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: ISODate;
-}
-
-export interface AIChatHistory {
-  student_id: UUID;
-  keyword_id: UUID;
-  messages: AIChatMessage[];
-  last_interaction: ISODate;
-}
-
-export interface AIGenerationResult {
-  summary_id: UUID;
-  generated_flashcards: number;
-  generated_quiz: number;
-  model: string;
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  created_at: ISODate;
-}
-
-// ────────────────── Dev 1/6: 3D MODELS ──────────────────
-
-export interface Model3DAnnotation {
-  id: UUID;
-  label: string;
-  description: string;
-  position: [number, number, number];
-  color: string;
-  keyword_id?: UUID;
-}
-
-export interface Model3DAsset {
-  id: UUID;
-  name: string;
-  description: string;
-  summary_id: UUID;
-  topic_id: UUID;
-  keyword_ids: UUID[];
-  file_path: string;
-  file_size_bytes: number;
-  file_format: 'glb' | 'gltf';
-  thumbnail_path?: string;
-  annotations: Model3DAnnotation[];
-  camera_position: [number, number, number];
-  camera_target: [number, number, number];
-  scale: number;
-  created_by: UUID;
-  created_at: ISODate;
-  updated_at: ISODate;
-  status: 'active' | 'processing' | 'draft';
 }
 
 // ────────────────── API RESPONSE WRAPPERS ──────────────────
