@@ -298,7 +298,7 @@ reviews.post("/reviews", async (c) => {
       review_count: bkt.review_count + 1,
     };
 
-    // ── 7. Create review log (activity.ts contract: _after only) ──
+    // ── 6. Create review log (activity.ts contract: _after only) ──
     // NOTE: Runtime shape includes subtopic_id, keyword_id, bkt_after,
     // stability_after, delta_after which extend beyond the shared-types.ts
     // ReviewLog interface. Architect should update shared-types.ts to match.
@@ -360,44 +360,23 @@ reviews.post("/reviews", async (c) => {
       }
     }
 
-    // ── 9. Update session counters (with ownership check) ───
-    const session = await kv.get(sessionKey(session_id));
-    if (session) {
-      // Security: verify the authenticated user owns this session
-      if (session.student_id !== userId) {
-        return c.json(
-          {
-            success: false,
-            error: {
-              code: "FORBIDDEN",
-              message: "Cannot update another student's session",
-            },
-          },
-          403
-        );
-      }
-      session.items_reviewed = (session.items_reviewed ?? 0) + 1;
-      if (
-        !session.keywords_touched ||
-        !Array.isArray(session.keywords_touched)
-      ) {
-        session.keywords_touched = [];
-      }
-      if (!session.keywords_touched.includes(keyword_id)) {
-        session.keywords_touched.push(keyword_id);
-      }
-      if (
-        !session.subtopics_touched ||
-        !Array.isArray(session.subtopics_touched)
-      ) {
-        session.subtopics_touched = [];
-      }
-      if (!session.subtopics_touched.includes(subtopic_id)) {
-        session.subtopics_touched.push(subtopic_id);
-    // ── 8. Update session counters ─────────────────────
+    // ── 8. Update session counters (with ownership check) ───
     try {
       const session = await kv.get(sessionKey(session_id));
       if (session) {
+        // Security: verify the authenticated user owns this session
+        if (session.student_id !== userId) {
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: "FORBIDDEN",
+                message: "Cannot update another student's session",
+              },
+            },
+            403
+          );
+        }
         session.total_reviews = (session.total_reviews ?? 0) + 1;
         if (correct) {
           session.correct_reviews = (session.correct_reviews ?? 0) + 1;
