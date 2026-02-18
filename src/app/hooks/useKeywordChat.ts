@@ -2,19 +2,23 @@
 // Axon v4.4 — useKeywordChat hook (Capa 2)
 // Manages chat messages for a keyword.
 // Loads history on mount, exposes sendMessage with loading state.
+//
+// Step 6: Now uses useApi() to inject ApiClient into service layer.
 // ══════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
-import * as api from '../services/keywordPopupApi';
+import { useApi } from '../lib/api-provider';
+import * as popupApi from '../services/keywordPopupApi';
 import type { AIChatMessage } from '../services/types';
 
 export function useKeywordChat(keywordId: string) {
+  const { api } = useApi();
   const [messages, setMessages] = useState<AIChatMessage[]>([]);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    api.getChatHistory(keywordId).then((history) => {
+    popupApi.getChatHistory(api, keywordId).then((history) => {
       if (!cancelled && history) {
         setMessages(history.messages);
       }
@@ -22,7 +26,7 @@ export function useKeywordChat(keywordId: string) {
     return () => {
       cancelled = true;
     };
-  }, [keywordId]);
+  }, [api, keywordId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -34,7 +38,7 @@ export function useKeywordChat(keywordId: string) {
       setMessages((prev) => [...prev, userMsg]);
       setSending(true);
       try {
-        const result = await api.sendChatMessage(keywordId, content);
+        const result = await popupApi.sendChatMessage(api, keywordId, content);
         setMessages((prev) => [...prev, result.reply]);
       } catch (err: unknown) {
         console.error('[useKeywordChat] Send error:', err);
@@ -50,7 +54,7 @@ export function useKeywordChat(keywordId: string) {
         setSending(false);
       }
     },
-    [keywordId]
+    [api, keywordId]
   );
 
   return { messages, sendMessage, sending };

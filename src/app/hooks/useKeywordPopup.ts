@@ -1,14 +1,18 @@
 // ══════════════════════════════════════════════════════════════
-// Axon v4.2 — useKeywordPopup hook (Capa 2)
+// Axon v4.4 — useKeywordPopup hook (Capa 2)
 // Loads KeywordPopupData when keywordId changes.
 // Components NEVER call fetch directly — they use this hook.
+//
+// Step 6: Now uses useApi() to inject ApiClient into service layer.
 // ══════════════════════════════════════════════════════════════
 
 import { useState, useEffect } from 'react';
-import * as api from '../services/keywordPopupApi';
+import { useApi } from '../lib/api-provider';
+import * as popupApi from '../services/keywordPopupApi';
 import type { KeywordPopupData } from '../services/types';
 
 export function useKeywordPopup(keywordId: string | null) {
+  const { api } = useApi();
   const [data, setData] = useState<KeywordPopupData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,25 +20,20 @@ export function useKeywordPopup(keywordId: string | null) {
   useEffect(() => {
     if (!keywordId) {
       setData(null);
-      setLoading(false);
-      setError(null);
       return;
     }
 
     let cancelled = false;
-    setData(null); // Clear stale data from previous keyword
     setLoading(true);
     setError(null);
 
-    api
-      .getKeywordPopup(keywordId)
+    popupApi
+      .getKeywordPopup(api, keywordId)
       .then((result) => {
         if (!cancelled) setData(result);
       })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -43,7 +42,7 @@ export function useKeywordPopup(keywordId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [keywordId]);
+  }, [api, keywordId]);
 
   return { data, loading, error };
 }
