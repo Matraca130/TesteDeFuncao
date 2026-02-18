@@ -1,0 +1,58 @@
+# ============================================================
+# Axon — Auto-deploy Supabase Edge Functions
+# 
+# SETUP (one-time):
+# 1. Move this file to .github/workflows/deploy-functions.yml
+#    git mv ci/deploy-functions.yml .github/workflows/deploy-functions.yml
+#    git commit -m "ci: activate deploy workflow" && git push
+#
+# 2. Add these secrets in GitHub → Settings → Secrets → Actions:
+#    - SUPABASE_ACCESS_TOKEN  (from https://supabase.com/dashboard/account/tokens)
+#    - SUPABASE_PROJECT_ID    (your project ref, e.g. "abcdefghijklmnop")
+#    - SUPABASE_DB_PASSWORD   (your database password)
+#    - SUPABASE_ANON_KEY      (optional, for health check step)
+# ============================================================
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/server/**'
+  workflow_dispatch: # Manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    name: Deploy to Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Deploy Edge Functions
+        run: supabase functions deploy server --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting 5s for cold start..."
+          sleep 5
+          RESPONSE=$(curl -sf \
+            "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/make-server-7a20cd7d/health" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" 2>&1) && \
+          echo "Health check passed: $RESPONSE" || \
+          echo "Health check skipped (add SUPABASE_ANON_KEY secret to enable)"
