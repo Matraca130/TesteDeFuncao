@@ -224,14 +224,38 @@ function AdminPanel() {
       return;
     }
     api.setAuthToken(savedToken);
+
+    // Step 1: get user identity from /auth/me
+    // Step 2: immediately probe a JWT-strict endpoint (/courses) to confirm
+    // the token is actually accepted by Supabase — /auth/me may use a softer
+    // validation path when the Edge Function runs with verify_jwt=false.
     api.get<{ user: AuthUser }>('/auth/me')
-      .then((data) => {
-        if (data?.user) {
-          setAuthUser(data.user);
-          console.log('[Auth] Session restored for', data.user.email);
-        } else {
+      .then(async (data) => {
+        if (!data?.user) {
           localStorage.removeItem('axon_token');
           api.setAuthToken(null);
+          return;
+        }
+        // Probe a JWT-strict endpoint to catch tokens that /auth/me accepts
+        // but Supabase rejects (expired tokens, rotate-invalidated tokens, etc.)
+        try {
+          await api.get('/courses', { institution_id: INST_ID, _probe: '1' });
+          // Token is valid for Supabase-protected endpoints → restore session
+          setAuthUser(data.user);
+          console.log('[Auth] Session restored and validated for', data.user.email);
+        } catch (probeErr: any) {
+          const msg = (probeErr?.message || '').toLowerCase();
+          if (msg.startsWith('auth_expired') || msg.includes('invalid jwt') || msg.includes('jwt expired')) {
+            // Token expired/invalid for Supabase → clear session, go to AuthScreen
+            console.log('[Auth] Token accepted by /auth/me but rejected by Supabase — clearing session');
+            localStorage.removeItem('axon_token');
+            api.setAuthToken(null);
+          } else {
+            // Non-auth error (network, 500, etc.) → restore session anyway
+            // safeGet in loadFromBackend acts as secondary safety net
+            console.log('[Auth] JWT probe inconclusive, restoring session anyway:', probeErr?.message);
+            setAuthUser(data.user);
+          }
         }
       })
       .catch((err) => {
