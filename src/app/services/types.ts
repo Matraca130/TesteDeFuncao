@@ -1,11 +1,7 @@
 // ══════════════════════════════════════════════════════════════
-// Axon v4.2 — Shared types for KeywordPopup + 3D navigation
-//
-// Frontend-specific types for the popup vertical.
-// Extends shared-types.ts (backend) with popup-specific fields
-// like model_3d_url, reference_source, DeltaColor 'blue', etc.
-//
-// When shared-types.ts is updated, align these accordingly.
+// Axon v4.4 — Shared types for KeywordPopup + 3D navigation
+// These mirror the backend contract (api-contract sections 13-14)
+// NO duplicating — single source of truth for this vertical
 // ══════════════════════════════════════════════════════════════
 
 export type DeltaColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue';
@@ -50,18 +46,8 @@ export interface SubTopicBktState {
   updated_at: string;
 }
 
-/**
- * Chat message role:
- *   'user'      — student message
- *   'assistant'  — AI reply (used by our popup chat)
- *   'model'      — AI reply (used by aiService.ts / Gemini API)
- *
- * Both 'assistant' and 'model' are valid AI response roles.
- * Our UI checks `role === 'user'` for alignment, so both
- * non-user roles render identically as AI messages.
- */
 export interface AIChatMessage {
-  role: 'user' | 'assistant' | 'model';
+  role: 'user' | 'assistant';
   content: string;
   timestamp: string;
 }

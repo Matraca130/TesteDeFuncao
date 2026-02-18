@@ -40,7 +40,7 @@ async function runSingle(
   if (!bearer) {
     cb.updateResult(id, {
       status: 'fail', httpStatus: 0, ms: 0,
-      detail: 'No bearer token available \u2014 auth step failed',
+      detail: 'No bearer token available — auth step failed',
     });
     return { ok: false, data: null, httpStatus: 0 };
   }
@@ -83,7 +83,7 @@ async function runSingle(
       const mismatches = kvKeys.filter(k => k.mismatch);
       detail = `KV MISSING (get): ${missingKeys.map(k => k.key).join(', ')}`;
       if (mismatches.length > 0) {
-        detail += ` | MISMATCH (mget\u2260get): ${mismatches.map(k => `${k.key}[mget=${k.mget_exists},get=${k.get_exists}]`).join(', ')}`;
+        detail += ` | MISMATCH (mget≠get): ${mismatches.map(k => `${k.key}[mget=${k.mget_exists},get=${k.get_exists}]`).join(', ')}`;
       }
     }
   }
@@ -136,7 +136,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
 
   // KV round-trip: set -> get -> direct query -> table sample
   const rtId = 'Server::KV Roundtrip';
-  cb.addResult({ id: rtId, group: 'Server', name: 'GET /dev/kv-roundtrip (set\u2192get\u2192direct)', method: 'GET', path: '/dev/kv-roundtrip', status: 'running' });
+  cb.addResult({ id: rtId, group: 'Server', name: 'GET /dev/kv-roundtrip (set→get→direct)', method: 'GET', path: '/dev/kv-roundtrip', status: 'running' });
   const rtRes = await apiFetch('GET', '/dev/kv-roundtrip', publicAnonKey);
   const rt = rtRes.data?.data || {};
   const rtDetail = [
@@ -184,7 +184,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
     cb.addResult({
       id: 'Auth::ABORT', group: 'Auth', name: 'ABORT', method: '-', path: '-',
-      status: 'fail', detail: 'Cannot continue \u2014 signup failed',
+      status: 'fail', detail: 'Cannot continue — signup failed',
     });
     return;
   }
@@ -212,7 +212,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
     cb.addResult({
       id: 'Auth::ABORT', group: 'Auth', name: 'ABORT', method: '-', path: '-',
-      status: 'fail', detail: 'Cannot continue \u2014 no valid access_token from browser auth',
+      status: 'fail', detail: 'Cannot continue — no valid access_token from browser auth',
     });
     return;
   }
@@ -288,7 +288,7 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     }
   } else {
     cb.addResult({
-      id: 'KV Verify::SKIP', group: 'KV Verify', name: 'SKIP \u2014 no instId or userId',
+      id: 'KV Verify::SKIP', group: 'KV Verify', name: 'SKIP — no instId or userId',
       method: '-', path: '-', status: 'fail',
       detail: `instId=${instId || 'EMPTY'}, userId=${userId || 'EMPTY'}`,
     });
@@ -475,10 +475,10 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
   cb.setPhase('5/8 AI Routes');
 
   await run('AI', 'GET /ai/drafts', 'GET', '/ai/drafts');
-  await run('AI', 'POST /ai/chat (no msg \u2192 400)', 'POST', '/ai/chat', {}, { expectStatus: [400] });
-  await run('AI', 'POST /ai/generate (no content \u2192 400)', 'POST', '/ai/generate', {}, { expectStatus: [400] });
-  await run('AI', 'POST /ai/approve (no draft \u2192 400)', 'POST', '/ai/generate/approve', {}, { expectStatus: [400] });
-  await run('AI', 'GET /keyword-popup (fake \u2192 404)', 'GET', '/keyword-popup/fake-id', undefined, { expectStatus: [404] });
+  await run('AI', 'POST /ai/chat (no msg → 400)', 'POST', '/ai/chat', {}, { expectStatus: [400] });
+  await run('AI', 'POST /ai/generate (no content → 400)', 'POST', '/ai/generate', {}, { expectStatus: [400] });
+  await run('AI', 'POST /ai/approve (no draft → 400)', 'POST', '/ai/generate/approve', {}, { expectStatus: [400] });
+  await run('AI', 'GET /keyword-popup (fake → 404)', 'GET', '/keyword-popup/fake-id', undefined, { expectStatus: [404] });
 
   if (kwId) {
     await run('AI', 'GET /keyword-popup/:id (real)', 'GET', `/keyword-popup/${kwId}`, undefined, { assertFields: ['keyword'] });

@@ -92,7 +92,7 @@ export const MOCK_SUBTOPIC_STATES_PLEXO: Array<SubTopicBktState | null> = [
     last_review_at: '2026-02-15T14:00:00Z', last_grade: 2,
     created_at: '2026-01-20T10:00:00Z', updated_at: '2026-02-15T14:00:00Z',
   },
-  null, // "Lesoes Clinicas" not yet evaluated
+  null,
 ];
 
 // ── Chat History ───────────────────────────────────────────

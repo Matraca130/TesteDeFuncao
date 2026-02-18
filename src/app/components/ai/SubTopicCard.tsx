@@ -16,7 +16,6 @@ interface SubTopicCardProps {
 
 export function SubTopicCard({ title, description, state }: SubTopicCardProps) {
   if (!state) {
-    // Not evaluated
     return (
       <div className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50">
         <div className="flex-1 min-w-0">
@@ -40,7 +39,6 @@ export function SubTopicCard({ title, description, state }: SubTopicCardProps) {
         </div>
         <span className={`text-xs font-bold ${colors.text} flex-shrink-0 ml-2`}>{pct}%</span>
       </div>
-      {/* Delta progress bar */}
       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
         <div
           className={`h-full ${colors.bar} rounded-full transition-all duration-500`}

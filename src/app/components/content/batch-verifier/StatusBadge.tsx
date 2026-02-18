@@ -72,7 +72,7 @@ export function KvKeyBadges({ keys }: { keys?: KvKeyResult[] }) {
           {k.key.length > 45
             ? k.key.slice(0, 20) + '...' + k.key.slice(-18)
             : k.key}
-          {k.exists ? ' \u2713' : ' \u2717'}
+          {k.exists ? ' ✓' : ' ✗'}
         </span>
       ))}
     </div>

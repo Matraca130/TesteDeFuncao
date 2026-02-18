@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
-// Axon v4.2 — KeywordPopup (Dev 6: AI & Auth)
+// Axon v4.4 — KeywordPopup (Dev 6: AI & Auth)
 //
-// Global overlay — mounted ONCE in AppShell (App.tsx).
+// Global overlay — mounted ONCE in AppShell.
 // Uses hooks (Capa 2) — NEVER calls fetch() directly.
 //
 // Sections:
@@ -17,14 +17,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useKeywordPopup } from '../../hooks/useKeywordPopup';
 import { useKeywordChat } from '../../hooks/useKeywordChat';
-import type { DeltaColor, SubTopicBktState } from '../../services/types';
+import type { DeltaColor, SubTopicBktState, AIChatMessage } from '../../services/types';
 import {
   X, Loader2, BookOpen, HelpCircle, Link2, MessageCircle,
-  Layers, ChevronRight, Box, Send, Bot, User, Info,
+  Layers, ChevronRight, Box, Send, Bot, User, Sparkles, Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── Props ─────────────────────────────────────────────────────────
+// ── Props ───────────────────────────────────────────────────
 
 interface KeywordPopupProps {
   keywordId: string;
@@ -33,7 +33,7 @@ interface KeywordPopupProps {
   onNavigateTo3D?: (modelId: string) => void;
 }
 
-// ── Priority label + color mapping ──────────────────────────────
+// ── Priority label + color mapping ──────────────────────────
 
 function getPriorityLabel(p: number) {
   switch (p) {
@@ -45,7 +45,7 @@ function getPriorityLabel(p: number) {
   }
 }
 
-// ── BKT delta color mapping ─────────────────────────────────────
+// ── BKT delta → color mapping (matches fsrs-engine.ts) ──────
 
 const DELTA_COLORS: Record<DeltaColor, { bg: string; bar: string; text: string }> = {
   red:    { bg: 'bg-red-50',    bar: 'bg-red-500',    text: 'text-red-700' },
@@ -55,7 +55,7 @@ const DELTA_COLORS: Record<DeltaColor, { bg: string; bar: string; text: string }
   blue:   { bg: 'bg-blue-50',   bar: 'bg-blue-500',   text: 'text-blue-700' },
 };
 
-// ── Chat Sub-Component ────────────────────────────────────────
+// ── Chat Sub-Component ──────────────────────────────────────
 
 function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTerm: string }) {
   const { messages, sendMessage, sending } = useKeywordChat(keywordId);
@@ -81,6 +81,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
 
   return (
     <div className="flex flex-col h-full">
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center py-6">
@@ -91,11 +92,26 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
         )}
 
         {messages.map((msg, i) => (
-          <div key={`${msg.timestamp}-${i}`} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-indigo-100 text-indigo-600' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
+          <div
+            key={i}
+            className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+          >
+            <div
+              className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                msg.role === 'user'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+              }`}
+            >
               {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
             </div>
-            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-gray-100 text-gray-800 rounded-bl-md'}`}>
+            <div
+              className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-indigo-600 text-white rounded-br-md'
+                  : 'bg-gray-100 text-gray-800 rounded-bl-md'
+              }`}
+            >
               {msg.content}
             </div>
           </div>
@@ -119,6 +135,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input */}
       <div className="border-t border-gray-100 p-3 flex-shrink-0">
         <div className="flex items-end gap-2">
           <textarea
@@ -144,7 +161,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
   );
 }
 
-// ── Main Component ────────────────────────────────────────────
+// ── Main Component ──────────────────────────────────────────
 
 export function KeywordPopup({
   keywordId,
@@ -155,12 +172,10 @@ export function KeywordPopup({
   const { data, loading, error } = useKeywordPopup(keywordId);
   const [activeTab, setActiveTab] = useState<'info' | 'chat'>('info');
 
-  // Reset tab to 'info' when navigating to a different keyword
   useEffect(() => {
     setActiveTab('info');
   }, [keywordId]);
 
-  // Close on Escape
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -170,7 +185,10 @@ export function KeywordPopup({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      onClick={onClose}
+    >
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -199,13 +217,18 @@ export function KeywordPopup({
                 <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityLabel(data.keyword.priority).cls}`}>
                   {getPriorityLabel(data.keyword.priority).text}
                 </span>
-                {data.keyword.model_3d_url && <Box className="w-4 h-4 text-indigo-400" />}
+                {data.keyword.model_3d_url && (
+                  <Box className="w-4 h-4 text-indigo-400" />
+                )}
               </div>
             ) : (
               <h2 className="text-lg font-bold text-red-600">Erro ao carregar</h2>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition flex-shrink-0"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -214,15 +237,25 @@ export function KeywordPopup({
         <div className="flex border-b border-gray-100 px-5 flex-shrink-0">
           <button
             onClick={() => setActiveTab('info')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${activeTab === 'info' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === 'info'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            <Info className="w-3.5 h-3.5" /> Informacoes
+            <Info className="w-3.5 h-3.5" />
+            Informacoes
           </button>
           <button
             onClick={() => setActiveTab('chat')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${activeTab === 'chat' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
+              activeTab === 'chat'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            <MessageCircle className="w-3.5 h-3.5" /> Chat AI
+            <MessageCircle className="w-3.5 h-3.5" />
+            Chat AI
           </button>
         </div>
 
@@ -251,17 +284,16 @@ export function KeywordPopup({
               {data.subtopics.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5" /> Sub-topicos ({data.subtopics.length})
+                    <Layers className="w-3.5 h-3.5" />
+                    Sub-topicos ({data.subtopics.length})
                   </h3>
                   <div className="space-y-2">
-                    {data.subtopics.map((st) => (
-                      <SubTopicCard
-                        key={st.id}
-                        title={st.title}
-                        description={st.description}
-                        state={data.subtopic_states?.find(s => s?.subtopic_id === st.id) ?? null}
-                      />
-                    ))}
+                    {data.subtopics.map((st, i) => {
+                      const state = data.subtopic_states?.[i];
+                      return (
+                        <SubTopicCard key={st.id} title={st.title} description={st.description} state={state} />
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -270,7 +302,8 @@ export function KeywordPopup({
               {data.related_keywords.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Link2 className="w-3.5 h-3.5" /> Keywords Relacionadas ({data.related_keywords.length})
+                    <Link2 className="w-3.5 h-3.5" />
+                    Keywords Relacionadas ({data.related_keywords.length})
                   </h3>
                   <div className="space-y-2">
                     {data.related_keywords.map((rel, i) => (
@@ -282,8 +315,12 @@ export function KeywordPopup({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-900">{rel.keyword.term}</span>
-                            {rel.connection_label && <span className="text-xs text-gray-400">({rel.connection_label})</span>}
-                            {rel.keyword.model_3d_url && <Box className="w-3 h-3 text-indigo-400" />}
+                            {rel.connection_label && (
+                              <span className="text-xs text-gray-400">({rel.connection_label})</span>
+                            )}
+                            {rel.keyword.model_3d_url && (
+                              <Box className="w-3 h-3 text-indigo-400" />
+                            )}
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{rel.keyword.definition}</p>
                         </div>
@@ -312,17 +349,19 @@ export function KeywordPopup({
                 </div>
               </div>
 
-              {/* Section F: Ver en 3D */}
+              {/* Section F: "Ver en 3D" button */}
               {data.keyword.model_3d_url && onNavigateTo3D && (
                 <button
                   onClick={() => onNavigateTo3D(data.keyword.model_3d_url!)}
                   className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm hover:shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all"
                 >
-                  <Box className="w-5 h-5" /> Ver Modelo 3D
+                  <Box className="w-5 h-5" />
+                  Ver Modelo 3D
                 </button>
               )}
             </div>
           ) : data && activeTab === 'chat' ? (
+            /* Section G: Chat AI */
             <div className="flex-1 min-h-0">
               <ChatSection keywordId={keywordId} keywordTerm={data.keyword.term} />
             </div>
@@ -333,9 +372,13 @@ export function KeywordPopup({
   );
 }
 
-// ── SubTopic Card with BKT delta bar ────────────────────────────
+// ── SubTopic Card with BKT delta bar ────────────────────────
 
-function SubTopicCard({ title, description, state }: {
+function SubTopicCard({
+  title,
+  description,
+  state,
+}: {
   title: string;
   description: string | null;
   state: SubTopicBktState | null;
@@ -353,7 +396,7 @@ function SubTopicCard({ title, description, state }: {
   }
 
   const colors = DELTA_COLORS[state.color];
-  const pct = Math.min(Math.round(state.delta * 100), 100);
+  const pct = Math.round(state.delta * 100);
 
   return (
     <div className={`p-3 rounded-xl border ${colors.bg} border-gray-200`}>
@@ -365,12 +408,17 @@ function SubTopicCard({ title, description, state }: {
         <span className={`text-xs font-bold ${colors.text} flex-shrink-0 ml-2`}>{pct}%</span>
       </div>
       <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-        <div className={`h-full ${colors.bar} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full ${colors.bar} rounded-full transition-all duration-500`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
       </div>
       <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
         <span>{state.exposures} exposicoes</span>
         <span>Sequencia: {state.correct_streak}</span>
-        {state.last_review_at && <span>Ultima: {new Date(state.last_review_at).toLocaleDateString('pt-BR')}</span>}
+        {state.last_review_at && (
+          <span>Ultima: {new Date(state.last_review_at).toLocaleDateString('pt-BR')}</span>
+        )}
       </div>
     </div>
   );
