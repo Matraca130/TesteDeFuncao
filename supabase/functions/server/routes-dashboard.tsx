@@ -79,11 +79,6 @@ import {
 
 const dashboard = new Hono();
 
-// ── Helper: error message extractor ────────────────────────
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // ═══════════════════════════════════════════════════════════
 // NeedScore computation (server-side, D10)
 // Implemented here because fsrs-engine.ts is PROTECTED.
@@ -121,23 +116,13 @@ function getColorFromDelta(delta: number): BktColor {
   return "red";
 }
 
-function getThreshold(priority: number): number {
-  switch (priority) {
-    case 0: return 0.95;
-    case 1: return 0.90;
-    case 2: return 0.80;
-    case 3: return 0.65;
-    default: return 0.80;
-  }
-}
-
 // ── Date helpers ────────────────────────────────────────────
 function todayStr(): string {
   return new Date().toISOString().split("T")[0];
 }
 
 function emptyByColor(): Record<string, number> {
-  return { red: 0, orange: 0, yellow: 0, green: 0, blue: 0 };
+  return { red: 0, orange: 0, yellow: 0, green: 0 };
 }
 
 // ── Hierarchy walk helpers ──────────────────────────────────
@@ -984,21 +969,10 @@ dashboard.delete("/study-plans/:id", async (c) => {
     ];
 
     // For each task, delete primary key + index key
-    // Since index key contains planId:courseId:taskId, we need the full index key.
-    // We can reconstruct it from the task data.
-    if (taskIds.length > 0) {
-      const tasks = await kv.mget(
-        (taskIds as string[]).map((tid: string) => planTaskKey(tid))
-      );
-      for (let i = 0; i < taskIds.length; i++) {
-        const tid = (taskIds as string[])[i];
-        keysToDelete.push(planTaskKey(tid));
-        // We need the courseId from the task or plan to build the index key
-        const courseIdForIdx = plan.course_id || "_";
-        keysToDelete.push(
-          `idx:plan-tasks:${id}:${courseIdForIdx}:${tid}`
-        );
-      }
+    for (const tid of taskIds as string[]) {
+      const courseIdForIdx = plan.course_id || "_";
+      keysToDelete.push(planTaskKey(tid));
+      keysToDelete.push(idxPlanTasks(id, courseIdForIdx, tid));
     }
 
     await kv.mdel(keysToDelete);
@@ -1050,11 +1024,9 @@ dashboard.post("/study-plans/:id/recalculate", async (c) => {
         const task = existingTasks[i];
         if (task && task.status !== "completed") {
           const tid = (existingTaskIds as string[])[i];
-          keysToDelete.push(planTaskKey(tid));
           const courseIdForIdx = plan.course_id || "_";
-          keysToDelete.push(
-            `idx:plan-tasks:${planId}:${courseIdForIdx}:${tid}`
-          );
+          keysToDelete.push(planTaskKey(tid));
+          keysToDelete.push(idxPlanTasks(planId, courseIdForIdx, tid));
         }
       }
     }
@@ -1183,9 +1155,7 @@ dashboard.post("/study-plans/:id/recalculate", async (c) => {
 
         newKeys.push(planTaskKey(taskId));
         newValues.push(task);
-        newKeys.push(
-          `idx:plan-tasks:${planId}:${courseIdForIdx}:${taskId}`
-        );
+        newKeys.push(idxPlanTasks(planId, courseIdForIdx, taskId));
         newValues.push(taskId);
 
         kwIdx++;
@@ -1401,24 +1371,26 @@ dashboard.post("/sessions/:id/finalize-stats", async (c) => {
     stats.updated_at = new Date().toISOString();
 
     // ── 3. Compute streak ────────────────────────────────
-    // Check if yesterday had activity
-    const yesterday = new Date();
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split("T")[0];
-    const yesterdayActivity = await kv.get(dailyKey(userId, yesterdayStr));
+    // Only update streak on the FIRST session of the day (D2 fix).
+    // daily.sessions_count was already incremented above, so
+    // sessions_count === 1 means this is the first finalize today.
+    if (daily.sessions_count === 1) {
+      const yesterday = new Date();
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      const yesterdayActivity = await kv.get(dailyKey(userId, yesterdayStr));
 
-    if (yesterdayActivity && yesterdayActivity.sessions_count > 0) {
-      // Continuing streak
-      stats.current_streak = (stats.current_streak || 0) + 1;
-    } else if (!yesterdayActivity) {
-      // Check if this is the first session today (streak=1)
-      if (daily.sessions_count <= 1) {
+      if (yesterdayActivity && yesterdayActivity.sessions_count > 0) {
+        // Continuing streak from yesterday
+        stats.current_streak = (stats.current_streak || 0) + 1;
+      } else {
+        // No activity yesterday — streak resets to 1
         stats.current_streak = 1;
       }
-    }
 
-    if (stats.current_streak > (stats.longest_streak || 0)) {
-      stats.longest_streak = stats.current_streak;
+      if (stats.current_streak > (stats.longest_streak || 0)) {
+        stats.longest_streak = stats.current_streak;
+      }
     }
 
     // ── 4. Count card states from BKT/FSRS ────────────────
