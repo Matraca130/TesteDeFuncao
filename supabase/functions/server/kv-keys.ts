@@ -59,6 +59,10 @@ export const annotationKey = (id: string) => `annotation:${id}`;
 // Dev 1/6: 3D Models
 export const model3dKey    = (id: string) => `model3d:${id}`;
 
+// Section 7: Canvas Blocks & Curriculum
+export const resumoBlocksKey = (courseId: string, topicId: string) => `resumo-blocks:${courseId}:${topicId}`;
+export const curriculumKey   = (courseId: string) => `curriculum:${courseId}`;
+
 // ────────────────── INDEX KEYS ──────────────────
 
 // Dev 6: Auth indices
@@ -114,6 +118,9 @@ export const idxSummaryModel3d = (summaryId: string, modelId: string) => `idx:su
 export const idxTopicModel3d   = (topicId: string, modelId: string) => `idx:topic-model3d:${topicId}:${modelId}`;
 export const idxKwModel3d      = (kwId: string, modelId: string) => `idx:kw-model3d:${kwId}:${modelId}`;
 
+// Section 7: Canvas Blocks index
+export const idxCourseResumoBlocks = (courseId: string, topicId: string) => `idx:course-resumo-blocks:${courseId}:${topicId}`;
+
 // ────────────────── PREFIX CONSTANTS (for getByPrefix queries) ──────────────────
 
 export const KV_PREFIXES = {
@@ -128,6 +135,8 @@ export const KV_PREFIXES = {
   CHAT: "chat:", AI_DRAFT: "ai-draft:",
   READING: "reading:", ANNOTATION: "annotation:",
   MODEL3D: "model3d:",
+  RESUMO_BLOCKS: "resumo-blocks:",
+  CURRICULUM: "curriculum:",
   // Index
   IDX_INST_MEMBERS: "idx:inst-members:",
   IDX_USER_INSTS: "idx:user-insts:",
@@ -162,4 +171,5 @@ export const KV_PREFIXES = {
   IDX_SUMMARY_MODEL3D: "idx:summary-model3d:",
   IDX_TOPIC_MODEL3D: "idx:topic-model3d:",
   IDX_KW_MODEL3D: "idx:kw-model3d:",
+  IDX_COURSE_RESUMO_BLOCKS: "idx:course-resumo-blocks:",
 } as const;

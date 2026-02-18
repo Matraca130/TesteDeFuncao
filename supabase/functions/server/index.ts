@@ -1,13 +1,14 @@
 // ============================================================
-// Axon v4.3 — Server Entry Point (COMPLETE)
-// Mounts ALL 9 route modules + inline seed endpoint.
+// Axon v4.4 — Server Entry Point (COMPLETE)
+// Mounts ALL 11 route modules + inline seed endpoint.
 // Prefix: /make-server-7a20cd7d
 //
-// Route modules (84+ endpoints total):
+// Route modules (89 endpoints total):
 //   auth         — signup, signin, me, signout (4)
 //   content      — institutions, courses, semesters, sections,
 //                   topics, summaries, chunks, keywords,
 //                   subtopics, connections, batch-status (~35)
+//   canvas       — resumo-blocks CRUD, curriculum CRUD (5)
 //   dashboard    — stats, daily-activity, progress, smart-study,
 //                   study-plans, finalize-stats (16)
 //   flashcards   — CRUD + /due (6)
@@ -26,6 +27,7 @@ import * as kv from "./kv_store.tsx";
 // Route modules
 import auth from "./auth.tsx";
 import content from "./routes-content.tsx";
+import canvas from "./routes-canvas.tsx";
 import dashboard from "./routes-dashboard.tsx";
 import flashcards from "./routes-flashcards.tsx";
 import quiz from "./routes-quiz.tsx";
@@ -59,9 +61,9 @@ app.use(
 app.get(`${PREFIX}/health`, (c) => {
   return c.json({
     status: "ok",
-    version: "4.3",
+    version: "4.4",
     routes: [
-      "auth", "content", "dashboard", "flashcards",
+      "auth", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
       "model3d", "ai", "seed",
     ],
@@ -71,6 +73,7 @@ app.get(`${PREFIX}/health`, (c) => {
 // ── Mount all route modules ──────────────────────────────────
 app.route(PREFIX, auth);
 app.route(PREFIX, content);
+app.route(PREFIX, canvas);
 app.route(PREFIX, dashboard);
 app.route(PREFIX, flashcards);
 app.route(PREFIX, quiz);

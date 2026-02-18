@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// AXON — Shared Type Definitions (Contract v2)
+// AXON — Shared Type Definitions (Contract v2.1)
 // This file is the SINGLE SOURCE OF TRUTH for all entity types.
 // All devs import from here. DO NOT duplicate types.
 // Generated: 2026-02-18
@@ -433,6 +433,73 @@ export interface Model3DAsset {
   created_at: ISODate;
   updated_at: ISODate;
   status: 'active' | 'processing' | 'draft';
+}
+
+// ────────────────── Section 7: CANVAS BLOCKS ──────────────────
+
+export type BlockType = 'heading' | 'subheading' | 'text' | 'image'
+                      | 'callout' | 'divider' | 'list' | 'quote';
+
+export interface CanvasBlockMeta {
+  align?: 'left' | 'center' | 'right';
+  calloutColor?: 'yellow' | 'blue' | 'green' | 'pink' | 'teal';
+  imageCaption?: string;
+  imageWidth?: number;        // 25-100 (percentage)
+  imageFit?: 'cover' | 'contain';
+  imageAspectRatio?: string;  // auto|16/9|4/3|1/1|3/4|9/16
+  imageMaxHeight?: number;
+  listStyle?: 'bullet' | 'numbered';
+  columnGroup?: string;       // group ID for multi-column
+  columnWidth?: number;       // percentage
+  columnSlot?: number;        // 0, 1, 2 (max 3 columns)
+}
+
+export interface CanvasBlock {
+  id: UUID;
+  type: BlockType;
+  content: string;
+  meta?: CanvasBlockMeta;
+}
+
+/** Stored at resumo-blocks:{courseId}:{topicId} */
+export interface ResumoBlocksDocument {
+  course_id: UUID;
+  topic_id: UUID;
+  blocks: CanvasBlock[];
+  block_count: number;
+  updated_at: ISODate;
+  updated_by: UUID;
+}
+
+// ────────────────── Section 7: CURRICULUM ──────────────────
+
+export interface EditableTopic {
+  id: UUID;
+  name: string;
+  order_index: number;
+}
+
+export interface EditableSection {
+  id: UUID;
+  name: string;
+  order_index: number;
+  topics: EditableTopic[];
+}
+
+export interface EditableSemester {
+  id: UUID;
+  name: string;
+  order_index: number;
+  sections: EditableSection[];
+}
+
+/** Stored at curriculum:{courseId} */
+export interface CurriculumDocument {
+  course_id: UUID;
+  semesters: EditableSemester[];
+  semester_count: number;
+  updated_at: ISODate;
+  updated_by: UUID;
 }
 
 // ────────────────── API RESPONSE WRAPPERS ──────────────────
