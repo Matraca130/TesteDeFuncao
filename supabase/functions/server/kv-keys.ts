@@ -1,11 +1,11 @@
-// ═══════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
 // AXON — Canonical KV Key Generation Functions
 // SINGLE SOURCE OF TRUTH for all key patterns.
 // Every route file imports from here. DO NOT hardcode keys.
 // Generated: 2026-02-18
 //
 // IMPORTANT: "quiz:{id}" is the CORRECT format (not "quiz-q:{id}")
-// ═══════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════
 
 // ────────────────── PRIMARY KEYS ──────────────────
 
