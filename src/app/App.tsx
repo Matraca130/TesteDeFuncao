@@ -245,42 +245,13 @@ function AdminPanel() {
   // ── Auth handlers ──
   const handleSignIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     // Use publicPost to avoid sending a stale/expired authToken — signin doesn't need user JWT
-    try {
-      const data = await api.publicPost<any, { user: AuthUser; access_token: string }>('/auth/signin', { email, password });
-      if (!data?.access_token) throw new Error('No access token returned');
-      localStorage.setItem('axon_token', data.access_token);
-      api.setAuthToken(data.access_token);
-      return data;
-    } catch (signinErr: any) {
-      const msg = (signinErr?.message || '').toLowerCase();
-      // If credentials are invalid, auto-attempt signup (account may not exist yet)
-      if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
-        try {
-          console.log('[Auth] Signin failed with invalid credentials — attempting auto-signup for', email);
-          const derivedName = email.split('@')[0]
-            .replace(/[._-]/g, ' ')
-            .replace(/\b\w/g, (c: string) => c.toUpperCase());
-          const signupData = await api.publicPost<any, { user: AuthUser; access_token: string }>(
-            '/auth/signup', { email, password, name: derivedName }
-          );
-          if (!signupData?.access_token) throw new Error('Auto-signup succeeded but no access token returned');
-          localStorage.setItem('axon_token', signupData.access_token);
-          api.setAuthToken(signupData.access_token);
-          console.log('[Auth] Auto-signup successful for', email);
-          return signupData;
-        } catch (signupErr: any) {
-          const signupMsg = (signupErr?.message || '').toLowerCase();
-          // Account exists but password was wrong → clear error
-          if (signupMsg.includes('already') || signupMsg.includes('registered')) {
-            throw new Error('Conta encontrada, mas a senha esta incorreta. Verifique e tente novamente.');
-          }
-          // Other signup error → surface it
-          throw signupErr;
-        }
-      }
-      // Non-credential error → propagate as-is
-      throw signinErr;
-    }
+    const data = await api.publicPost<any, { user: AuthUser; access_token: string }>('/auth/signin', { email, password });
+    if (!data?.access_token) throw new Error('No access token returned');
+    localStorage.setItem('axon_token', data.access_token);
+    api.setAuthToken(data.access_token);
+    return data;
+    // Errors propagate to AuthScreen which translates them via translateAuthError()
+    // and shows noAccountHint banner with a link to create an account
   }, [api]);
 
   const handleSignUp = useCallback(async (email: string, password: string, name: string): Promise<AuthResult> => {
