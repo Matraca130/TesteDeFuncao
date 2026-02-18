@@ -39,7 +39,6 @@ import {
   quizKey,
   idxSummaryQuiz,
   idxKwQuiz,
-  idxStudentQuiz,
   KV_PREFIXES,
 } from "./kv-keys.ts";
 
@@ -54,11 +53,6 @@ import {
 } from "./crud-factory.tsx";
 
 const quiz = new Hono();
-
-// ── Helper: error message extractor ────────────────────────
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 // Valid quiz types for validation
 const VALID_QUIZ_TYPES = ["mcq", "true_false", "fill_blank", "open"];
@@ -132,9 +126,12 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
     switch (question.quiz_type) {
       case "mcq": {
         // student_answer is the option label (e.g. "A", "B", "C", "D")
+        // Case-insensitive comparison (Bug 6 fix)
         const options = (question.options ?? []) as QuizOption[];
         const correctOpt = options.find((o) => o.is_correct);
-        correct = String(student_answer).trim() === correctOpt?.label;
+        correct =
+          String(student_answer).toLowerCase().trim() ===
+          (correctOpt?.label ?? "").toLowerCase().trim();
         correctAnswer = correctOpt
           ? `${correctOpt.label}: ${correctOpt.text}`
           : "";
