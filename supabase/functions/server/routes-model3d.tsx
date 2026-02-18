@@ -275,11 +275,13 @@ model3d.post("/models3d/:id/upload", async (c) => {
     const buffer = new Uint8Array(await file.arrayBuffer());
 
     // Upload to Supabase Storage (private bucket)
+    // Use correct MIME type based on file format
     const supabase = getSupabaseAdmin();
+    const defaultMime = model.file_format === "gltf" ? "model/gltf+json" : "model/gltf-binary";
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(model.file_path, buffer, {
-        contentType: file.type || "model/gltf-binary",
+        contentType: file.type || defaultMime,
         upsert: true, // allows re-upload over existing file
       });
 
