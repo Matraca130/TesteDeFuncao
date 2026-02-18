@@ -14,4 +14,4 @@ port = 54322
 
 [functions.server]
 verify_jwt = false
-entrypoint = "./supabase/functions/server/index.ts"
+entrypoint = "./functions/server/index.ts"
