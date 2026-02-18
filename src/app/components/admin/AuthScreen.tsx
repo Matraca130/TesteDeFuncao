@@ -34,11 +34,33 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(externalError ?? null);
   const [alreadyRegisteredHint, setAlreadyRegisteredHint] = useState(false);
+  const [noAccountHint, setNoAccountHint] = useState(false);
+
+  // Translate common Supabase auth error messages to Portuguese
+  function translateAuthError(msg: string): string {
+    const lower = msg.toLowerCase();
+    if (lower.includes('invalid login credentials') || lower.includes('invalid credentials'))
+      return 'Email ou senha incorretos.';
+    if (lower.includes('email not confirmed'))
+      return 'Email ainda nao confirmado. Verifique sua caixa de entrada.';
+    if (lower.includes('too many requests') || lower.includes('rate limit'))
+      return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+    if (lower.includes('user not found'))
+      return 'Nenhuma conta encontrada com este email.';
+    if (lower.includes('password') && lower.includes('short'))
+      return 'A senha deve ter pelo menos 6 caracteres.';
+    if (lower.includes('network error'))
+      return 'Erro de rede. Verifique sua conexao e tente novamente.';
+    if (lower.includes('auth_expired') || lower.includes('jwt expired'))
+      return 'Sessao expirada. Faca login novamente.';
+    return msg;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setAlreadyRegisteredHint(false);
+    setNoAccountHint(false);
     setLoading(true);
 
     try {
@@ -62,8 +84,13 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
         setError(null);
         setMode('signin');
         // Keep email & password so user just clicks "Entrar"
+      } else if (mode === 'signin' && (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid credentials'))) {
+        // Credentials don't match — show friendly message with signup hint
+        setNoAccountHint(true);
+        setError('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
       } else {
-        setError(msg);
+        // Translate other Supabase error messages
+        setError(translateAuthError(msg));
       }
     } finally {
       setLoading(false);
@@ -74,6 +101,7 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setError(null);
     setAlreadyRegisteredHint(false);
+    setNoAccountHint(false);
   };
 
   return (
@@ -123,6 +151,30 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
             >
               <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-500" />
               <span>Este email ja esta registrado. Mudamos para login — clique <strong>Entrar</strong> com sua senha.</span>
+            </motion.div>
+          )}
+
+          {noAccountHint && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="flex items-start gap-2 p-3 mb-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800"
+            >
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-blue-500" />
+              <span>
+                Nao encontramos essa conta. Verifique o email e a senha, ou{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('signup');
+                    setError(null);
+                    setNoAccountHint(false);
+                  }}
+                  className="font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-2"
+                >
+                  crie uma conta nova
+                </button>.
+              </span>
             </motion.div>
           )}
 
