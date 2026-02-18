@@ -70,7 +70,7 @@ app.get(`${PREFIX}/diag/kv-test`, async (c) => {
         get_value: readBack,
         cleaned: true,
         prefix: PREFIX,
-        table: "kv_store_8cb6316a",
+        table: "kv_store_0c4f6a3c",
       },
     });
   } catch (err: any) {

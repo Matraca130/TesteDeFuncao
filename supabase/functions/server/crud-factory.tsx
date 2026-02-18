@@ -7,7 +7,7 @@ import { Hono } from "npm:hono";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import * as kv from "./kv_store.tsx";
 
-// ── Auth helper ────────────────────────────────────────────
+// ── Auth helper ─────────────────────────────────────────────
 export async function getAuthUser(c: any) {
   const token = c.req.header("Authorization")?.split(" ")[1];
   if (!token) return null;
@@ -31,7 +31,7 @@ export async function getAuthUser(c: any) {
   }
 }
 
-// ── Response helpers ──────────────────────────────────────
+// ── Response helpers ────────────────────────────────────────
 export function unauthorized(c: any) {
   return c.json(
     { success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
@@ -61,7 +61,7 @@ export function serverError(c: any, ctx: string, err: any) {
   );
 }
 
-// ── KV child-fetch helper ──────────────────────────────────
+// ── KV child-fetch helper ────────────────────────────────────
 export async function getChildren(
   prefix: string,
   primaryKeyFn: (id: string) => string
@@ -72,7 +72,32 @@ export async function getChildren(
   return items.filter(Boolean);
 }
 
-// ── Cascade key collector ─────────────────────────────────
+// ── Order-preserving mget ────────────────────────────────────
+/**
+ * Returns results aligned 1:1 with input keys, with null for
+ * any missing keys.
+ *
+ * IMPORTANT: kv.mget() uses Supabase `.in("key", keys)` which
+ * does NOT guarantee result ordering and silently omits rows
+ * for keys that don't exist. This causes data-integrity bugs
+ * when callers access results by positional index (e.g.,
+ * `cards[i]` paired with `states[i]`).
+ *
+ * This wrapper uses parallel individual kv.get() calls to
+ * guarantee:
+ *   1. Results are in the SAME order as input keys
+ *   2. Missing keys return null (not omitted)
+ *
+ * Use this instead of kv.mget() whenever you access results
+ * by index. For `.filter(Boolean)` usage where order doesn't
+ * matter, kv.mget() is fine and more efficient.
+ */
+export async function mgetOrdered(keys: string[]): Promise<(any | null)[]> {
+  if (keys.length === 0) return [];
+  return Promise.all(keys.map((k) => kv.get(k)));
+}
+
+// ── Cascade key collector ───────────────────────────────────
 export interface CascadeLevel {
   childPrefix: (parentId: string) => string;
   childPrimaryKey: (childId: string) => string;
@@ -99,7 +124,7 @@ export async function cascadeCollect(
   return keys;
 }
 
-// ── Entity configuration ──────────────────────────────────
+// ── Entity configuration ────────────────────────────────────
 export interface EntityConfig {
   route: string;
   label: string;
