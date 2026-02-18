@@ -1,40 +1,27 @@
 // ============================================================
 // Axon v4.2 — Server Entry Point
-// ============================================================
-// Modular Hono router. Each vertical owns a route file:
-//   - auth.tsx             (Dev 6) — signup, signin, me, signout
-//   - ai-routes.tsx        (Dev 6) — generate, approve, chat, keyword-popup
-//   - routes-content.tsx   (Dev 1) — CRUD for all content entities (~47 routes)
-//   - routes-reading.tsx   (Dev 2) — reading state, annotations, topics/:id/full
-//   - routes-flashcards.tsx(Dev 3) — flashcard CRUD + /due (6 routes)
-//   - routes-quiz.tsx      (Dev 4) — quiz CRUD + evaluate (6 routes)
-//   - routes-reviews.tsx   (Dev 3→4) — POST /reviews, GET /bkt, GET /fsrs
-//   - routes-sessions.tsx  (Dev 3→5) — session CRUD (4 routes)
-//   - routes-dashboard.tsx (Dev 5) — progress, smart study, plans, stats (16 routes)
-//
-// CONSERVED: gemini.tsx (imported by ai-routes), seed.tsx
+// Mounts: flashcards, reviews, sessions routes + seed endpoint
+// Prefix: /make-server-7a20cd7d
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
-import authRoutes from "./auth.tsx";
-import aiRoutes from "./ai-routes.tsx";
-import contentRoutes from "./routes-content.tsx";
-import readingRoutes from "./routes-reading.tsx";
-import flashcardRoutes from "./routes-flashcards.tsx";
-import quizRoutes from "./routes-quiz.tsx";
-import reviewRoutes from "./routes-reviews.tsx";
-import sessionRoutes from "./routes-sessions.tsx";
-import dashboardRoutes from "./routes-dashboard.tsx";
+
+// Route modules
+import flashcards from "./routes-flashcards.tsx";
+import reviews from "./routes-reviews.tsx";
+import sessions from "./routes-sessions.tsx";
+
+// KV key functions (for seed)
+import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
+import { createNewCard } from "./fsrs-engine.ts";
 
 const app = new Hono();
-const PREFIX = "/make-server-0c4f6a3c";
+const PREFIX = "/make-server-7a20cd7d";
 
-// Enable logger
 app.use("*", logger(console.log));
 
-// Enable CORS for all routes and methods
 app.use(
   "/*",
   cors({
@@ -43,135 +30,65 @@ app.use(
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
-  })
+  }),
 );
 
-// Health check endpoint
 app.get(`${PREFIX}/health`, (c) => {
-  return c.json({ status: "ok", version: "4.2", timestamp: new Date().toISOString() });
+  return c.json({ status: "ok", routes: ["flashcards", "reviews", "sessions", "seed"] });
 });
 
-// ── KV Diagnostic endpoint ──────────────────────────────────────────
-// Tests kv.set → kv.get → kv.del roundtrip to verify persistence
-app.get(`${PREFIX}/diag/kv-test`, async (c) => {
-  const testKey = `_diag:kv-test:${Date.now()}`;
-  const testVal = { test: true, ts: new Date().toISOString() };
+app.route(PREFIX, flashcards);
+app.route(PREFIX, reviews);
+app.route(PREFIX, sessions);
+
+app.post(`${PREFIX}/seed`, async (c) => {
   try {
-    await kv.set(testKey, testVal);
-    const readBack = await kv.get(testKey);
-    await kv.del(testKey);
-    const found = readBack !== null && readBack?.test === true;
-    console.log(`[Diag] kv-test: set=${true}, get_found=${found}, cleaned=true`);
-    return c.json({
-      success: true,
-      data: {
-        set_ok: true,
-        get_found: found,
-        get_value: readBack,
-        cleaned: true,
-        prefix: PREFIX,
-        table: "kv_store_0c4f6a3c",
-      },
-    });
+    const studentId = c.req.query("student_id") || "dev-user-001";
+    const now = new Date().toISOString();
+    const today = now.split("T")[0];
+    const SEED_CARDS = [
+      { id: "fc-001", summary_id: "sum-fisio-001", keyword_id: "kw-sna", subtopic_id: "st-simpatico", institution_id: "inst-faculdade-xyz", front: "Qual neurotransmissor e liberado nas terminacoes pos-ganglionares do sistema nervoso simpatico?", back: "Noradrenalina (norepinefrina). A excecao sao as glandulas sudoriparas ecrinas, que usam acetilcolina.", image_url: "https://images.unsplash.com/photo-1768726455785-8c1b4a153f47?w=1080", status: "approved", source: "professor", created_by: "prof-001", created_at: now },
+      { id: "fc-002", summary_id: "sum-fisio-001", keyword_id: "kw-sna", subtopic_id: "st-parasimpatico", institution_id: "inst-faculdade-xyz", front: "Quais sao os efeitos do sistema parassimpatico sobre o coracao?", back: "Bradicardia, diminuicao da velocidade de conducao no nodo AV. Via nervo vago (X par craniano), acetilcolina nos receptores muscarinicos M2.", image_url: null, status: "approved", source: "professor", created_by: "prof-001", created_at: now },
+      { id: "fc-003", summary_id: "sum-bioquim-001", keyword_id: "kw-hemoglobina", subtopic_id: "kw-hemoglobina", institution_id: "inst-faculdade-xyz", front: "O que e o efeito Bohr e qual sua importancia clinica?", back: "Diminuicao da afinidade da hemoglobina pelo O2 quando o pH diminui. Nos tecidos metabolicamente ativos, a Hb libera mais O2.", image_url: "https://images.unsplash.com/photo-1647083701139-3930542304cf?w=1080", status: "approved", source: "professor", created_by: "prof-002", created_at: now },
+      { id: "fc-004", summary_id: "sum-nefro-001", keyword_id: "kw-renal", subtopic_id: "st-filtracao", institution_id: "inst-faculdade-xyz", front: "Qual e a taxa de filtracao glomerular (TFG) normal?", back: "TFG normal: ~120 mL/min ou ~180 L/dia. Estimada pela clearance de creatinina ou CKD-EPI.", image_url: "https://images.unsplash.com/photo-1715111966027-9e24fc956b5d?w=1080", status: "approved", source: "ai", created_by: "ai-gen-001", created_at: now },
+      { id: "fc-005", summary_id: "sum-farma-001", keyword_id: "kw-farma", subtopic_id: "st-aines", institution_id: "inst-faculdade-xyz", front: "Qual o mecanismo de acao dos AINEs?", back: "AINEs inibem a ciclooxigenase (COX-1/COX-2), reduzindo prostaglandinas. Efeitos adversos: gastropatia, nefrotoxicidade.", image_url: null, status: "approved", source: "professor", created_by: "prof-003", created_at: now },
+      { id: "fc-006", summary_id: "sum-cardio-001", keyword_id: "kw-cardio", subtopic_id: "st-ecg", institution_id: "inst-faculdade-xyz", front: "O que representa o intervalo QT no ECG?", back: "Despolarizacao e repolarizacao ventricular completa. QTc > 450ms (homens) ou > 470ms (mulheres) e prolongado.", image_url: "https://images.unsplash.com/photo-1513224502586-d1e602410265?w=1080", status: "approved", source: "professor", created_by: "prof-001", created_at: now },
+      { id: "fc-007", summary_id: "sum-imuno-001", keyword_id: "kw-imuno", subtopic_id: "st-anticorpos", institution_id: "inst-faculdade-xyz", front: "Qual a diferenca entre IgM e IgG?", back: "IgM: resposta primaria, pentamerico. IgG: resposta secundaria, cruza placenta, mais abundante no soro.", image_url: null, status: "approved", source: "ai", created_by: "ai-gen-001", created_at: now },
+      { id: "fc-008", summary_id: "sum-neuro-001", keyword_id: "kw-neuro", subtopic_id: "st-barreira", institution_id: "inst-faculdade-xyz", front: "Quais sao as caracteristicas da barreira hematoencefalica?", back: "Celulas endoteliais com tight junctions, membrana basal espessa, pericitos/astrocitos. Permite passagem de substancias lipossoluveis.", image_url: null, status: "approved", source: "professor", created_by: "prof-002", created_at: now },
+    ];
+    const kwKeys: string[] = [];
+    const kwVals: any[] = [];
+    const seenKw = new Set<string>();
+    for (const card of SEED_CARDS) {
+      if (!seenKw.has(card.keyword_id)) {
+        seenKw.add(card.keyword_id);
+        kwKeys.push(kwKey(card.keyword_id));
+        kwVals.push({ id: card.keyword_id, term: card.keyword_id, priority: 3 });
+      }
+    }
+    await kv.mset(kwKeys, kwVals);
+    const keys: string[] = [];
+    const vals: any[] = [];
+    for (const card of SEED_CARDS) {
+      keys.push(fcKey(card.id));
+      vals.push(card);
+      keys.push(idxKwFc(card.keyword_id, card.id));
+      vals.push(card.id);
+      const fsrsState = { ...createNewCard(), student_id: studentId, card_id: card.id };
+      keys.push(fsrsKey(studentId, card.id));
+      vals.push(fsrsState);
+      keys.push(idxStudentFsrs(studentId, card.id));
+      vals.push(card.id);
+      keys.push(idxDue(studentId, card.id, today));
+      vals.push(card.id);
+    }
+    await kv.mset(keys, vals);
+    console.log(`[Seed] Seeded ${SEED_CARDS.length} flashcards for student ${studentId}`);
+    return c.json({ success: true, data: { cards_created: SEED_CARDS.length, student_id: studentId, keywords_created: seenKw.size } });
   } catch (err: any) {
-    console.log(`[Diag] kv-test FAILED: ${err?.message ?? err}`);
-    return c.json({
-      success: false,
-      error: { message: `KV test failed: ${err?.message ?? err}` },
-    }, 500);
+    console.log(`[Seed] Error:`, err?.message ?? err);
+    return c.json({ success: false, error: { message: `Seed failed: ${err?.message ?? err}` } }, 500);
   }
 });
-
-// ── Route list diagnostic ──────────────────────────────────────────
-app.get(`${PREFIX}/diag/routes`, (c) => {
-  return c.json({
-    success: true,
-    data: {
-      prefix: PREFIX,
-      modules: [
-        "auth",
-        "ai-routes",
-        "routes-content",
-        "routes-reading",
-        "routes-flashcards",
-        "routes-quiz",
-        "routes-reviews",
-        "routes-sessions",
-        "routes-dashboard",
-      ],
-      flashcard_routes: [
-        "POST /flashcards", "GET /flashcards", "GET /flashcards/due",
-        "GET /flashcards/:id", "PUT /flashcards/:id", "DELETE /flashcards/:id",
-      ],
-      quiz_routes: [
-        "POST /quiz-questions/evaluate",
-        "POST /quiz-questions", "GET /quiz-questions",
-        "GET /quiz-questions/:id", "PUT /quiz-questions/:id", "DELETE /quiz-questions/:id",
-      ],
-      review_routes: [
-        "POST /reviews", "GET /bkt", "GET /fsrs",
-      ],
-      session_routes: [
-        "POST /sessions", "GET /sessions",
-        "GET /sessions/:id", "PUT /sessions/:id/end",
-      ],
-      dashboard_routes: [
-        "GET /stats",
-        "GET /daily-activity", "GET /daily-activity/:date",
-        "GET /progress/keyword/:keywordId",
-        "GET /progress/topic/:topicId",
-        "GET /progress/course/:courseId",
-        "POST /smart-study/generate",
-        "POST /study-plans", "GET /study-plans",
-        "GET /study-plans/:id", "PUT /study-plans/:id",
-        "DELETE /study-plans/:id",
-        "POST /study-plans/:id/recalculate",
-        "GET /study-plans/:id/tasks",
-        "PUT /study-plan-tasks/:id/complete",
-        "POST /sessions/:id/finalize-stats",
-      ],
-      content_routes: [
-        "POST /courses", "GET /courses", "GET /courses/:id", "PUT /courses/:id", "DELETE /courses/:id",
-        "POST /semesters", "GET /semesters", "GET /semesters/:id", "PUT /semesters/:id", "DELETE /semesters/:id",
-        "POST /sections", "GET /sections", "GET /sections/:id", "PUT /sections/:id", "DELETE /sections/:id",
-        "POST /topics", "GET /topics", "GET /topics/:id", "PUT /topics/:id", "DELETE /topics/:id",
-        "POST /subtopics", "GET /subtopics", "GET /subtopics/:id", "PUT /subtopics/:id", "DELETE /subtopics/:id",
-        "POST /institutions", "GET /institutions/:id", "GET /institutions/:id/members", "POST /institutions/:id/members", "DELETE /institutions/:id/members/:userId",
-        "POST /summaries", "GET /summaries", "GET /summaries/:id", "PUT /summaries/:id", "DELETE /summaries/:id",
-        "GET /summaries/:id/chunks", "POST /summaries/:id/chunk",
-        "POST /keywords", "GET /keywords", "GET /keywords/:id", "PUT /keywords/:id", "DELETE /keywords/:id",
-        "POST /connections", "GET /connections", "GET /connections/:id", "DELETE /connections/:id",
-        "PUT /content/batch-status",
-      ],
-    },
-  });
-});
-
-// Mount auth routes (Dev 6)
-app.route(PREFIX, authRoutes);
-
-// Mount AI routes (Dev 6)
-app.route(PREFIX, aiRoutes);
-
-// Mount content management routes (Dev 1 — ~47 routes)
-app.route(PREFIX, contentRoutes);
-
-// Mount reading/annotation routes (Dev 2 — 7 routes)
-app.route(PREFIX, readingRoutes);
-
-// Mount flashcard CRUD routes (Dev 3 — 6 routes)
-app.route(PREFIX, flashcardRoutes);
-
-// Mount quiz CRUD + evaluate routes (Dev 4 — 6 routes)
-app.route(PREFIX, quizRoutes);
-
-// Mount review cascade + learning state routes (Dev 3→4 — 3 routes)
-app.route(PREFIX, reviewRoutes);
-
-// Mount session management routes (Dev 3→5 — 4 routes)
-app.route(PREFIX, sessionRoutes);
-
-// Mount dashboard, progress, smart study & plans routes (Dev 5 — 16 routes)
-app.route(PREFIX, dashboardRoutes);
 
 Deno.serve(app.fetch);
