@@ -10,6 +10,7 @@
 //   - routes-quiz.tsx      (Dev 4) — quiz CRUD + evaluate (6 routes)
 //   - routes-reviews.tsx   (Dev 3→4) — POST /reviews, GET /bkt, GET /fsrs
 //   - routes-sessions.tsx  (Dev 3→5) — session CRUD (4 routes)
+//   - routes-dashboard.tsx (Dev 5) — progress, smart study, plans, stats (16 routes)
 //
 // CONSERVED: gemini.tsx (imported by ai-routes), seed.tsx
 // ============================================================
@@ -25,6 +26,7 @@ import flashcardRoutes from "./routes-flashcards.tsx";
 import quizRoutes from "./routes-quiz.tsx";
 import reviewRoutes from "./routes-reviews.tsx";
 import sessionRoutes from "./routes-sessions.tsx";
+import dashboardRoutes from "./routes-dashboard.tsx";
 
 const app = new Hono();
 const PREFIX = "/make-server-0c4f6a3c";
@@ -95,6 +97,7 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
         "routes-quiz",
         "routes-reviews",
         "routes-sessions",
+        "routes-dashboard",
       ],
       flashcard_routes: [
         "POST /flashcards", "GET /flashcards", "GET /flashcards/due",
@@ -111,6 +114,21 @@ app.get(`${PREFIX}/diag/routes`, (c) => {
       session_routes: [
         "POST /sessions", "GET /sessions",
         "GET /sessions/:id", "PUT /sessions/:id/end",
+      ],
+      dashboard_routes: [
+        "GET /stats",
+        "GET /daily-activity", "GET /daily-activity/:date",
+        "GET /progress/keyword/:keywordId",
+        "GET /progress/topic/:topicId",
+        "GET /progress/course/:courseId",
+        "POST /smart-study/generate",
+        "POST /study-plans", "GET /study-plans",
+        "GET /study-plans/:id", "PUT /study-plans/:id",
+        "DELETE /study-plans/:id",
+        "POST /study-plans/:id/recalculate",
+        "GET /study-plans/:id/tasks",
+        "PUT /study-plan-tasks/:id/complete",
+        "POST /sessions/:id/finalize-stats",
       ],
       content_routes: [
         "POST /courses", "GET /courses", "GET /courses/:id", "PUT /courses/:id", "DELETE /courses/:id",
@@ -152,5 +170,8 @@ app.route(PREFIX, reviewRoutes);
 
 // Mount session management routes (Dev 3→5 — 4 routes)
 app.route(PREFIX, sessionRoutes);
+
+// Mount dashboard, progress, smart study & plans routes (Dev 5 — 16 routes)
+app.route(PREFIX, dashboardRoutes);
 
 Deno.serve(app.fetch);
