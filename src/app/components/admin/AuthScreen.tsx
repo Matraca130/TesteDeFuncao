@@ -33,10 +33,12 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(externalError ?? null);
+  const [alreadyRegisteredHint, setAlreadyRegisteredHint] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAlreadyRegisteredHint(false);
     setLoading(true);
 
     try {
@@ -53,7 +55,16 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
       }
       onAuthenticated(result);
     } catch (err: any) {
-      setError(err?.message || 'Erro de autenticacao');
+      const msg: string = err?.message || 'Erro de autenticacao';
+      // Detect "already registered" and auto-switch to signin
+      if (mode === 'signup' && (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('ja registrado') || msg.toLowerCase().includes('already been registered'))) {
+        setAlreadyRegisteredHint(true);
+        setError(null);
+        setMode('signin');
+        // Keep email & password so user just clicks "Entrar"
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -62,6 +73,7 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
   const switchMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setError(null);
+    setAlreadyRegisteredHint(false);
   };
 
   return (
@@ -100,6 +112,17 @@ export function AuthScreen({ onAuthenticated, onSignIn, onSignUp, error: externa
             >
               <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500" />
               <span>{error}</span>
+            </motion.div>
+          )}
+
+          {alreadyRegisteredHint && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="flex items-start gap-2 p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800"
+            >
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-500" />
+              <span>Este email ja esta registrado. Mudamos para login — clique <strong>Entrar</strong> com sua senha.</span>
             </motion.div>
           )}
 
