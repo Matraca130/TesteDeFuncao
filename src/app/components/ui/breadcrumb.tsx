@@ -1,14 +1,16 @@
+"use client";
+
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 
 import { cn } from "./utils";
 
-function Breadcrumb({ ...props }: React.ComponentProps<"nav">) {
+export function Breadcrumb({ ...props }: React.ComponentProps<"nav">) {
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />;
 }
 
-function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
+export function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   return (
     <ol
       data-slot="breadcrumb-list"
@@ -21,7 +23,7 @@ function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
   );
 }
 
-function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
+export function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   return (
     <li
       data-slot="breadcrumb-item"
@@ -31,7 +33,7 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
   );
 }
 
-function BreadcrumbLink({
+export function BreadcrumbLink({
   asChild,
   className,
   ...props
@@ -49,7 +51,7 @@ function BreadcrumbLink({
   );
 }
 
-function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
+export function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="breadcrumb-page"
@@ -62,7 +64,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
   );
 }
 
-function BreadcrumbSeparator({
+export function BreadcrumbSeparator({
   children,
   className,
   ...props
@@ -80,7 +82,7 @@ function BreadcrumbSeparator({
   );
 }
 
-function BreadcrumbEllipsis({
+export function BreadcrumbEllipsis({
   className,
   ...props
 }: React.ComponentProps<"span">) {
@@ -97,13 +99,3 @@ function BreadcrumbEllipsis({
     </span>
   );
 }
-
-export {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-  BreadcrumbEllipsis,
-};

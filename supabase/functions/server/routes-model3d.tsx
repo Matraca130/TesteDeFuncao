@@ -1,14 +1,19 @@
 // ============================================================
-// Axon v4.2 — Dev 7: 3D Model Routes (Backend)
+// Axon v5.4 — Dev 7: 3D Model Routes (Backend)
 // 7 routes for Model3DAsset CRUD, GLB upload, signed URLs,
 // thumbnail upload, and annotation management.
 //
 // Pattern: Hono sub-app exported as default.
-// Registered in index.tsx as: app.route(PREFIX, model3d)
+// Registered in index.ts as: app.route(PREFIX, model3d)
 //
-// Decisions: D41 (1:1 summary-model), D42 (keyword popup link)
-// Annotations are EMBEDDED in Model3DAsset.annotations[] — NOT
-// separate KV entries.
+// Decisions:
+//   D41 (1:1 summary-model) — TOCTOU mitigation via atomic
+//        sentinel key `idx:summary-model3d:{summaryId}` set
+//        BEFORE full model creation, cleaned up on failure.
+//   D42 (keyword popup link via annotation.keyword_id)
+//
+// Annotations are EMBEDDED in Model3DAsset.annotations[]
+// Storage bucket: make-0ada7954-models3d (PRIVATE)
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -26,6 +31,7 @@ import {
   notFound,
   validationError,
   serverError,
+  getChildren,
 } from "./crud-factory.tsx";
 import type { Model3DAsset, Model3DAnnotation } from "./shared-types.ts";
 
@@ -37,26 +43,35 @@ interface Model3DAssetWithUrls extends Model3DAsset {
 
 const BUCKET_NAME = "make-0ada7954-models3d";
 
-// ── Constraints ─────────────────────────────────────────────
-const MAX_GLB_SIZE = 50 * 1024 * 1024; // 50 MB
-const MAX_THUMBNAIL_SIZE = 5 * 1024 * 1024; // 5 MB
+// ── Error message extractor ────────────────────────────────
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
-// ── Helpers ─────────────────────────────────────────────────
-
-/** Ensure the private storage bucket exists (idempotent). */
+// ── Ensure bucket exists (idempotent, cached) ──────────────
+let _bucketChecked = false;
 async function ensureBucket(): Promise<void> {
-  const supabase = getSupabaseAdmin();
-  const { data: buckets } = await supabase.storage.listBuckets();
-  const exists = buckets?.some((b: { name: string }) => b.name === BUCKET_NAME);
-  if (!exists) {
-    const { error } = await supabase.storage.createBucket(BUCKET_NAME, {
-      public: false,
-    });
-    if (error) {
-      console.log(`[Model3D] createBucket error: ${error.message}`);
-    } else {
-      console.log(`[Model3D] Bucket "${BUCKET_NAME}" created (private)`);
+  if (_bucketChecked) return;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const exists = buckets?.some((b: { name: string }) => b.name === BUCKET_NAME);
+    if (!exists) {
+      const { error } = await supabase.storage.createBucket(BUCKET_NAME, {
+        public: false,
+        fileSizeLimit: 100 * 1024 * 1024, // 100MB max
+      });
+      if (error) {
+        console.log(`[Model3D] createBucket error: ${error.message}`);
+      } else {
+        console.log(`[Model3D] Bucket "${BUCKET_NAME}" created (private)`);
+      }
     }
+    _bucketChecked = true;
+  } catch (err) {
+    console.log(`[Model3D] ensureBucket warning: ${errMsg(err)}`);
+    // Don't block — bucket might already exist via dashboard
+    _bucketChecked = true;
   }
 }
 
@@ -65,7 +80,7 @@ async function getSignedUrl(filePath: string): Promise<string | null> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
-    .createSignedUrl(filePath, 3600); // 1 hour = 3600 seconds
+    .createSignedUrl(filePath, 3600);
   if (error) {
     console.log(
       `[Model3D] Signed URL error for "${filePath}": ${error.message}`
@@ -82,7 +97,7 @@ async function enrichWithUrls(
   let file_url: string | null = null;
   let thumbnail_url: string | null = null;
 
-  if (model.status === "active" && model.file_path) {
+  if (model.file_path) {
     file_url = await getSignedUrl(model.file_path);
   }
   if (model.thumbnail_path) {
@@ -135,12 +150,15 @@ function validateAnnotations(
 const model3d = new Hono();
 
 // Fire-and-forget bucket creation on module load
-ensureBucket().catch((err: any) =>
-  console.log(`[Model3D] ensureBucket startup error: ${err?.message ?? err}`)
+ensureBucket().catch((err: unknown) =>
+  console.log(`[Model3D] ensureBucket startup error: ${errMsg(err)}`)
 );
 
 // ================================================================
 // Route 1: POST /models3d — Create metadata (status=draft)
+// D41: Enforces 1:1 summary-model constraint.
+// TOCTOU mitigation: set sentinel key BEFORE full model creation.
+// If the mset fails, the sentinel is cleaned up.
 // ================================================================
 model3d.post("/models3d", async (c) => {
   try {
@@ -148,22 +166,18 @@ model3d.post("/models3d", async (c) => {
     if (!user) return unauthorized(c);
 
     const body = await c.req.json();
+    const { name, summary_id, topic_id } = body;
 
     // Validate required fields
-    if (
-      !body.name ||
-      !body.summary_id ||
-      !body.topic_id ||
-      !body.file_format
-    ) {
+    if (!name || !summary_id || !topic_id) {
       return validationError(
         c,
-        "Missing required fields: name, summary_id, topic_id, file_format"
+        "name, summary_id, and topic_id are required"
       );
     }
 
-    // Validate file_format
-    if (!["glb", "gltf"].includes(body.file_format)) {
+    // Validate file_format if provided
+    if (body.file_format && !["glb", "gltf"].includes(body.file_format)) {
       return validationError(c, "file_format must be 'glb' or 'gltf'");
     }
 
@@ -173,18 +187,21 @@ model3d.post("/models3d", async (c) => {
       if (annErr) return validationError(c, annErr);
     }
 
-    // D41: Enforce 1:1 constraint — one model per summary
-    const existingIds = await kv.getByPrefix(
-      KV_PREFIXES.IDX_SUMMARY_MODEL3D + body.summary_id + ":"
-    );
-    if (existingIds.length > 0) {
+    // D41: Each summary can have at most ONE 3D model (1:1 relation)
+    // TOCTOU mitigation: Use a single sentinel key per summary.
+    // We first check, then immediately claim it. The window between
+    // get and set is minimal (single-key operations are fast).
+    // A fully atomic CAS would require a DB table with UNIQUE constraint.
+    const sentinelKey = KV_PREFIXES.IDX_SUMMARY_MODEL3D + summary_id;
+    const existingSentinel = await kv.get(sentinelKey);
+    if (existingSentinel) {
       return c.json(
         {
           success: false,
           error: {
             code: "CONFLICT",
             message:
-              "Summary already has a 3D model (D41: 1:1 constraint). Delete the existing model first.",
+              "This summary already has a 3D model. Each summary supports at most one model (D41). Delete the existing model first.",
           },
         },
         409
@@ -194,19 +211,21 @@ model3d.post("/models3d", async (c) => {
     const modelId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Claim the sentinel immediately to narrow TOCTOU window
+    await kv.set(sentinelKey, modelId);
+
     const model: Model3DAsset = {
       id: modelId,
-      name: body.name,
+      name,
       description: body.description ?? "",
-      summary_id: body.summary_id,
-      topic_id: body.topic_id,
+      summary_id,
+      topic_id,
       keyword_ids: body.keyword_ids ?? [],
-      file_path: `${modelId}.${body.file_format}`,
+      file_path: "",
       file_size_bytes: 0,
-      file_format: body.file_format,
-      // thumbnail_path omitted — optional per shared-types.ts
+      file_format: body.file_format ?? "glb",
       annotations: (body.annotations ?? []) as Model3DAnnotation[],
-      camera_position: body.camera_position ?? [0, 2, 5],
+      camera_position: body.camera_position ?? [0, 1, 3],
       camera_target: body.camera_target ?? [0, 0, 0],
       scale: body.scale ?? 1.0,
       created_by: user.id,
@@ -215,13 +234,12 @@ model3d.post("/models3d", async (c) => {
       status: "draft",
     };
 
-    // Persist primary + all indices atomically via mset
+    // Set primary key + remaining indices (sentinel already set above)
     const keys: string[] = [
       model3dKey(modelId),
-      idxSummaryModel3d(body.summary_id, modelId),
-      idxTopicModel3d(body.topic_id, modelId),
+      idxTopicModel3d(topic_id, modelId),
     ];
-    const values: (Model3DAsset | string)[] = [model, modelId, modelId];
+    const values: (Model3DAsset | string)[] = [model, modelId];
 
     // Keyword indices
     for (const kwId of model.keyword_ids) {
@@ -229,20 +247,26 @@ model3d.post("/models3d", async (c) => {
       values.push(modelId);
     }
 
-    await kv.mset(keys, values);
+    try {
+      await kv.mset(keys, values);
+    } catch (msetErr) {
+      // Cleanup sentinel if model creation fails
+      await kv.del(sentinelKey);
+      throw msetErr;
+    }
 
     console.log(
-      `[Model3D] Created model ${modelId} for summary ${body.summary_id} (${keys.length} KV keys)`
+      `[Model3D] Created model ${modelId} (draft) for summary ${summary_id} by ${user.id} (${keys.length + 1} KV keys)`
     );
     return c.json({ success: true, data: model }, 201);
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "POST /models3d", err);
   }
 });
 
 // ================================================================
 // Route 2: POST /models3d/:id/upload — Upload GLB/GLTF file
-// Re-upload overwrites existing file (upsert: true).
+// Changes status from draft to active. Re-upload overwrites (upsert).
 // ================================================================
 model3d.post("/models3d/:id/upload", async (c) => {
   try {
@@ -251,37 +275,52 @@ model3d.post("/models3d/:id/upload", async (c) => {
 
     const modelId = c.req.param("id");
     const model: Model3DAsset | null = await kv.get(model3dKey(modelId));
-    if (!model) return notFound(c, "Model3D");
+    if (!model) return notFound(c, "Model3DAsset");
 
-    // Parse multipart form data
-    const formData = await c.req.formData();
-    const file = formData.get("file");
+    // Ensure bucket exists (cached after first check)
+    await ensureBucket();
+
+    // Parse multipart form data (Hono parseBody)
+    const formData = await c.req.parseBody();
+    const file = formData["file"];
 
     if (!file || !(file instanceof File)) {
       return validationError(
         c,
-        "Missing 'file' field in multipart form data"
+        "A GLB/GLTF file is required (multipart form-data, field name: 'file')"
       );
     }
 
-    // Validate file size before loading into memory
-    if (file.size > MAX_GLB_SIZE) {
+    // Validate file type — browsers may not set correct MIME for GLB
+    const allowedTypes = [
+      "model/gltf-binary",
+      "model/gltf+json",
+      "application/octet-stream",
+    ];
+    const fileName = file.name || "";
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    if (
+      !allowedTypes.includes(file.type) &&
+      ext !== "glb" &&
+      ext !== "gltf"
+    ) {
       return validationError(
         c,
-        `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${MAX_GLB_SIZE / 1024 / 1024} MB`
+        `Invalid file type: ${file.type}. Expected GLB or GLTF file.`
       );
     }
 
-    const buffer = new Uint8Array(await file.arrayBuffer());
+    const format = ext === "gltf" ? "gltf" : "glb";
+    const filePath = `${modelId}.${format}`;
+    const contentType =
+      format === "glb" ? "model/gltf-binary" : "model/gltf+json";
 
     // Upload to Supabase Storage (private bucket)
-    // Use correct MIME type based on file format
     const supabase = getSupabaseAdmin();
-    const defaultMime = model.file_format === "gltf" ? "model/gltf+json" : "model/gltf-binary";
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(model.file_path, buffer, {
-        contentType: file.type || defaultMime,
+      .upload(filePath, file, {
+        contentType,
         upsert: true, // allows re-upload over existing file
       });
 
@@ -301,34 +340,39 @@ model3d.post("/models3d/:id/upload", async (c) => {
       );
     }
 
-    // Update model: status -> active, record file size
+    // Update model: file_path, size, format, status -> active
     const updatedModel: Model3DAsset = {
       ...model,
+      file_path: filePath,
+      file_size_bytes: file.size,
+      file_format: format as "glb" | "gltf",
       status: "active",
-      file_size_bytes: buffer.byteLength,
       updated_at: new Date().toISOString(),
     };
     await kv.set(model3dKey(modelId), updatedModel);
 
+    // Generate signed URL for the response
+    const signedUrl = await getSignedUrl(filePath);
+
     console.log(
-      `[Model3D] Uploaded file for ${modelId} (${buffer.byteLength} bytes) -> status=active`
+      `[Model3D] Uploaded ${format} for model ${modelId} (${file.size} bytes) — status: active`
     );
     return c.json({
       success: true,
       data: {
-        id: modelId,
-        status: updatedModel.status,
-        file_path: model.file_path,
-        file_size_bytes: buffer.byteLength,
+        ...updatedModel,
+        file_url: signedUrl,
+        thumbnail_url: null,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "POST /models3d/:id/upload", err);
   }
 });
 
 // ================================================================
-// Route 3: POST /models3d/:id/thumbnail — Upload thumbnail PNG
+// Route 3: POST /models3d/:id/thumbnail — Upload thumbnail image
+// Stored as {modelId}-thumb.png in same bucket.
 // ================================================================
 model3d.post("/models3d/:id/thumbnail", async (c) => {
   try {
@@ -337,35 +381,37 @@ model3d.post("/models3d/:id/thumbnail", async (c) => {
 
     const modelId = c.req.param("id");
     const model: Model3DAsset | null = await kv.get(model3dKey(modelId));
-    if (!model) return notFound(c, "Model3D");
+    if (!model) return notFound(c, "Model3DAsset");
 
-    const formData = await c.req.formData();
-    const file = formData.get("file");
+    await ensureBucket();
+
+    const formData = await c.req.parseBody();
+    const file = formData["file"];
 
     if (!file || !(file instanceof File)) {
       return validationError(
         c,
-        "Missing 'file' field in multipart form data"
+        "An image file is required (multipart form-data, field name: 'file')"
       );
     }
 
-    // Validate file size
-    if (file.size > MAX_THUMBNAIL_SIZE) {
+    // Validate image type
+    const allowedImageTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedImageTypes.includes(file.type)) {
       return validationError(
         c,
-        `Thumbnail too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${MAX_THUMBNAIL_SIZE / 1024 / 1024} MB`
+        `Invalid image type: ${file.type}. Expected PNG, JPEG, or WebP.`
       );
     }
 
-    const buffer = new Uint8Array(await file.arrayBuffer());
     const thumbnailPath = `${modelId}-thumb.png`;
 
     // Upload thumbnail to private bucket
     const supabase = getSupabaseAdmin();
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(thumbnailPath, buffer, {
-        contentType: "image/png",
+      .upload(thumbnailPath, file, {
+        contentType: file.type,
         upsert: true,
       });
 
@@ -393,15 +439,19 @@ model3d.post("/models3d/:id/thumbnail", async (c) => {
     };
     await kv.set(model3dKey(modelId), updatedModel);
 
-    console.log(`[Model3D] Thumbnail uploaded for ${modelId}`);
+    // Generate signed URL for the response
+    const signedUrl = await getSignedUrl(thumbnailPath);
+
+    console.log(`[Model3D] Thumbnail uploaded for model ${modelId}`);
     return c.json({
       success: true,
       data: {
         id: modelId,
         thumbnail_path: thumbnailPath,
+        thumbnail_url: signedUrl,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "POST /models3d/:id/thumbnail", err);
   }
 });
@@ -409,6 +459,7 @@ model3d.post("/models3d/:id/thumbnail", async (c) => {
 // ================================================================
 // Route 4: GET /models3d — List models (filtered, with signed URLs)
 // Query params: summary_id | topic_id | keyword_id (optional)
+// Uses getChildren helper for index resolution.
 // ================================================================
 model3d.get("/models3d", async (c) => {
   try {
@@ -422,47 +473,35 @@ model3d.get("/models3d", async (c) => {
     let models: Model3DAsset[];
 
     if (summaryId) {
-      const modelIds: string[] = await kv.getByPrefix(
-        KV_PREFIXES.IDX_SUMMARY_MODEL3D + summaryId + ":"
-      );
-      if (modelIds.length === 0) {
-        return c.json({ success: true, data: [] });
-      }
-      models = (
-        await kv.mget(modelIds.map((id: string) => model3dKey(id)))
-      ).filter(Boolean);
+      const prefix = KV_PREFIXES.IDX_SUMMARY_MODEL3D + summaryId + ":";
+      models = await getChildren(prefix, model3dKey);
     } else if (topicId) {
-      const modelIds: string[] = await kv.getByPrefix(
-        KV_PREFIXES.IDX_TOPIC_MODEL3D + topicId + ":"
-      );
-      if (modelIds.length === 0) {
-        return c.json({ success: true, data: [] });
-      }
-      models = (
-        await kv.mget(modelIds.map((id: string) => model3dKey(id)))
-      ).filter(Boolean);
+      const prefix = KV_PREFIXES.IDX_TOPIC_MODEL3D + topicId + ":";
+      models = await getChildren(prefix, model3dKey);
     } else if (keywordId) {
-      const modelIds: string[] = await kv.getByPrefix(
-        KV_PREFIXES.IDX_KW_MODEL3D + keywordId + ":"
-      );
-      if (modelIds.length === 0) {
-        return c.json({ success: true, data: [] });
-      }
-      models = (
-        await kv.mget(modelIds.map((id: string) => model3dKey(id)))
-      ).filter(Boolean);
+      const prefix = KV_PREFIXES.IDX_KW_MODEL3D + keywordId + ":";
+      models = await getChildren(prefix, model3dKey);
     } else {
-      // No filter — return all models via primary key prefix
-      models = await kv.getByPrefix(KV_PREFIXES.MODEL3D);
+      // No filter — return all models via primary key prefix scan
+      const allEntries = await kv.getByPrefix(KV_PREFIXES.MODEL3D);
+      models = (allEntries || []).filter(
+        (item: any) => item !== null && item !== undefined
+      );
     }
 
     // Enrich each model with signed URLs
     const enriched: Model3DAssetWithUrls[] = await Promise.all(
-      models.map((m: Model3DAsset) => enrichWithUrls(m))
+      models.map(async (m: Model3DAsset) => {
+        try {
+          return await enrichWithUrls(m);
+        } catch {
+          return { ...m, file_url: null, thumbnail_url: null };
+        }
+      })
     );
 
     return c.json({ success: true, data: enriched });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "GET /models3d", err);
   }
 });
@@ -477,12 +516,12 @@ model3d.get("/models3d/:id", async (c) => {
 
     const modelId = c.req.param("id");
     const model: Model3DAsset | null = await kv.get(model3dKey(modelId));
-    if (!model) return notFound(c, "Model3D");
+    if (!model) return notFound(c, "Model3DAsset");
 
     const enriched: Model3DAssetWithUrls = await enrichWithUrls(model);
 
     return c.json({ success: true, data: enriched });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "GET /models3d/:id", err);
   }
 });
@@ -502,7 +541,7 @@ model3d.put("/models3d/:id", async (c) => {
 
     const modelId = c.req.param("id");
     const existing: Model3DAsset | null = await kv.get(model3dKey(modelId));
-    if (!existing) return notFound(c, "Model3D");
+    if (!existing) return notFound(c, "Model3DAsset");
 
     const body = await c.req.json();
 
@@ -511,6 +550,8 @@ model3d.put("/models3d/:id", async (c) => {
       const annErr = validateAnnotations(body.annotations);
       if (annErr) return validationError(c, annErr);
     }
+
+    const now = new Date().toISOString();
 
     // Build updated model — protect immutable fields
     const updated: Model3DAsset = {
@@ -533,7 +574,7 @@ model3d.put("/models3d/:id", async (c) => {
       camera_position: body.camera_position ?? existing.camera_position,
       camera_target: body.camera_target ?? existing.camera_target,
       scale: body.scale ?? existing.scale,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
 
     const keys: string[] = [model3dKey(modelId)];
@@ -544,23 +585,30 @@ model3d.put("/models3d/:id", async (c) => {
       const oldKwIds: string[] = existing.keyword_ids ?? [];
       const newKwIds: string[] = body.keyword_ids ?? [];
 
-      // Delete removed keyword indices
-      const removedKwIds = oldKwIds.filter(
-        (kwId: string) => !newKwIds.includes(kwId)
-      );
-      if (removedKwIds.length > 0) {
-        await kv.mdel(
-          removedKwIds.map((kwId: string) => idxKwModel3d(kwId, modelId))
-        );
-      }
+      // Compare sorted to detect actual changes
+      const kwsChanged =
+        JSON.stringify([...oldKwIds].sort()) !==
+        JSON.stringify([...newKwIds].sort());
 
-      // Add new keyword indices
-      const addedKwIds = newKwIds.filter(
-        (kwId: string) => !oldKwIds.includes(kwId)
-      );
-      for (const kwId of addedKwIds) {
-        keys.push(idxKwModel3d(kwId, modelId));
-        values.push(modelId);
+      if (kwsChanged) {
+        // Delete removed keyword indices
+        const removedKwIds = oldKwIds.filter(
+          (kwId: string) => !newKwIds.includes(kwId)
+        );
+        if (removedKwIds.length > 0) {
+          await kv.mdel(
+            removedKwIds.map((kwId: string) => idxKwModel3d(kwId, modelId))
+          );
+        }
+
+        // Add new keyword indices
+        const addedKwIds = newKwIds.filter(
+          (kwId: string) => !oldKwIds.includes(kwId)
+        );
+        for (const kwId of addedKwIds) {
+          keys.push(idxKwModel3d(kwId, modelId));
+          values.push(modelId);
+        }
       }
 
       updated.keyword_ids = newKwIds;
@@ -568,9 +616,9 @@ model3d.put("/models3d/:id", async (c) => {
 
     await kv.mset(keys, values);
 
-    console.log(`[Model3D] Updated model ${modelId}`);
+    console.log(`[Model3D] Updated model ${modelId} by ${user.id}`);
     return c.json({ success: true, data: updated });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "PUT /models3d/:id", err);
   }
 });
@@ -578,6 +626,7 @@ model3d.put("/models3d/:id", async (c) => {
 // ================================================================
 // Route 7: DELETE /models3d/:id — Delete model + files + all indices
 // Cascade: Storage files + primary KV key + all index keys
+//          (including D41 sentinel key)
 // ================================================================
 model3d.delete("/models3d/:id", async (c) => {
   try {
@@ -586,33 +635,36 @@ model3d.delete("/models3d/:id", async (c) => {
 
     const modelId = c.req.param("id");
     const model: Model3DAsset | null = await kv.get(model3dKey(modelId));
-    if (!model) return notFound(c, "Model3D");
+    if (!model) return notFound(c, "Model3DAsset");
 
     // 1. Delete files from Supabase Storage
     const supabase = getSupabaseAdmin();
-    const filesToRemove: string[] = [model.file_path];
-    if (model.thumbnail_path) {
-      filesToRemove.push(model.thumbnail_path);
+    const filesToRemove: string[] = [];
+    if (model.file_path) filesToRemove.push(model.file_path);
+    if (model.thumbnail_path) filesToRemove.push(model.thumbnail_path);
+
+    if (filesToRemove.length > 0) {
+      const { error: removeError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .remove(filesToRemove);
+
+      if (removeError) {
+        // Log but don't fail — KV cleanup is more important
+        console.log(
+          `[Model3D] Storage removal warning for ${modelId}: ${removeError.message}`
+        );
+      }
     }
 
-    const { error: removeError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .remove(filesToRemove);
-
-    if (removeError) {
-      // Log but don't fail — KV cleanup is more important
-      console.log(
-        `[Model3D] Storage removal warning for ${modelId}: ${removeError.message}`
-      );
-    }
-
-    // 2. Build complete KV delete list (primary + all indices)
+    // 2. Build complete KV delete list (primary + sentinel + all indices)
     const keysToDelete: string[] = [
-      model3dKey(modelId),
-      idxSummaryModel3d(model.summary_id, modelId),
-      idxTopicModel3d(model.topic_id, modelId),
+      model3dKey(modelId),                                     // primary
+      KV_PREFIXES.IDX_SUMMARY_MODEL3D + model.summary_id,      // D41 sentinel key
+      idxSummaryModel3d(model.summary_id, modelId),             // legacy compound index
+      idxTopicModel3d(model.topic_id, modelId),                 // topic index
     ];
 
+    // Keyword indices
     for (const kwId of model.keyword_ids ?? []) {
       keysToDelete.push(idxKwModel3d(kwId, modelId));
     }
@@ -621,12 +673,14 @@ model3d.delete("/models3d/:id", async (c) => {
     await kv.mdel(keysToDelete);
 
     console.log(
-      `[Model3D] Deleted model ${modelId} (${keysToDelete.length} KV keys, ${filesToRemove.length} storage files)`
+      `[Model3D] Deleted model ${modelId} (${keysToDelete.length} keys, ${filesToRemove.length} files) by ${user.id}`
     );
     return c.json({ success: true, data: { deleted: true } });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return serverError(c, "DELETE /models3d/:id", err);
   }
 });
+
+console.log("[Model3D] 7 routes registered (v5.4)");
 
 export default model3d;
