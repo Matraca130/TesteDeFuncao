@@ -24,6 +24,7 @@ import { useCanvasExport } from './canvas/useCanvasExport';
 import { useSmartPaste } from './canvas/useSmartPaste';
 import { CanvasTopBar } from './canvas/CanvasTopBar';
 import { FormattingToolbar } from './canvas/FormattingToolbar';
+import type { FormattingToolbarHandle } from './canvas/FormattingToolbar';
 import { MetaPanel } from './canvas/MetaPanel';
 import { PreviewBlock } from './canvas/PreviewBlock';
 import { PdfBlocksRenderer } from './canvas/PdfRenderer';
@@ -118,6 +119,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
   // ── Refs ──
   const canvasRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<FormattingToolbarHandle>(null);
   const blocksRef = useRef(blocks);
   useEffect(() => { blocksRef.current = blocks; }, [blocks]);
 
@@ -176,6 +178,13 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
     if (type === 'image') setTimeout(() => setShowImagePicker(newBlock.id), 100);
   };
 
+  // ── Dismiss all popups on canvas click ──
+  const handleCanvasAreaClick = () => {
+    setActiveBlockId(null);
+    setShowTypeSelector(null);
+    toolbarRef.current?.dismissPopups();
+  };
+
   // ══════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════
@@ -218,6 +227,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
       {/* ── FORMATTING TOOLBAR ── */}
       {viewMode === 'edit' && (
         <FormattingToolbar
+          ref={toolbarRef}
           undoCount={undoStack.length}
           redoCount={redoStack.length}
           onUndo={undo}
@@ -244,7 +254,7 @@ export function ResumoCanvas({ existing, onSaved, onCancel, onDelete }: ResumoCa
       )}
 
       {/* ── CANVAS AREA ── */}
-      <div className="flex-1 overflow-y-auto bg-[#f5f2ea]" onClick={() => { setActiveBlockId(null); setShowTypeSelector(null); }}>
+      <div className="flex-1 overflow-y-auto bg-[#f5f2ea]" onClick={handleCanvasAreaClick}>
         <div className="max-w-[820px] mx-auto py-10 px-5">
           <motion.div
             ref={canvasRef}
