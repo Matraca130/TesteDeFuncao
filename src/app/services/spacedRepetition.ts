@@ -18,35 +18,13 @@
 //   - repetitions: successful review streak
 // ============================================================
 
+// Canonical KeywordState now lives in src/types/keyword.ts
+import type { KeywordState } from '../../../types/keyword';
+export type { KeywordState };
+
 // ============================================================
 // KEYWORD-LEVEL STATE
 // ============================================================
-
-/**
- * Complete state for a keyword across all learning contexts.
- * This enables sophisticated scheduling and need-based selection.
- */
-export interface KeywordState {
-  keyword: string;
-  /** Consolidated mastery: 0 to 1 (0=novice, 1=expert) */
-  mastery: number;
-  /** Memory stability in days (S): how long memory lasts before decay */
-  stability_days: number;
-  /** Next scheduled review date (ISO string) */
-  due_at: string | null;
-  /** Number of significant failures/lapses */
-  lapses: number;
-  /** Number of actual recall tests (quiz/flashcard attempts) */
-  exposures: number;
-  /** Number of quality flashcards available for this keyword */
-  card_coverage: number;
-  /** Last time this keyword was reviewed */
-  last_review_at: string | null;
-  /** Color classification with hysteresis */
-  color: 'red' | 'yellow' | 'green';
-  /** Internal counter for hysteresis stability */
-  color_stability_counter: number;
-}
 
 /**
  * Create a new keyword state with safe defaults
