@@ -3,22 +3,9 @@
 // Path: /src/app/lib/api-provider.tsx
 // React Context + hook useApi() para acceso tipado al servidor.
 //
-// Usage:
-//   <ApiProvider> wraps the app (AFTER AuthProvider if used)
-//   const { api, userId, isAuthenticated } = useApi();
-//   api.get('/flashcards/due', { course_id });
-//
-// FIX: Removed hardcoded API_BASE_URL:
-//   BEFORE: 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d'
-//   AFTER:  apiBaseUrl from config.ts (works on Figma Make + Vercel)
-//
-// FIX: Import supabaseAnonKey from config.ts instead of
-//   /utils/supabase/info (single source of truth).
-//
-// Step 9: Derives token + userId from AuthContext (single source
-// of truth). Previously had its own useState which was NEVER
-// synced — login()/logout() were dead code, isAuthenticated was
-// always false, and api always used publicAnonKey.
+// FIX (Dev3 T3.4):
+//   - Now calls client.setAuthToken(accessToken) so the API client
+//     actually uses the user's JWT instead of supabaseAnonKey.
 // ============================================================
 
 import { createContext, useContext, useMemo } from 'react';
@@ -41,13 +28,13 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   const { accessToken, user } = useAuth();
 
   // Create API client — uses user JWT if available, falls back to supabaseAnonKey
-  // NOTE: createApiClient() currently takes no params and reads from config.ts
-  // internally. The params are passed for future compatibility when the
-  // signature is updated to accept (baseUrl, token).
-  const api = useMemo(
-    () => createApiClient(),
-    [accessToken],
-  );
+  const api = useMemo(() => {
+    const client = createApiClient();
+    if (accessToken) {
+      client.setAuthToken(accessToken);
+    }
+    return client;
+  }, [accessToken]);
 
   const value = useMemo<ApiContextValue>(
     () => ({

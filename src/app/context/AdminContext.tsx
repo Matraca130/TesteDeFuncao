@@ -1,15 +1,15 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { isAdminRole } from '../types/auth';
 
 // ════════════════════════════════════════════════════════════════
 // ADMIN CONTEXT v4.4 — Fully migrated to Supabase Auth
 //
-// Migration COMPLETE (was ADMIN_PLACEHOLDER with 'admin123'):
-//   - isAdmin derived from user.is_super_admin OR membership role
-//   - adminLogin checks role, NO hardcoded password
-//   - Interface preservada: isAdmin, adminLogin, adminLogout,
-//     sessionStartedAt, sessionDurationMinutes
-//   - Consumidores (AdminPanel, AdminBanner, Sidebar) no cambian
+// FIX (Dev3 T3.3):
+//   - Replaced m.role === 'institution_admin' (non-existent role)
+//     with isAdminRole(m.role) from types/auth.ts
+//   - isAdminRole checks for 'owner' | 'admin'
+//   - hasAdminRole = isSuperAdmin || isOwnerOrAdmin || isProfessor
 // ════════════════════════════════════════════════════════════════
 
 interface AdminContextType {
@@ -39,18 +39,16 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   // D8: super_admin is GLOBAL flag on User.is_super_admin
   const isSuperAdmin = user?.is_super_admin === true;
 
-  // D8: institution_admin is per-institution role in Membership
-  const isInstitutionAdmin = memberships.some(
-    (m) => m.role === 'institution_admin'
-  );
+  // FIX: Use isAdminRole() from types/auth.ts — checks 'owner' | 'admin'
+  const isOwnerOrAdmin = memberships.some(m => isAdminRole(m.role));
 
   // D8: professor can also access admin features
   const isProfessor = memberships.some(
     (m) => m.role === 'professor'
   );
 
-  // Admin if super_admin, institution_admin, or professor — AND session is active
-  const hasAdminRole = isSuperAdmin || isInstitutionAdmin || isProfessor;
+  // Admin if super_admin, owner/admin, or professor — AND session is active
+  const hasAdminRole = isSuperAdmin || isOwnerOrAdmin || isProfessor;
   const isAdmin = hasAdminRole && sessionActive;
 
   const adminLogin = useCallback((password: string): boolean => {
