@@ -14,11 +14,13 @@ export default defineConfig({
     alias: {
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
-      // Alias /utils so absolute imports resolve in both Figma Make and Vercel
-      '/utils': path.resolve(__dirname, './utils'),
     },
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  preview: {
+    allowedHosts: true,
+  },
 })
