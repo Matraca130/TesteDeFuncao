@@ -1,6 +1,15 @@
-// ══════════════════════════════════════════════════════════════
-// AXON — Flashcard Session Hook (pure frontend — no backend)
-// ══════════════════════════════════════════════════════════════
+// ┌────────────────────────────────────────────────────────────┐
+// │ @deprecated — LEGACY HOOK (SM-2, local data, 1-5 scale)     │
+// │                                                            │
+// │ This hook is the OLD flashcard session manager that works   │
+// │ with local course data and the SM-2 algorithm.              │
+// │                                                            │
+// │ The NEW hook lives at:                                      │
+// │   components/flashcard/useFlashcardSession.ts               │
+// │   (FSRS-based, API-connected, Grade 0-1 scale)              │
+// │                                                            │
+// │ This file will be removed once all consumers migrate.       │
+// └────────────────────────────────────────────────────────────┘
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '@/app/context/AppContext';
@@ -36,6 +45,11 @@ export const RATINGS = [
   { value: 5, label: 'Perfeito', color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', text: 'text-emerald-500', desc: 'Memorizado' },
 ] as const;
 
+/**
+ * @deprecated Use `useFlashcardSession` from `components/flashcard/` instead.
+ * This legacy hook uses local course data + SM-2 algorithm.
+ * The new hook uses the API + FSRS algorithm.
+ */
 export function useFlashcardSession() {
   const { currentCourse, setActiveView, setCurrentTopic } = useApp();
 
