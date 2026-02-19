@@ -1,7 +1,7 @@
 // ============================================================
 // Axon v4.4 — Server Entry Point (COMPLETE)
 // Mounts ALL 11 route modules + inline seed endpoint.
-// Prefix: /make-server-7a20cd7d
+// Prefix: /api
 // Deploy: 2026-02-18T15:40Z — CI trigger for config.toml fix
 //
 // Route modules (89 endpoints total):
@@ -43,7 +43,7 @@ import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-key
 import { createNewCard } from "./fsrs-engine.ts";
 
 const app = new Hono();
-const PREFIX = "/make-server-7a20cd7d";
+const PREFIX = "/api";
 
 app.use("*", logger(console.log));
 
