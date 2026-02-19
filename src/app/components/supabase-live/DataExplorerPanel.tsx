@@ -3,36 +3,42 @@
 // Extracted from SupabaseLiveView.tsx (Paso 6/6 — sub-extraction E)
 //
 // Exports: DataExplorerPanel
-// KV data browser with search, quick-prefix buttons, and JSON viewer.
-// All browse state is internalized. External browse requests (e.g. from
-// AuditSectionsPanel entity search) arrive via the externalBrowseRequest prop.
+// Renders: KV search bar, quick prefix buttons, browse results with JSON viewer
+// Internalizes: browsePrefix, browseLoading, browseData, activePrefixFilter,
+//               selectedItem, fetchBrowse
 // ══════════════════════════════════════════════════════════════════════════════
 
 import React, { useState, useCallback, useEffect } from "react";
 import { Search, X, Loader2 } from "lucide-react";
 import type { KvItem, KvBrowseResponse, EntityDetail } from "./types";
-import { apiFetch, JsonViewer, Section } from "./helpers";
+import { apiFetch, Section, JsonViewer } from "./helpers";
 
 export interface DataExplorerPanelProps {
-  /** Entity details from audit — used for quick-prefix filter buttons */
-  entityDetails: EntityDetail[];
-  /** When set (non-null), triggers a browse for that prefix. Parent should reset to null after. */
-  externalBrowseRequest: string | null;
-  /** Called after the external browse request has been consumed */
+  /** Entity details from the audit — powers the quick prefix buttons */
+  entityDetails: EntityDetail[] | undefined;
+  /**
+   * When AuditSectionsPanel (or any sibling) wants to trigger a browse,
+   * the parent sets this to the desired prefix string.
+   * null = no external request pending.
+   */
+  externalBrowsePrefix: string | null;
+  /** Called after the external browse request has been handled so the parent can reset to null */
   onExternalBrowseHandled: () => void;
 }
 
 export function DataExplorerPanel({
   entityDetails,
-  externalBrowseRequest,
+  externalBrowsePrefix,
   onExternalBrowseHandled,
 }: DataExplorerPanelProps) {
-  const [browseData, setBrowseData] = useState<KvBrowseResponse | null>(null);
-  const [browseLoading, setBrowseLoading] = useState(false);
+  // ── Internal state (all 5 browse-related states moved from orchestrator) ──
   const [browsePrefix, setBrowsePrefix] = useState("");
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseData, setBrowseData] = useState<KvBrowseResponse | null>(null);
   const [activePrefixFilter, setActivePrefixFilter] = useState("");
   const [selectedItem, setSelectedItem] = useState<KvItem | null>(null);
 
+  // ── Fetch (moved from orchestrator) ──
   const fetchBrowse = useCallback(async (prefix: string = "") => {
     setBrowseLoading(true);
     setActivePrefixFilter(prefix);
@@ -41,21 +47,28 @@ export function DataExplorerPanel({
       const data = await apiFetch<KvBrowseResponse>(`/kv/browse${param}`);
       setBrowseData(data);
     } catch (err: any) {
-      console.error("[SupabaseLive] Browse:", err.message);
+      console.error("[DataExplorer] Browse:", err.message);
       setBrowseData({ success: false, count: 0, prefix, items: [], error: err.message });
     } finally {
       setBrowseLoading(false);
     }
   }, []);
 
-  // Handle external browse requests (e.g. from AuditSectionsPanel entity search button)
+  // ── Handle external browse requests (from AuditSectionsPanel via parent) ──
   useEffect(() => {
-    if (externalBrowseRequest !== null) {
-      setBrowsePrefix(externalBrowseRequest);
-      fetchBrowse(externalBrowseRequest);
+    if (externalBrowsePrefix !== null) {
+      setBrowsePrefix(externalBrowsePrefix);
+      fetchBrowse(externalBrowsePrefix);
       onExternalBrowseHandled();
     }
-  }, [externalBrowseRequest, fetchBrowse, onExternalBrowseHandled]);
+  }, [externalBrowsePrefix, fetchBrowse, onExternalBrowseHandled]);
+
+  // ── Clear results ──
+  const clearBrowse = () => {
+    setBrowseData(null);
+    setActivePrefixFilter("");
+    setSelectedItem(null);
+  };
 
   return (
     <Section title="Explorador de datos" icon={<Search className="w-4 h-4 text-gray-500" />}>
@@ -75,7 +88,7 @@ export function DataExplorerPanel({
         </div>
 
         {/* Quick prefix buttons */}
-        {entityDetails.length > 0 && (
+        {entityDetails && entityDetails.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <button onClick={() => fetchBrowse("")} className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${activePrefixFilter === "" ? "bg-violet-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
               TODO
@@ -96,7 +109,7 @@ export function DataExplorerPanel({
               <span className="text-xs text-gray-500">
                 <strong>{browseData.count}</strong> registros — prefijo: <code className="text-violet-600">{browseData.prefix}</code>
               </span>
-              <button onClick={() => { setBrowseData(null); setActivePrefixFilter(""); setSelectedItem(null); }}
+              <button onClick={clearBrowse}
                 className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-3.5 h-3.5" />
               </button>

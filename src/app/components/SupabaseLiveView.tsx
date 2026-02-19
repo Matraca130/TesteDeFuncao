@@ -74,7 +74,7 @@ export function SupabaseLiveView() {
 
   const [githubData, setGithubData] = useState<GitHubStatusResponse | null>(null);
 
-  // Browse request bridge: AuditSectionsPanel → DataExplorerPanel
+  // ── Bridge: AuditSectionsPanel → DataExplorerPanel ──
   const [externalBrowseRequest, setExternalBrowseRequest] = useState<string | null>(null);
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -183,7 +183,7 @@ export function SupabaseLiveView() {
       {/* ══════════════════════ CONTRACT PUSH ══════════════════════ */}
       <ContractPushPanel />
 
-      {/* ══════════════════════ HEADER ══════════════════════ */}
+      {/* ═════════════════════ HEADER ══════════════════════ */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <div className="p-2.5 rounded-xl bg-violet-100">
@@ -316,8 +316,8 @@ export function SupabaseLiveView() {
 
       {/* ══════════════════════ DATA EXPLORER ══════════════════════ */}
       <DataExplorerPanel
-        entityDetails={audit?.entityDetails ?? []}
-        externalBrowseRequest={externalBrowseRequest}
+        entityDetails={audit?.entityDetails}
+        externalBrowsePrefix={externalBrowseRequest}
         onExternalBrowseHandled={() => setExternalBrowseRequest(null)}
       />
 
