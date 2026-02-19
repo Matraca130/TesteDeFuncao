@@ -12,3 +12,9 @@ export { gradeToInt, normalizeFsrsState, getColorMeta } from './utils';
 
 // Types
 export type { SessionPhase, SessionReviewResult } from './types';
+
+// UI Components (Step 2)
+export { SpeedometerGauge } from './SpeedometerGauge';
+export { GradeButtons } from './GradeButtons';
+export { ReviewFeedbackDisplay } from './ReviewFeedbackDisplay';
+export { StudentCardCreator } from './StudentCardCreator';
