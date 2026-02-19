@@ -5,7 +5,7 @@
 import { type ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
-import type { MembershipRole } from '../../types/auth';
+import type { MembershipRole } from '../../../types/auth';
 
 interface Props {
   roles: MembershipRole[];
