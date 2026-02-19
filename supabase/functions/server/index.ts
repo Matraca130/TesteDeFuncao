@@ -1,8 +1,13 @@
 // ============================================================
 // Axon v4.4 — Server Entry Point (COMPLETE)
 // Mounts ALL 11 route modules + inline seed endpoint.
-// Prefix: /api
-// Deploy: 2026-02-18T15:40Z — CI trigger for config.toml fix
+// Prefix: /server (MUST match the deployed function name)
+// Deploy: 2026-02-19T00:15Z
+//
+// IMPORTANT: When deploying via `supabase functions deploy server`,
+// the function name is 'server'. Supabase includes the function name
+// in the path, so Hono receives /server/<route>. PREFIX must equal
+// the function name for routes to match.
 //
 // Route modules (89 endpoints total):
 //   auth         — signup, signin, me, signout (4)
@@ -43,7 +48,7 @@ import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-key
 import { createNewCard } from "./fsrs-engine.ts";
 
 const app = new Hono();
-const PREFIX = "/api";
+const PREFIX = "/server";
 
 app.use("*", logger(console.log));
 
@@ -63,6 +68,8 @@ app.get(`${PREFIX}/health`, (c) => {
   return c.json({
     status: "ok",
     version: "4.4",
+    prefix: PREFIX,
+    function_name: "server",
     routes: [
       "auth", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
