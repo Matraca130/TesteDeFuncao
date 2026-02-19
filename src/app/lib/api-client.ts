@@ -1,10 +1,9 @@
 // ============================================================
 // Axon v4.4 — API Client (typed fetch wrapper)
-// Connects to the LIVE Supabase Edge Function backend
+// Connects to the LIVE Supabase Edge Function backend.
+// Reads config from config.ts (supports both Figma Make + Production)
 // ============================================================
-import { projectId, publicAnonKey } from '/utils/supabase/info';
-
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-8cb6316a`;
+import { supabaseAnonKey, apiBaseUrl } from './config';
 
 export interface ApiError {
   success: false;
@@ -49,14 +48,14 @@ export function createApiClient(): ApiClient {
     }
     return {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token || publicAnonKey}`,
+      Authorization: `Bearer ${token || supabaseAnonKey}`,
     };
   }
 
   function publicHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${publicAnonKey}`,
+      Authorization: `Bearer ${supabaseAnonKey}`,
     };
   }
 
@@ -67,7 +66,7 @@ export function createApiClient(): ApiClient {
     params?: Record<string, string>,
     usePublicKey = false,
   ): Promise<T> {
-    let url = `${BASE_URL}${path}`;
+    let url = `${apiBaseUrl}${path}`;
     if (params) {
       const qs = new URLSearchParams(params).toString();
       if (qs) url += `?${qs}`;
