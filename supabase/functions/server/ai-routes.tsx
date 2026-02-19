@@ -16,12 +16,8 @@ import {
   kwProfNoteKey, kwStudentNoteKey, KV_PREFIXES,
   // Agent 7 — P3 imports
   quizBundleKey, quizAttemptKey, learningProfileKey,
-  bktKey, statsKey, dailyKey, sessionKey, reviewKey,
-  summaryKey, kwKey, subtopicKey, fcKey, quizKey, fsrsKey,
-  idxStudentBundles, idxStudentAttempts,
-  idxStudentBkt, idxStudentFsrs,
-  idxKwFc, idxKwQuiz, idxKwSubtopics,
-  idxStudentSessions, idxSessionReviews,
+  bktKey, statsKey, dailyKey,
+  summaryKey, kwKey, fcKey, quizKey, fsrsKey,
 } from "./kv-keys.ts";
 
 const ai = new Hono();
@@ -85,14 +81,14 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// ── JSON parser helper (robust) ─────────────────────────────
+// ── JSON parser helper (robust) ──────────────────────────────
 function parseGeminiJson(raw: string): Record<string, unknown> {
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in Gemini response");
   return JSON.parse(jsonMatch[0]);
 }
 
-// ── BKT color helper (server-side mirror) ────────────────────
+// ── BKT color helpers (server-side mirror) ───────────────────
 function getBktLabel(pKnow: number): string {
   if (pKnow < 0.25) return "Nao domina";
   if (pKnow < 0.5) return "Em progresso";
@@ -183,7 +179,7 @@ ${content}`;
       generated_by: userId,
       generated_at: new Date().toISOString(),
       status: "pending_review",
-      keywords: (parsed.keywords as any[] || []).map((kw: Record<string, unknown>) => ({
+      keywords: ((parsed.keywords as any[]) || []).map((kw: Record<string, unknown>) => ({
         ...kw,
         id: crypto.randomUUID(),
         status: "pending",
@@ -193,17 +189,17 @@ ${content}`;
           status: "pending",
         })),
       })),
-      flashcards: (parsed.flashcards as any[] || []).map((fc: Record<string, unknown>) => ({
+      flashcards: ((parsed.flashcards as any[]) || []).map((fc: Record<string, unknown>) => ({
         ...fc,
         id: crypto.randomUUID(),
         status: "pending",
       })),
-      quiz_questions: (parsed.quiz_questions as any[] || []).map((q: Record<string, unknown>) => ({
+      quiz_questions: ((parsed.quiz_questions as any[]) || []).map((q: Record<string, unknown>) => ({
         ...q,
         id: crypto.randomUUID(),
         status: "pending",
       })),
-      suggested_connections: (parsed.suggested_connections as any[] || []).map((conn: Record<string, unknown>) => ({
+      suggested_connections: ((parsed.suggested_connections as any[]) || []).map((conn: Record<string, unknown>) => ({
         ...conn,
         id: crypto.randomUUID(),
         status: "pending",
@@ -212,7 +208,7 @@ ${content}`;
 
     await kv.set(`ai-draft:${draftId}`, draft);
 
-    console.log(`[AI] Draft saved: ${draftId} — ${draft.keywords.length} keywords, ${draft.flashcards.length} flashcards, ${draft.quiz_questions.length} quiz questions`);
+    console.log(`[AI] Draft saved: ${draftId} — ${draft.keywords.length} kw, ${draft.flashcards.length} fc, ${draft.quiz_questions.length} quiz`);
 
     return c.json({ success: true, data: draft });
   } catch (err: unknown) {
@@ -256,26 +252,25 @@ ai.post("/ai/generate/approve", async (c) => {
     const termToId: Record<string, string> = {};
     for (const kw of draft.keywords) {
       if (approvedKwIds.has(kw.id)) {
-        const kwId = kw.id;
-        termToId[kw.term] = kwId;
-        kvKeys.push(`kw:${kwId}`);
+        termToId[kw.term] = kw.id;
+        kvKeys.push(`kw:${kw.id}`);
         kvValues.push({
-          id: kwId, term: kw.term, definition: kw.definition, priority: kw.priority,
+          id: kw.id, term: kw.term, definition: kw.definition, priority: kw.priority,
           course_id: draft.course_id, source: "ai_generated", status: "published",
           created_at: new Date().toISOString(),
         });
         stats.keywords++;
         if (draft.course_id) {
-          kvKeys.push(`idx:course-kw:${draft.course_id}:${kwId}`);
-          kvValues.push(kwId);
+          kvKeys.push(`idx:course-kw:${draft.course_id}:${kw.id}`);
+          kvValues.push(kw.id);
         }
         for (const st of kw.subtopics || []) {
           kvKeys.push(`subtopic:${st.id}`);
           kvValues.push({
-            id: st.id, keyword_id: kwId, title: st.title, description: st.description,
+            id: st.id, keyword_id: kw.id, title: st.title, description: st.description,
             source: "ai_generated", status: "published", created_at: new Date().toISOString(),
           });
-          kvKeys.push(`idx:kw-subtopics:${kwId}:${st.id}`);
+          kvKeys.push(`idx:kw-subtopics:${kw.id}:${st.id}`);
           kvValues.push(st.id);
           stats.subtopics++;
         }
@@ -337,7 +332,6 @@ ai.post("/ai/generate/approve", async (c) => {
     return c.json({ success: true, data: { stats, draft_id } });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[AI] Approve error: ${msg}`);
     return c.json({ success: false, error: { code: "SERVER_ERROR", message: `Approval error: ${msg}` } }, 500);
   }
 });
@@ -377,7 +371,7 @@ ai.post("/ai/chat", async (c) => {
       return c.json({ success: false, error: { code: "VALIDATION", message: "message is required" } }, 400);
     }
 
-    let systemPrompt = `You are Axon AI, an elite medical tutor. 
+    let systemPrompt = `You are Axon AI, an elite medical tutor.
 Respond in Portuguese (pt-BR). Use precise medical terminology.
 Format with markdown. Be concise but thorough (max 300 words).`;
 
@@ -385,17 +379,16 @@ Format with markdown. Be concise but thorough (max 300 words).`;
       try {
         const kwData = await kv.get(`kw:${keyword_id}`);
         if (kwData) {
-          systemPrompt += `\n\nYou are helping the student understand the keyword: "${kwData.term}".
-Definition: ${kwData.definition}`;
+          systemPrompt += `\n\nKeyword: "${(kwData as any).term}". Definition: ${(kwData as any).definition}`;
           const stIds = await kv.getByPrefix(`idx:kw-subtopics:${keyword_id}:`);
           if (stIds.length > 0) {
             const subtopics = await kv.mget(stIds.map((id: string) => `subtopic:${id}`));
-            const stTitles = subtopics.filter(Boolean).map((st: Record<string, string>) => st.title);
-            if (stTitles.length > 0) systemPrompt += `\nSub-topics: ${stTitles.join(", ")}`;
+            const titles = subtopics.filter(Boolean).map((st: any) => st.title);
+            if (titles.length > 0) systemPrompt += `\nSub-topics: ${titles.join(", ")}`;
           }
           try {
             const bktStates = await kv.getByPrefix(`idx:student-kw-bkt:${userId}:${keyword_id}:`);
-            if (bktStates.length > 0) systemPrompt += `\nStudent's current mastery data: ${JSON.stringify(bktStates)}`;
+            if (bktStates.length > 0) systemPrompt += `\nMastery data: ${JSON.stringify(bktStates)}`;
           } catch (_e) {}
         }
       } catch (_e) {}
@@ -415,7 +408,7 @@ Definition: ${kwData.definition}`;
     history.messages.push({ role: "user", content: message, timestamp: new Date().toISOString() });
 
     const recentMsgs = history.messages.slice(-20);
-    const geminiMessages = recentMsgs.map((m: { role: string; content: string }) => ({
+    const geminiMessages = recentMsgs.map((m: any) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
@@ -437,7 +430,7 @@ Definition: ${kwData.definition}`;
 
 // ────────────────────────────────────────────────────────────
 // GET /keyword-popup/:keywordId — Hub assembly (D42)
-// Extended by Agent 2 (SCRIBE): +professor_notes, +student_notes_count
+// Extended by Agent 2 (SCRIBE)
 // ────────────────────────────────────────────────────────────
 ai.get("/keyword-popup/:keywordId", async (c) => {
   try {
@@ -453,7 +446,7 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
       return c.json({ success: false, error: { code: "NOT_FOUND", message: `Keyword ${kwId} not found` } }, 404);
     }
 
-    let subtopics: Record<string, unknown>[] = [];
+    let subtopics: any[] = [];
     let subtopicStates: unknown[] = [];
     try {
       const stIds = await kv.getByPrefix(`idx:kw-subtopics:${kwId}:`);
@@ -467,8 +460,8 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     try {
       const connIds = await kv.getByPrefix(`idx:kw-conn:${kwId}:`);
       if (connIds.length > 0) {
-        const connections = (await kv.mget(connIds.map((id: string) => `conn:${id}`))).filter(Boolean) as any[];
-        for (const conn of connections) {
+        const conns = (await kv.mget(connIds.map((id: string) => `conn:${id}`))).filter(Boolean) as any[];
+        for (const conn of conns) {
           const otherId = conn.keyword_a_id === kwId ? conn.keyword_b_id : conn.keyword_a_id;
           const otherKw = await kv.get(`kw:${otherId}`);
           if (otherKw) relatedKeywords.push({ keyword: otherKw, connection_label: conn.label });
@@ -488,21 +481,17 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     try {
       const profNoteIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_KW_PROF_NOTES}${kwId}:`);
       if (profNoteIds.length > 0) {
-        const allProfNotes = (await kv.mget(
-          (profNoteIds as string[]).map((id: string) => kwProfNoteKey(id))
-        )).filter(Boolean);
-        professorNotes = allProfNotes.filter((n: any) => n.visibility === "students" && !n.deleted_at);
+        const allPN = (await kv.mget((profNoteIds as string[]).map((id: string) => kwProfNoteKey(id)))).filter(Boolean);
+        professorNotes = allPN.filter((n: any) => n.visibility === "students" && !n.deleted_at);
       }
     } catch (_e) {}
 
     let studentNotesCount = 0;
     try {
-      const studentNoteIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_KW_STUDENT_NOTES}${kwId}:${userId}:`);
-      if (studentNoteIds.length > 0) {
-        const studentNotes = (await kv.mget(
-          (studentNoteIds as string[]).map((id: string) => kwStudentNoteKey(id))
-        )).filter(Boolean);
-        studentNotesCount = studentNotes.filter((n: any) => !n.deleted_at).length;
+      const snIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_KW_STUDENT_NOTES}${kwId}:${userId}:`);
+      if (snIds.length > 0) {
+        const sn = (await kv.mget((snIds as string[]).map((id: string) => kwStudentNoteKey(id)))).filter(Boolean);
+        studentNotesCount = sn.filter((n: any) => !n.deleted_at).length;
       }
     } catch (_e) {}
 
@@ -516,25 +505,23 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[AI] Keyword popup error: ${msg}`);
     return c.json({ success: false, error: { code: "SERVER_ERROR", message: msg } }, 500);
   }
 });
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 // Agent 7 (NEXUS) — P3 AI Feedback Endpoints (A7-01 to A7-05)
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
 
-const AI_FEEDBACK_SYSTEM = `Voce e Axon AI, um tutor especialista em educacao.
+const AI_FEEDBACK_SYSTEM = `Voce e Axon AI, um tutor especialista em educacao medica.
 Responda SEMPRE em portugues brasileiro (pt-BR).
 Seja encorajador mas honesto. Use linguagem acessivel.
 Retorne APENAS JSON valido, sem markdown ou texto extra.`;
 
 // ────────────────────────────────────────────────────────────
-// A7-01: POST /ai/quiz-feedback — Feedback AI pos-quiz
+// A7-01: POST /ai/quiz-feedback
 // Input: { bundle_id: string }
-// Reads QuizBundle + QuizAttempts from KV (immutable),
-// calls Gemini for structured analysis.
+// Reads QuizBundle + QuizAttempts (immutable), calls Gemini.
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/quiz-feedback", async (c) => {
   try {
@@ -563,7 +550,6 @@ ai.post("/ai/quiz-feedback", async (c) => {
       const allAttempts = (await kv.mget(
         (attemptIds as string[]).map((id: string) => quizAttemptKey(id))
       )).filter(Boolean);
-      // Filter attempts belonging to this bundle's topic/course
       attempts = allAttempts.filter((a: any) =>
         a.courseId === bundle.course_id || a.topicId === bundle.topic_id
       );
@@ -577,19 +563,17 @@ ai.post("/ai/quiz-feedback", async (c) => {
       )).filter(Boolean);
     }
 
-    // 4. Build context for Gemini
-    const latestAttempt = attempts.length > 0
+    // 4. Build context
+    const latest = attempts.length > 0
       ? attempts.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0]
       : null;
 
-    const totalQ = latestAttempt?.totalQuestions || bundle.total_questions || quizQuestions.length || 0;
-    const correct = latestAttempt?.correctAnswers || 0;
-    const incorrect = totalQ - correct;
+    const totalQ = latest?.totalQuestions || bundle.total_questions || quizQuestions.length || 0;
+    const correct = latest?.correctAnswers || 0;
     const accuracy = totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0;
-    const timeSpent = latestAttempt?.timeSeconds || 0;
+    const timeSpent = latest?.timeSeconds || 0;
 
-    // Build per-question detail from attempt answers + quiz questions
-    const perQuestionContext = (latestAttempt?.answers || []).map((ans: any, i: number) => {
+    const perQ = (latest?.answers || []).map((ans: any, i: number) => {
       const q = quizQuestions.find((qq: any) => qq.id === ans.questionId) || quizQuestions[i];
       return {
         question: q?.question || `Pergunta ${i + 1}`,
@@ -600,67 +584,42 @@ ai.post("/ai/quiz-feedback", async (c) => {
       };
     });
 
-    const prompt = `Analise este resultado de quiz de um estudante e gere feedback detalhado.
+    const prompt = `Analise este resultado de quiz e gere feedback detalhado.
 
-Dados do quiz:
-- Total de perguntas: ${totalQ}
-- Acertos: ${correct}
-- Erros: ${incorrect}
-- Acuracia: ${accuracy}%
-- Tempo gasto: ${timeSpent} segundos
-${perQuestionContext.length > 0 ? `\nDetalhes por pergunta:\n${JSON.stringify(perQuestionContext, null, 2)}` : ""}
+Dados: ${totalQ} perguntas, ${correct} acertos, ${totalQ - correct} erros, ${accuracy}% acuracia, ${timeSpent}s
+${perQ.length > 0 ? `\nDetalhes:\n${JSON.stringify(perQ, null, 2)}` : ""}
 
-Retorne JSON com EXATAMENTE esta estrutura:
+Retorne JSON:
 {
   "bundle_id": "${bundle_id}",
-  "summary": {
-    "total_questions": ${totalQ},
-    "correct": ${correct},
-    "incorrect": ${incorrect},
-    "accuracy": ${accuracy},
-    "time_spent_seconds": ${timeSpent}
-  },
-  "strengths": ["string - ponto forte 1", "string - ponto forte 2"],
-  "weaknesses": ["string - area de melhoria 1"],
-  "recommendations": ["string - recomendacao 1", "string - recomendacao 2", "string - recomendacao 3"],
-  "per_question_feedback": [
-    {
-      "question_id": "string",
-      "question_text": "string",
-      "was_correct": true/false,
-      "student_answer": "string",
-      "correct_answer": "string",
-      "ai_explanation": "string - explicacao detalhada em pt-BR"
-    }
-  ],
-  "study_strategy": "string - estrategia de estudo personalizada",
-  "encouragement": "string - mensagem motivacional personalizada"
+  "summary": { "total_questions": ${totalQ}, "correct": ${correct}, "incorrect": ${totalQ - correct}, "accuracy": ${accuracy}, "time_spent_seconds": ${timeSpent} },
+  "strengths": ["string"],
+  "weaknesses": ["string"],
+  "recommendations": ["string", "string", "string"],
+  "per_question_feedback": [{ "question_id": "string", "question_text": "string", "was_correct": true, "student_answer": "string", "correct_answer": "string", "ai_explanation": "string" }],
+  "study_strategy": "string",
+  "encouragement": "string"
 }`;
 
-    console.log(`[A7-01] Generating quiz feedback for bundle=${bundle_id}, user=${userId}, accuracy=${accuracy}%`);
+    console.log(`[A7-01] Quiz feedback: bundle=${bundle_id}, user=${userId}, accuracy=${accuracy}%`);
 
     const result = await callGemini(
       [{ role: "user", parts: [{ text: prompt }] }],
-      AI_FEEDBACK_SYSTEM,
-      0.7,
-      6144,
-      true
+      AI_FEEDBACK_SYSTEM, 0.7, 6144, true
     );
 
-    const parsed = parseGeminiJson(result);
-
-    return c.json({ success: true, data: parsed });
+    return c.json({ success: true, data: parseGeminiJson(result) });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[A7-01] Quiz feedback error: ${msg}`);
+    console.log(`[A7-01] Error: ${msg}`);
     return c.json({ success: false, error: { code: "AI_ERROR", message: `Erro ao gerar feedback: ${msg}` } }, 500);
   }
 });
 
 // ────────────────────────────────────────────────────────────
-// A7-02: POST /ai/flashcard-feedback — Feedback de flashcards
+// A7-02: POST /ai/flashcard-feedback
 // Input: { period_days?: number } (default 7)
-// Reads FSRS states + review history, calls Gemini.
+// Reads FSRS states + daily activity, calls Gemini.
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/flashcard-feedback", async (c) => {
   try {
@@ -671,11 +630,9 @@ ai.post("/ai/flashcard-feedback", async (c) => {
     const userId = authResult.userId;
     const body = await c.req.json();
     const periodDays = body.period_days || 7;
-
     const now = new Date();
-    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
-    // 1. Read all FSRS states for this student
+    // 1. Read all FSRS states
     const fsrsIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_STUDENT_FSRS}${userId}:`);
     let fsrsStates: any[] = [];
     if (fsrsIds.length > 0) {
@@ -684,106 +641,84 @@ ai.post("/ai/flashcard-feedback", async (c) => {
       )).filter(Boolean);
     }
 
-    // 2. Read daily activity for the period
+    // 2. Read daily activity
     const dailyKeys: string[] = [];
     for (let d = 0; d < periodDays; d++) {
-      const date = new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const date = new Date(now.getTime() - d * 86400000).toISOString().split("T")[0];
       dailyKeys.push(dailyKey(userId, date));
     }
     const dailyData = (await kv.mget(dailyKeys)).filter(Boolean);
 
-    // 3. Calculate stats
+    // 3. Stats
     const totalReviewed = fsrsStates.length;
     const mastered = fsrsStates.filter((s: any) => s.state === "review" && s.stability > 10).length;
     const struggling = fsrsStates.filter((s: any) => s.lapses >= 2).length;
-    const retentionRate = totalReviewed > 0
-      ? Math.round((mastered / totalReviewed) * 100)
-      : 0;
+    const retentionRate = totalReviewed > 0 ? Math.round((mastered / totalReviewed) * 100) : 0;
     const avgInterval = fsrsStates.length > 0
       ? Math.round((fsrsStates.reduce((sum: number, s: any) => sum + (s.stability || 0), 0) / fsrsStates.length) * 10) / 10
       : 0;
 
-    // 4. Identify struggling cards (top 5 by lapses)
-    const strugglingCards = fsrsStates
+    // 4. Struggling cards (top 5)
+    const topStruggling = fsrsStates
       .filter((s: any) => s.lapses >= 2)
       .sort((a: any, b: any) => b.lapses - a.lapses)
       .slice(0, 5);
 
-    // Load flashcard fronts for struggling cards
     let strugglingWithFronts: any[] = [];
-    if (strugglingCards.length > 0) {
-      const cardData = await kv.mget(strugglingCards.map((s: any) => fcKey(s.card_id)));
-      strugglingWithFronts = strugglingCards.map((s: any, i: number) => ({
+    if (topStruggling.length > 0) {
+      const cardData = await kv.mget(topStruggling.map((s: any) => fcKey(s.card_id)));
+      strugglingWithFronts = topStruggling.map((s: any, i: number) => ({
         flashcard_id: s.card_id,
-        front: cardData[i]?.front || "Card sem texto",
+        front: (cardData[i] as any)?.front || "Card sem texto",
         times_failed: s.lapses,
       }));
     }
 
-    // 5. Calculate streak
+    // 5. Streak
     let streakDays = 0;
     for (let d = 0; d < periodDays; d++) {
-      const date = new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const date = new Date(now.getTime() - d * 86400000).toISOString().split("T")[0];
       const day = dailyData.find((dd: any) => dd.date === date);
-      if (day && day.cardsReviewed > 0) streakDays++;
-      else if (d > 0) break; // Streak broken
+      if (day && (day as any).cardsReviewed > 0) streakDays++;
+      else if (d > 0) break;
     }
 
-    const prompt = `Analise o desempenho deste estudante em flashcards nos ultimos ${periodDays} dias e gere feedback.
+    const prompt = `Analise o desempenho em flashcards nos ultimos ${periodDays} dias.
 
-Estatisticas:
-- Cards revisados: ${totalReviewed}
-- Cards dominados: ${mastered}
-- Cards com dificuldade: ${struggling}
-- Taxa de retencao: ${retentionRate}%
-- Intervalo medio: ${avgInterval} dias
-- Dias de racha: ${streakDays}
-${strugglingWithFronts.length > 0 ? `\nCards com dificuldade:\n${JSON.stringify(strugglingWithFronts, null, 2)}` : ""}
+Cards revisados: ${totalReviewed}, dominados: ${mastered}, dificuldade: ${struggling}
+Retencao: ${retentionRate}%, intervalo medio: ${avgInterval} dias, racha: ${streakDays} dias
+${strugglingWithFronts.length > 0 ? `Cards dificeis:\n${JSON.stringify(strugglingWithFronts)}` : ""}
 
-Retorne JSON com EXATAMENTE esta estrutura:
+Retorne JSON:
 {
-  "period": { "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "days": ${periodDays} },
-  "stats": {
-    "cards_reviewed": ${totalReviewed},
-    "cards_mastered": ${mastered},
-    "cards_struggling": ${struggling},
-    "retention_rate": ${retentionRate},
-    "average_interval_days": ${avgInterval},
-    "streak_days": ${streakDays}
-  },
-  "struggling_cards": [
-    { "flashcard_id": "string", "front": "string", "times_failed": number, "ai_tip": "string - dica mnemonica criativa em pt-BR" }
-  ],
+  "period": { "days": ${periodDays} },
+  "stats": { "cards_reviewed": ${totalReviewed}, "cards_mastered": ${mastered}, "cards_struggling": ${struggling}, "retention_rate": ${retentionRate}, "average_interval_days": ${avgInterval}, "streak_days": ${streakDays} },
+  "struggling_cards": [{ "flashcard_id": "string", "front": "string", "times_failed": 0, "ai_tip": "dica mnemonica" }],
   "strengths": ["string"],
   "improvements": ["string"],
-  "ai_study_tips": ["string - dica de estudo 1", "string - dica 2", "string - dica 3", "string - dica 4"],
-  "next_session_recommendation": "string - recomendacao para proxima sessao"
+  "ai_study_tips": ["string", "string", "string", "string"],
+  "next_session_recommendation": "string"
 }`;
 
-    console.log(`[A7-02] Generating flashcard feedback for user=${userId}, period=${periodDays}d`);
+    console.log(`[A7-02] Flashcard feedback: user=${userId}, period=${periodDays}d`);
 
     const result = await callGemini(
       [{ role: "user", parts: [{ text: prompt }] }],
-      AI_FEEDBACK_SYSTEM,
-      0.7,
-      6144,
-      true
+      AI_FEEDBACK_SYSTEM, 0.7, 6144, true
     );
 
-    const parsed = parseGeminiJson(result);
-
-    return c.json({ success: true, data: parsed });
+    return c.json({ success: true, data: parseGeminiJson(result) });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[A7-02] Flashcard feedback error: ${msg}`);
+    console.log(`[A7-02] Error: ${msg}`);
     return c.json({ success: false, error: { code: "AI_ERROR", message: `Erro ao gerar feedback: ${msg}` } }, 500);
   }
 });
 
 // ────────────────────────────────────────────────────────────
-// A7-03: POST /ai/summary-diagnostic — Diagnostico de summary
+// A7-03: POST /ai/summary-diagnostic
 // Input: { summary_id: string }
-// Reads summary keywords + BKT states + quiz/flashcard perf.
+// Reads keywords + BKT states + quiz/flashcard performance.
 // ────────────────────────────────────────────────────────────
 ai.post("/ai/summary-diagnostic", async (c) => {
   try {
@@ -805,22 +740,18 @@ ai.post("/ai/summary-diagnostic", async (c) => {
       return c.json({ success: false, error: { code: "NOT_FOUND", message: `Summary ${summary_id} nao encontrado` } }, 404);
     }
 
-    // 2. Read keywords for this summary (via idx:summary-kw)
-    const kwInstIds = await kv.getByPrefix(`idx:summary-kw:${summary_id}:`);
+    // 2. Read keywords
     let keywords: any[] = [];
+    const kwInstIds = await kv.getByPrefix(`idx:summary-kw:${summary_id}:`);
     if (kwInstIds.length > 0) {
-      // kwInstIds are kw-inst IDs, we need to load the keyword data
       const kwInstData = (await kv.mget(
         (kwInstIds as string[]).map((id: string) => `kw-inst:${id}`)
       )).filter(Boolean);
-      // Load actual keywords
       const kwIds = kwInstData.map((ki: any) => ki.keyword_id || ki.id).filter(Boolean);
       if (kwIds.length > 0) {
         keywords = (await kv.mget(kwIds.map((id: string) => kwKey(id)))).filter(Boolean);
       }
     }
-
-    // Fallback: try idx:inst-kw if no summary-level keywords found
     if (keywords.length === 0 && summary.institution_id) {
       const instKwIds = await kv.getByPrefix(`idx:inst-kw:${summary.institution_id}:`);
       if (instKwIds.length > 0) {
@@ -830,111 +761,99 @@ ai.post("/ai/summary-diagnostic", async (c) => {
       }
     }
 
-    // 3. Read BKT states for each keyword's subtopics
-    const keywordsBreakdown: any[] = [];
+    // 3. BKT states per keyword
+    const kwBreakdown: any[] = [];
     for (const kw of keywords) {
       const stIds = await kv.getByPrefix(`idx:kw-subtopics:${kw.id}:`);
-      let avgPKnow = 0.5; // default
+      let avgP = 0.5;
       if (stIds.length > 0) {
-        const bktStates = (await kv.mget(
+        const bktS = (await kv.mget(
           (stIds as string[]).map((stId: string) => bktKey(userId, stId))
         )).filter(Boolean);
-        if (bktStates.length > 0) {
-          avgPKnow = bktStates.reduce((sum: number, s: any) => sum + (s.p_know || 0), 0) / bktStates.length;
+        if (bktS.length > 0) {
+          avgP = bktS.reduce((s: number, b: any) => s + (b.p_know || 0), 0) / bktS.length;
         }
       }
-      keywordsBreakdown.push({
-        keyword_id: kw.id,
-        term: kw.term,
-        p_know: Math.round(avgPKnow * 100) / 100,
-        bkt_color: getBktColor(avgPKnow),
-        status: getBktStatus(avgPKnow),
+      kwBreakdown.push({
+        keyword_id: kw.id, term: kw.term,
+        p_know: Math.round(avgP * 100) / 100,
+        bkt_color: getBktColor(avgP),
+        status: getBktStatus(avgP),
       });
     }
 
-    // 4. Calculate overall mastery
-    const overallMastery = keywordsBreakdown.length > 0
-      ? Math.round((keywordsBreakdown.reduce((sum: number, k: any) => sum + k.p_know, 0) / keywordsBreakdown.length) * 100)
+    const overallMastery = kwBreakdown.length > 0
+      ? Math.round((kwBreakdown.reduce((s: number, k: any) => s + k.p_know, 0) / kwBreakdown.length) * 100)
       : 50;
 
-    // 5. Read quiz performance for this summary/topic
+    // 4. Quiz performance
     const attemptIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_STUDENT_ATTEMPTS}${userId}:`);
     let quizAttempts: any[] = [];
     if (attemptIds.length > 0) {
-      const allAttempts = (await kv.mget(
-        (attemptIds as string[]).map((id: string) => quizAttemptKey(id))
-      )).filter(Boolean);
-      quizAttempts = allAttempts.filter((a: any) => a.topicId === summary.topic_id);
+      const all = (await kv.mget((attemptIds as string[]).map((id: string) => quizAttemptKey(id)))).filter(Boolean);
+      quizAttempts = all.filter((a: any) => a.topicId === summary.topic_id);
     }
-    const totalAttempts = quizAttempts.length;
-    const avgAccuracy = totalAttempts > 0
-      ? Math.round(quizAttempts.reduce((s: number, a: any) => s + (a.score || 0), 0) / totalAttempts)
+    const avgAccuracy = quizAttempts.length > 0
+      ? Math.round(quizAttempts.reduce((s: number, a: any) => s + (a.score || 0), 0) / quizAttempts.length)
       : 0;
 
-    // 6. Read flashcard performance
+    // 5. Flashcard performance
     let fcCount = 0;
     let fcMastered = 0;
     for (const kw of keywords) {
       const fcIds = await kv.getByPrefix(`idx:kw-fc:${kw.id}:`);
       fcCount += fcIds.length;
       if (fcIds.length > 0) {
-        const states = (await kv.mget(
-          (fcIds as string[]).map((id: string) => fsrsKey(userId, id))
-        )).filter(Boolean);
+        const states = (await kv.mget((fcIds as string[]).map((id: string) => fsrsKey(userId, id)))).filter(Boolean);
         fcMastered += states.filter((s: any) => s.state === "review" && s.stability > 10).length;
       }
     }
 
-    // 7. Call Gemini for AI analysis
-    const prompt = `Analise o dominio deste estudante sobre o resumo "${summary.title || summary_id}" e gere um diagnostico completo.
+    // 6. Call Gemini
+    const prompt = `Analise o dominio sobre "${summary.title || summary_id}".
 
-Dominio geral: ${overallMastery}%
-Keywords (${keywordsBreakdown.length} total):
-${keywordsBreakdown.map((k: any) => `- ${k.term}: p_know=${k.p_know} (${getBktLabel(k.p_know)})`).join("\n")}
-
-Performance em quizzes: ${totalAttempts} tentativas, acuracia media ${avgAccuracy}%
+Dominio: ${overallMastery}%
+Keywords (${kwBreakdown.length}):
+${kwBreakdown.map((k: any) => `- ${k.term}: p_know=${k.p_know} (${getBktLabel(k.p_know)})`).join("\n")}
+Quizzes: ${quizAttempts.length} tentativas, ${avgAccuracy}% media
 Flashcards: ${fcCount} total, ${fcMastered} dominados
 
-Retorne JSON com EXATAMENTE esta estrutura:
+Retorne JSON:
 {
   "ai_analysis": {
-    "overall_assessment": "string - avaliacao geral em pt-BR",
+    "overall_assessment": "string",
     "key_strengths": ["string"],
     "gaps": ["string"],
     "recommended_actions": ["string", "string", "string", "string"],
     "estimated_time_to_mastery": "string"
   },
   "study_plan_suggestion": {
-    "priority_keywords": ["string - keyword mais fraca 1", "string 2", "string 3"],
+    "priority_keywords": ["string"],
     "recommended_order": ["string"],
-    "daily_goal_minutes": number
+    "daily_goal_minutes": 30
   }
 }`;
 
-    console.log(`[A7-03] Generating summary diagnostic for summary=${summary_id}, user=${userId}, mastery=${overallMastery}%`);
+    console.log(`[A7-03] Summary diagnostic: summary=${summary_id}, mastery=${overallMastery}%`);
 
-    const result = await callGemini(
+    const aiResult = await callGemini(
       [{ role: "user", parts: [{ text: prompt }] }],
-      AI_FEEDBACK_SYSTEM,
-      0.7,
-      4096,
-      true
+      AI_FEEDBACK_SYSTEM, 0.7, 4096, true
     );
+    const aiParsed = parseGeminiJson(aiResult);
 
-    const aiParsed = parseGeminiJson(result);
-
-    // 8. Compose full response
+    const sorted = [...kwBreakdown].sort((a: any, b: any) => b.p_know - a.p_know);
     const diagnostic = {
       summary_id,
       summary_title: summary.title || summary_id,
       overall_mastery: overallMastery,
       bkt_level: overallMastery >= 75 ? "green" : overallMastery >= 50 ? "yellow" : overallMastery >= 25 ? "orange" : "red",
-      keywords_breakdown: keywordsBreakdown,
+      keywords_breakdown: kwBreakdown,
       quiz_performance: {
-        total_attempts: totalAttempts,
+        total_attempts: quizAttempts.length,
         average_accuracy: avgAccuracy,
-        best_topic: keywordsBreakdown.sort((a: any, b: any) => b.p_know - a.p_know)[0]?.term || "N/A",
-        worst_topic: keywordsBreakdown.sort((a: any, b: any) => a.p_know - b.p_know)[0]?.term || "N/A",
+        best_topic: sorted[0]?.term || "N/A",
+        worst_topic: sorted[sorted.length - 1]?.term || "N/A",
       },
       flashcard_performance: {
         total_reviews: fcCount,
@@ -948,32 +867,26 @@ Retorne JSON com EXATAMENTE esta estrutura:
     return c.json({ success: true, data: diagnostic });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[A7-03] Summary diagnostic error: ${msg}`);
+    console.log(`[A7-03] Error: ${msg}`);
     return c.json({ success: false, error: { code: "AI_ERROR", message: `Erro ao gerar diagnostico: ${msg}` } }, 500);
   }
 });
 
 // ────────────────────────────────────────────────────────────
-// A7-04: POST /ai/learning-profile — Perfil de aprendizagem
-// Input: { force?: boolean }
-// Cached in KV with 24h TTL. Returns cached if available.
+// A7-04 / A7-05: Learning Profile (with KV cache 24h TTL)
 // ────────────────────────────────────────────────────────────
-const PROFILE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+const PROFILE_TTL_MS = 24 * 60 * 60 * 1000;
 
 async function buildLearningProfile(userId: string): Promise<any> {
-  // 1. Read student stats
   const studentStats = await kv.get(statsKey(userId)) as any;
 
-  // 2. Read all BKT states
+  // BKT states
   const bktIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_STUDENT_BKT}${userId}:`);
   let bktStates: any[] = [];
   if (bktIds.length > 0) {
-    bktStates = (await kv.mget(
-      (bktIds as string[]).map((id: string) => bktKey(userId, id))
-    )).filter(Boolean);
+    bktStates = (await kv.mget((bktIds as string[]).map((id: string) => bktKey(userId, id)))).filter(Boolean);
   }
 
-  // 3. Count keywords by mastery level
   const kwMastered = bktStates.filter((s: any) => s.p_know >= 0.75).length;
   const kwInProgress = bktStates.filter((s: any) => s.p_know >= 0.25 && s.p_know < 0.75).length;
   const kwWeak = bktStates.filter((s: any) => s.p_know < 0.25).length;
@@ -982,31 +895,24 @@ async function buildLearningProfile(userId: string): Promise<any> {
     ? Math.round((bktStates.reduce((s: number, b: any) => s + (b.p_know || 0), 0) / totalKw) * 100)
     : 0;
 
-  // 4. Read quiz attempts
+  // Quiz count
   const attemptIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_STUDENT_ATTEMPTS}${userId}:`);
-  let quizCount = 0;
-  if (attemptIds.length > 0) {
-    const attempts = (await kv.mget(
-      (attemptIds as string[]).map((id: string) => quizAttemptKey(id))
-    )).filter(Boolean);
-    quizCount = attempts.length;
-  }
+  const quizCount = attemptIds.length;
 
-  // 5. Read FSRS states for flashcard stats
+  // Flashcard count
   const fsrsIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_STUDENT_FSRS}${userId}:`);
   const fcReviewed = fsrsIds.length;
 
-  // 6. Read daily activity for the last 8 weeks (progress timeline)
+  // Weekly progress (last 6 weeks)
   const now = new Date();
   const weeks: any[] = [];
-  for (let w = 7; w >= 0; w--) {
-    const weekStart = new Date(now.getTime() - (w + 1) * 7 * 24 * 60 * 60 * 1000);
-    let weekMastered = 0;
-    let weekAccuracy = 0;
+  for (let w = 5; w >= 0; w--) {
+    const weekStart = new Date(now.getTime() - (w + 1) * 7 * 86400000);
     let weekHours = 0;
+    let weekAccuracy = 0;
     let dayCount = 0;
     for (let d = 0; d < 7; d++) {
-      const date = new Date(weekStart.getTime() + d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const date = new Date(weekStart.getTime() + d * 86400000).toISOString().split("T")[0];
       const day = await kv.get(dailyKey(userId, date)) as any;
       if (day) {
         weekHours += (day.studyMinutes || 0) / 60;
@@ -1014,19 +920,19 @@ async function buildLearningProfile(userId: string): Promise<any> {
       }
     }
     weeks.push({
-      week: `Sem ${8 - w}`,
-      keywords_mastered: Math.round(kwMastered * ((8 - w) / 8)), // approximation
+      week: `Sem ${6 - w}`,
+      keywords_mastered: Math.round(kwMastered * ((6 - w) / 6)),
       accuracy: dayCount > 0 ? Math.round(weekAccuracy / dayCount) : overallAccuracy,
       hours_studied: Math.round(weekHours * 10) / 10,
     });
   }
 
-  // 7. Calculate streaks from daily data
+  // Streaks
   let currentStreak = 0;
   let longestStreak = 0;
   let tempStreak = 0;
   for (let d = 0; d < 60; d++) {
-    const date = new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const date = new Date(now.getTime() - d * 86400000).toISOString().split("T")[0];
     const day = await kv.get(dailyKey(userId, date)) as any;
     if (day && day.studyMinutes > 0) {
       tempStreak++;
@@ -1043,9 +949,8 @@ async function buildLearningProfile(userId: string): Promise<any> {
     ? Math.round(studentStats.totalStudyMinutes / 60)
     : weeks.reduce((s: number, w: any) => s + w.hours_studied, 0);
 
-  // 8. Build context and call Gemini
   const globalStats = {
-    total_study_hours: totalStudyHours || 0,
+    total_study_hours: totalStudyHours,
     total_quizzes_completed: quizCount,
     total_flashcards_reviewed: fcReviewed,
     total_keywords_studied: totalKw,
@@ -1058,50 +963,42 @@ async function buildLearningProfile(userId: string): Promise<any> {
     study_consistency: totalStudyHours > 0 ? Math.min(Math.round((currentStreak / 7) * 100), 100) : 0,
   };
 
-  const prompt = `Analise os dados completos deste estudante e gere um perfil de aprendizagem detalhado.
+  const prompt = `Analise os dados deste estudante e gere um perfil de aprendizagem.
 
-Estatisticas globais:
-${JSON.stringify(globalStats, null, 2)}
+Estatisticas:\n${JSON.stringify(globalStats, null, 2)}
+Timeline:\n${JSON.stringify(weeks, null, 2)}
 
-Timeline de progresso (ultimas 8 semanas):
-${JSON.stringify(weeks.slice(-6), null, 2)}
-
-Retorne JSON com EXATAMENTE esta estrutura:
+Retorne JSON:
 {
   "ai_profile": {
-    "learning_style": "string - tipo de aprendiz (ex: Visual-Pratico)",
-    "strongest_areas": ["string", "string", "string"],
-    "weakest_areas": ["string", "string", "string"],
-    "study_pattern": "string - padrao observado",
-    "personality_insight": "string - insight sobre o perfil do aluno"
+    "learning_style": "string",
+    "strongest_areas": ["string"],
+    "weakest_areas": ["string"],
+    "study_pattern": "string",
+    "personality_insight": "string"
   },
   "ai_recommendations": {
     "immediate_actions": ["string", "string", "string"],
     "weekly_goals": ["string", "string", "string"],
-    "long_term_strategy": "string - estrategia de longo prazo",
-    "recommended_study_time": "string - ex: 45 min/dia, 5 dias/semana",
-    "focus_keywords": ["string", "string", "string", "string", "string"]
+    "long_term_strategy": "string",
+    "recommended_study_time": "string",
+    "focus_keywords": ["string", "string", "string"]
   },
   "motivation": {
-    "message": "string - mensagem motivacional personalizada",
-    "achievement_highlight": "string - conquista recente",
-    "next_milestone": "string - proximo marco"
+    "message": "string",
+    "achievement_highlight": "string",
+    "next_milestone": "string"
   }
 }`;
 
-  console.log(`[A7-04] Generating learning profile for user=${userId}`);
+  console.log(`[A7-04] Building profile for user=${userId}`);
 
   const result = await callGemini(
     [{ role: "user", parts: [{ text: prompt }] }],
-    AI_FEEDBACK_SYSTEM,
-    0.7,
-    6144,
-    true
+    AI_FEEDBACK_SYSTEM, 0.7, 6144, true
   );
-
   const aiParsed = parseGeminiJson(result);
 
-  // 9. Compose full profile
   const profile = {
     student_id: userId,
     generated_at: new Date().toISOString(),
@@ -1109,17 +1006,16 @@ Retorne JSON com EXATAMENTE esta estrutura:
     global_stats: globalStats,
     ai_profile: aiParsed.ai_profile || {},
     ai_recommendations: aiParsed.ai_recommendations || {},
-    progress_timeline: weeks.slice(-6),
+    progress_timeline: weeks,
     motivation: aiParsed.motivation || {},
   };
 
-  // 10. Cache in KV
   await kv.set(learningProfileKey(userId), profile);
   console.log(`[A7-04] Profile cached for user=${userId}`);
-
   return profile;
 }
 
+// A7-04: POST /ai/learning-profile (with cache)
 ai.post("/ai/learning-profile", async (c) => {
   try {
     const authResult = await getUserIdFromToken(c.req.header("Authorization"));
@@ -1130,13 +1026,12 @@ ai.post("/ai/learning-profile", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const force = body.force === true;
 
-    // Check cache first (unless force)
     if (!force) {
       const cached = await kv.get(learningProfileKey(userId)) as any;
       if (cached && cached.generated_at) {
         const age = Date.now() - new Date(cached.generated_at).getTime();
         if (age < PROFILE_TTL_MS) {
-          console.log(`[A7-04] Returning cached profile for user=${userId} (age=${Math.round(age / 60000)}min)`);
+          console.log(`[A7-04] Returning cached profile (age=${Math.round(age / 60000)}min)`);
           return c.json({ success: true, data: { ...cached, cached: true } });
         }
       }
@@ -1146,29 +1041,24 @@ ai.post("/ai/learning-profile", async (c) => {
     return c.json({ success: true, data: profile });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[A7-04] Learning profile error: ${msg}`);
+    console.log(`[A7-04] Error: ${msg}`);
     return c.json({ success: false, error: { code: "AI_ERROR", message: `Erro ao gerar perfil: ${msg}` } }, 500);
   }
 });
 
-// ────────────────────────────────────────────────────────────
-// A7-05: POST /ai/learning-profile/regenerate — Force bypass cache
-// Always generates a fresh profile, ignoring KV cache.
-// ────────────────────────────────────────────────────────────
+// A7-05: POST /ai/learning-profile/regenerate (force bypass cache)
 ai.post("/ai/learning-profile/regenerate", async (c) => {
   try {
     const authResult = await getUserIdFromToken(c.req.header("Authorization"));
     if ("error" in authResult) {
       return c.json({ success: false, error: { code: "AUTH_ERROR", message: authResult.error } }, 401);
     }
-    const userId = authResult.userId;
-
-    console.log(`[A7-05] Force regenerating profile for user=${userId}`);
-    const profile = await buildLearningProfile(userId);
+    console.log(`[A7-05] Force regenerating profile for user=${authResult.userId}`);
+    const profile = await buildLearningProfile(authResult.userId);
     return c.json({ success: true, data: profile });
   } catch (err: unknown) {
     const msg = errMsg(err);
-    console.log(`[A7-05] Regenerate profile error: ${msg}`);
+    console.log(`[A7-05] Error: ${msg}`);
     return c.json({ success: false, error: { code: "AI_ERROR", message: `Erro ao regenerar perfil: ${msg}` } }, 500);
   }
 });
