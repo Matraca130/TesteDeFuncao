@@ -1,447 +1,239 @@
-// ══════════════════════════════════════════════════════════════
-// KEYWORD POPOVER — Popup rico al hacer click en una keyword marcada
-// Muestra definicion, nivel de dominio, AI questions, fuente
-// Usa event delegation: se monta como wrapper que escucha clicks
-// en cualquier .keyword-mark dentro de su children.
-// ══════════════════════════════════════════════════════════════
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
-import { findKeyword, masteryConfig } from '@/app/data/keywords';
-import type { KeywordData, MasteryLevel } from '@/app/data/keywords';
-import { X, HelpCircle, BookOpen, Box, ChevronDown, ChevronUp, MessageSquarePlus, Send } from 'lucide-react';
+// ============================================================
+// KeywordPopover.tsx — Extended by Agent 6 — PRISM
+// Contains 3 new sections:
+//   A6-05: Tab "Mis Notas" [SACRED]
+//   A6-06: Section "Notas do Professor"
+//   A6-07: Placeholder Diagnostico BKT
+// P3: Refactored StudentNotesSection to use useStudentNotes hook
+// ============================================================
+import { useState } from 'react';
+import {
+  StickyNote, GraduationCap, BarChart3, Pencil, Trash2, Undo2,
+  Save, X, ChevronDown, ChevronRight, Eye, EyeOff,
+  Layers, HelpCircle
+} from 'lucide-react';
+import { Button } from '../../ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
+import { Textarea } from '../../ui/textarea';
+import { Badge } from '../../ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
+import { ScrollArea } from '../../ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
+import { Separator } from '../../ui/separator';
+import { useStudentNotes } from '../../../hooks/use-student-notes';
+import { getBktColor } from '../../../design-system/colors';
 
-interface PopoverState {
-  keyword: KeywordData;
-  x: number;
-  y: number;
-  anchorRect: DOMRect;
+// ── Mock Professor Notes ──
+interface ProfNote {
+  id: string;
+  keyword_id: string; // Added by Agent 6 — PRISM — P5 fix: filter by keywordId
+  professor_name: string;
+  note: string;
+  created_at: string;
 }
 
-/** Fallback keyword for terms not found in the database */
-interface FallbackPopoverState {
+const MOCK_PROF_NOTES: ProfNote[] = [
+  { id: 'pn-1', keyword_id: 'kw-1', professor_name: 'Dr. Silva', note: 'Esta keyword e essencial para a prova. Focar na cadeia de transporte de eletrons.', created_at: '2026-01-20' },
+  { id: 'pn-2', keyword_id: 'kw-1', professor_name: 'Dr. Silva', note: 'Revisar a relacao entre mitocondria e apoptose celular.', created_at: '2026-02-01' },
+  { id: 'pn-3', keyword_id: 'kw-2', professor_name: 'Profa. Costa', note: 'Ribossomos livres vs. aderidos ao RER — distinção importante.', created_at: '2026-01-25' },
+  { id: 'pn-4', keyword_id: 'kw-3', professor_name: 'Dr. Silva', note: 'Comparar DNA polimerase I, II e III. Focar na III para a prova.', created_at: '2026-02-03' },
+  { id: 'pn-5', keyword_id: 'kw-4', professor_name: 'Profa. Costa', note: 'Meiose I vs Meiose II: onde ocorre a reducao cromossômica?', created_at: '2026-02-08' },
+  { id: 'pn-6', keyword_id: 'kw-5', professor_name: 'Dr. Silva', note: 'Revisar as fases clara e escura da fotossintese.', created_at: '2026-02-10' },
+];
+
+// ── Types ──
+interface KeywordPopoverProps {
+  keywordId: string;
   term: string;
-  x: number;
-  y: number;
-  anchorRect: DOMRect;
+  definition: string;
+  pKnow?: number;
+  flashcardCount?: number;
+  quizCount?: number;
+  quizAccuracy?: number;
+  onClose?: () => void;
 }
 
-interface KeywordPopoverProviderProps {
-  children: React.ReactNode;
-  /** Summary context for persisting mastery/notes changes */
-  summaryContext?: {
-    courseId: string;
-    topicId: string;
-    keywordMastery?: Record<string, string>;
-    keywordNotes?: Record<string, string[]>;
-    onUpdateMastery?: (keyword: string, mastery: string) => void;
-    onAddNote?: (keyword: string, note: string) => void;
-  };
-}
-
-/**
- * Wrap any content that may contain .keyword-mark spans.
- * Clicking a keyword-mark will show a floating popover with its details.
- */
-export function KeywordPopoverProvider({ children, summaryContext }: KeywordPopoverProviderProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const [popover, setPopover] = useState<PopoverState | null>(null);
-  const [fallbackPopover, setFallbackPopover] = useState<FallbackPopoverState | null>(null);
-  const [showQuestions, setShowQuestions] = useState(false);
-
-  // Active popover is either the rich one or the fallback
-  const isOpen = popover !== null || fallbackPopover !== null;
-
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setPopover(null); setFallbackPopover(null); }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isOpen]);
-
-  // Close when clicking outside
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopover(null);
-        setFallbackPopover(null);
-      }
-    };
-    // Delay to avoid closing on the same click that opened it
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handler);
-    }, 50);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handler);
-    };
-  }, [isOpen]);
-
-  // Event delegation: detect clicks on .keyword-mark
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const kwEl = target.closest('.keyword-mark') as HTMLElement | null;
-    if (!kwEl) return;
-
-    // Get keyword term from data attribute or text content
-    const term = kwEl.getAttribute('data-keyword') || kwEl.textContent || '';
-    const kwData = findKeyword(term);
-
-    e.stopPropagation();
-    const rect = kwEl.getBoundingClientRect();
-
-    if (!kwData) {
-      // Not in the database — show a minimal fallback popup
-      setPopover(null);
-      setFallbackPopover({
-        term: term || 'Palavra-chave',
-        x: rect.left + rect.width / 2,
-        y: rect.bottom + 8,
-        anchorRect: rect,
-      });
-      return;
-    }
-
-    setFallbackPopover(null);
-    setPopover({
-      keyword: kwData,
-      x: rect.left + rect.width / 2,
-      y: rect.bottom + 8,
-      anchorRect: rect,
-    });
-    setShowQuestions(false);
-  }, []);
-
-  const mastery = popover ? masteryConfig[popover.keyword.masteryLevel] : null;
-
-  // Compute position for the popover (uses viewport coords — works with Portal)
-  const getPopoverStyle = useCallback((state: { x: number; y: number; anchorRect: DOMRect }): React.CSSProperties => {
-    const popW = 360;
-    const margin = 12;
-    let left = state.x - popW / 2;
-    // Keep within viewport
-    if (left < margin) left = margin;
-    if (left + popW > window.innerWidth - margin) left = window.innerWidth - margin - popW;
-    let top = state.y;
-    // If near bottom, show above
-    if (top + 300 > window.innerHeight) {
-      top = state.anchorRect.top - 8;
-      return {
-        position: 'fixed' as const,
-        left: `${left}px`,
-        bottom: `${window.innerHeight - top}px`,
-        width: `${popW}px`,
-        zIndex: 9999,
-      };
-    }
-    return {
-      position: 'fixed' as const,
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${popW}px`,
-      zIndex: 9999,
-    };
-  }, []);
-
-  // Render the popover content via Portal into document.body
-  // This avoids position:fixed being trapped by ancestor transforms (motion.div)
-  const popoverPortal = createPortal(
-    <AnimatePresence>
-      {popover && mastery && (
-        <motion.div
-          ref={popoverRef}
-          initial={{ opacity: 0, y: 6, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 6, scale: 0.96 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          style={getPopoverStyle(popover)}
-          className="bg-white rounded-2xl shadow-xl border border-gray-200/80 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header with mastery color */}
-          <div className={`px-4 py-3 ${mastery.headerBg} border-b ${mastery.borderColor}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className={`w-2.5 h-2.5 rounded-full ${mastery.bgDot}`} />
-                <h3 className="text-sm font-bold text-gray-900 capitalize">
-                  {popover.keyword.term}
-                </h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${mastery.textColor} px-2 py-0.5 rounded-full ${mastery.bgLight}`}>
-                  {mastery.label}
-                </span>
-                <button
-                  onClick={() => setPopover(null)}
-                  className="p-0.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Body */}
-          <div className="px-4 py-3 max-h-[320px] overflow-y-auto">
-            {/* Definition */}
-            <p className="text-sm text-gray-700 leading-relaxed">
-              {popover.keyword.definition}
-            </p>
-
-            {/* Source */}
-            <div className="flex items-center gap-1.5 mt-2.5">
-              <BookOpen size={11} className="text-gray-400 shrink-0" />
-              <span className="text-[10px] text-gray-400 italic leading-tight">
-                {popover.keyword.source}
-              </span>
-            </div>
-
-            {/* 3D model indicator */}
-            {popover.keyword.has3DModel && (
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Box size={11} className="text-teal-500 shrink-0" />
-                <span className="text-[10px] text-teal-600 font-semibold">
-                  Modelo 3D disponivel
-                </span>
-              </div>
-            )}
-
-            {/* AI Questions */}
-            {popover.keyword.aiQuestions.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <button
-                  onClick={() => setShowQuestions(!showQuestions)}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors w-full"
-                >
-                  <HelpCircle size={12} />
-                  <span>Perguntas de estudo ({popover.keyword.aiQuestions.length})</span>
-                  <span className="flex-1" />
-                  {showQuestions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                </button>
-
-                <AnimatePresence>
-                  {showQuestions && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-2 space-y-2">
-                        {popover.keyword.aiQuestions.map((q, i) => (
-                          <QuestionCard key={i} question={q.question} answer={q.answer} index={i} />
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* Mastery toggle — only if summaryContext provided */}
-            {summaryContext?.onUpdateMastery && (
-              <MasteryToggle
-                keyword={popover.keyword.term.toLowerCase()}
-                currentMastery={summaryContext.keywordMastery?.[popover.keyword.term.toLowerCase()] || popover.keyword.masteryLevel}
-                onUpdate={(m) => summaryContext.onUpdateMastery!(popover.keyword.term.toLowerCase(), m)}
-              />
-            )}
-
-            {/* Keyword notes — only if summaryContext provided */}
-            {summaryContext?.onAddNote && (
-              <KeywordNotes
-                keyword={popover.keyword.term.toLowerCase()}
-                notes={summaryContext.keywordNotes?.[popover.keyword.term.toLowerCase()] || []}
-                onAdd={(note) => summaryContext.onAddNote!(popover.keyword.term.toLowerCase(), note)}
-              />
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Fallback popup for keywords not in the database */}
-      {fallbackPopover && !popover && (
-        <motion.div
-          ref={popoverRef}
-          initial={{ opacity: 0, y: 6, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 6, scale: 0.96 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          style={getPopoverStyle(fallbackPopover)}
-          className="bg-white rounded-2xl shadow-xl border border-gray-200/80 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-                <h3 className="text-sm font-bold text-gray-900 capitalize">
-                  {fallbackPopover.term}
-                </h3>
-              </div>
-              <button
-                onClick={() => setFallbackPopover(null)}
-                className="p-0.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="px-4 py-3">
-            <p className="text-sm text-gray-500 italic">
-              Palavra-chave marcada no resumo. Definicao detalhada ainda nao disponivel no banco de dados.
-            </p>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body
-  );
-
+export function KeywordPopover({ keywordId, term, definition, pKnow = 0.45, flashcardCount = 3, quizCount = 2, quizAccuracy = 65, onClose }: KeywordPopoverProps) {
   return (
-    <div ref={containerRef} onClick={handleClick} className="relative">
-      {children}
-      {popoverPortal}
-    </div>
+    <Card className="w-full max-w-md border-gray-200 shadow-xl" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle style={{ fontFamily: "'Georgia', serif" }} className="text-gray-900">{term}</CardTitle>
+            <p className="text-gray-500 mt-1" style={{ fontSize: '0.875rem' }}>{definition}</p>
+          </div>
+          {onClose && (<Button variant="ghost" size="sm" onClick={onClose} className="text-gray-400 hover:text-gray-600 -mt-1 -mr-2"><X className="w-4 h-4" /></Button>)}
+        </div>
+        <div className="flex gap-3 mt-3">
+          <Badge variant="secondary" className="bg-teal-50 text-teal-700 gap-1"><Layers className="w-3 h-3" /> {flashcardCount} flashcards</Badge>
+          <Badge variant="secondary" className="bg-blue-50 text-blue-700 gap-1"><HelpCircle className="w-3 h-3" /> {quizCount} quiz</Badge>
+        </div>
+      </CardHeader>
+      <Separator />
+      <Tabs defaultValue="notas" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mx-4 mt-2" style={{ width: 'calc(100% - 2rem)' }}>
+          <TabsTrigger value="notas" className="gap-1"><StickyNote className="w-3 h-3" /> Mis Notas</TabsTrigger>
+          <TabsTrigger value="diagnostico" className="gap-1"><BarChart3 className="w-3 h-3" /> Diagnostico</TabsTrigger>
+        </TabsList>
+        <TabsContent value="notas" className="px-4 pb-2"><StudentNotesSection keywordId={keywordId} /></TabsContent>
+        <TabsContent value="diagnostico" className="px-4 pb-2"><DiagnosticoSection pKnow={pKnow} flashcardCount={flashcardCount} quizCount={quizCount} quizAccuracy={quizAccuracy} /></TabsContent>
+      </Tabs>
+      <Separator />
+      <ProfessorNotesSection keywordId={keywordId} />
+    </Card>
   );
 }
 
-// ── Question card with reveal answer ──
-function QuestionCard({ question, answer, index }: { question: string; answer?: string; index: number }) {
-  const [showAnswer, setShowAnswer] = useState(false);
-
-  return (
-    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-      <p className="text-xs text-gray-700 font-medium leading-relaxed">
-        <span className="text-teal-600 font-bold mr-1">Q{index + 1}.</span>
-        {question}
-      </p>
-      {answer && (
-        <>
-          {!showAnswer ? (
-            <button
-              onClick={() => setShowAnswer(true)}
-              className="mt-1.5 text-[10px] font-semibold text-teal-600 hover:text-teal-700 transition-colors"
-            >
-              Ver resposta
-            </button>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mt-1.5 pt-1.5 border-t border-gray-200"
-            >
-              <p className="text-[11px] text-gray-600 leading-relaxed">
-                <span className="font-semibold text-emerald-600 mr-1">R:</span>
-                {answer}
-              </p>
-            </motion.div>
-          )}
-        </>
-      )}
-      {!answer && (
-        <p className="mt-1 text-[10px] text-gray-400 italic">Responda mentalmente antes de continuar.</p>
-      )}
-    </div>
-  );
-}
-
-// ── Mastery toggle component ──
-function MasteryToggle({ keyword, currentMastery, onUpdate }: { keyword: string; currentMastery: string; onUpdate: (m: string) => void }) {
-  const levels: { key: string; label: string; dot: string; bg: string }[] = [
-    { key: 'red', label: 'Nao domino', dot: 'bg-red-500', bg: 'hover:bg-red-50' },
-    { key: 'yellow', label: 'Parcialmente', dot: 'bg-amber-400', bg: 'hover:bg-amber-50' },
-    { key: 'green', label: 'Domino', dot: 'bg-emerald-500', bg: 'hover:bg-emerald-50' },
-  ];
-
-  return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Seu dominio</p>
-      <div className="flex gap-1.5">
-        {levels.map(l => (
-          <button
-            key={l.key}
-            onClick={() => onUpdate(l.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all border ${
-              currentMastery === l.key
-                ? `${l.dot.replace('bg-', 'border-')} bg-opacity-10 ${l.bg.replace('hover:', '')}`
-                : 'border-gray-200 text-gray-500 ' + l.bg
-            }`}
-          >
-            <div className={`w-2 h-2 rounded-full ${l.dot}`} />
-            {l.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Keyword notes component ──
-function KeywordNotes({ keyword, notes, onAdd }: { keyword: string; notes: string[]; onAdd: (note: string) => void }) {
+// ============================================================
+// A6-05: Tab "Mis Notas" [SACRED — soft-delete only]
+// ============================================================
+function StudentNotesSection({ keywordId }: { keywordId: string }) {
+  const { activeNotes, deletedNotes, isMutating, createNote, updateNote, softDeleteNote, restoreNote } = useStudentNotes({ keywordId });
   const [newNote, setNewNote] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [showDeleted, setShowDeleted] = useState(false);
 
-  const handleSubmit = () => {
-    if (!newNote.trim()) return;
-    onAdd(newNote.trim());
-    setNewNote('');
+  const handleCreate = async () => { if (!newNote.trim()) return; await createNote(newNote.trim()); setNewNote(''); };
+  const handleEdit = (id: string) => { const n = activeNotes.find((n) => n.id === id); if (n) { setEditingId(id); setEditText(n.note); } };
+  const handleSaveEdit = async () => { if (!editingId) return; await updateNote(editingId, editText.trim()); setEditingId(null); };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Escreva uma nota..." rows={2} className="flex-1" />
+        <Button size="sm" onClick={handleCreate} disabled={!newNote.trim() || isMutating} className="bg-teal-500 hover:bg-teal-600 text-white self-end"><Save className="w-3 h-3" /></Button>
+      </div>
+      <ScrollArea className="max-h-48">
+        {activeNotes.length === 0 ? (
+          <div className="text-center py-4"><StickyNote className="w-8 h-8 text-gray-300 mx-auto mb-1" /><p className="text-gray-400" style={{ fontSize: '0.75rem' }}>Ainda nao tens notas para esta keyword</p></div>
+        ) : (
+          <div className="space-y-2">
+            {activeNotes.map((n) => (
+              <div key={n.id} className="group p-2 rounded-lg border border-gray-100 hover:border-teal-200 transition-colors">
+                {editingId === n.id ? (
+                  <div className="space-y-2">
+                    <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} autoFocus />
+                    <div className="flex gap-1">
+                      <Button size="sm" onClick={handleSaveEdit} disabled={isMutating} className="bg-teal-500 hover:bg-teal-600 text-white h-7" style={{ fontSize: '0.75rem' }}>Salvar</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="h-7" style={{ fontSize: '0.75rem' }}>Cancelar</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <p className="text-gray-700 flex-1" style={{ fontSize: '0.875rem' }}>{n.note}</p>
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button onClick={() => handleEdit(n.id)} className="p-1 text-gray-400 hover:text-teal-600 rounded"><Pencil className="w-3 h-3" /></button>
+                      <button onClick={() => softDeleteNote(n.id)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+      {deletedNotes.length > 0 && (
+        <Collapsible open={showDeleted} onOpenChange={setShowDeleted}>
+          <CollapsibleTrigger className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors" style={{ fontSize: '0.75rem' }}>
+            {showDeleted ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />} Notas eliminadas ({deletedNotes.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-1">
+            {deletedNotes.map((n) => (
+              <div key={n.id} className="flex items-center gap-2 p-1.5 rounded bg-gray-50">
+                <p className="text-gray-400 truncate flex-1" style={{ fontSize: '0.75rem' }}>{n.note}</p>
+                <button onClick={() => restoreNote(n.id)} className="text-teal-600 hover:text-teal-700 shrink-0" style={{ fontSize: '0.75rem' }}><Undo2 className="w-3 h-3" /></button>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// A6-06: Seccion "Notas do Professor"
+// ============================================================
+function ProfessorNotesSection({ keywordId }: { keywordId: string }) {
+  const [visibleNotes, setVisibleNotes] = useState<ProfNote[]>(MOCK_PROF_NOTES.filter(n => n.keyword_id === keywordId));
+  const [hiddenNotes, setHiddenNotes] = useState<ProfNote[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+
+  const toggleVisibility = (noteId: string) => {
+    const note = visibleNotes.find((n) => n.id === noteId);
+    if (note) { setVisibleNotes((prev) => prev.filter((n) => n.id !== noteId)); setHiddenNotes((prev) => [...prev, note]); }
+  };
+  const restoreVisibility = (noteId: string) => {
+    const note = hiddenNotes.find((n) => n.id === noteId);
+    if (note) { setHiddenNotes((prev) => prev.filter((n) => n.id !== noteId)); setVisibleNotes((prev) => [...prev, note]); }
   };
 
   return (
-    <div className="mt-3 pt-3 border-t border-gray-100">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider hover:text-gray-700 transition-colors w-full"
-      >
-        <MessageSquarePlus size={12} />
-        <span>Suas notas {notes.length > 0 && `(${notes.length})`}</span>
-        <span className="flex-1" />
-        {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-2 space-y-2">
-              {notes.map((note, i) => (
-                <div key={i} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
-                  <p className="text-[11px] text-gray-700 leading-relaxed">{note}</p>
-                </div>
-              ))}
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-                  className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs focus:border-teal-400 focus:outline-none focus:ring-1 focus:ring-teal-300/50"
-                  placeholder="Adicionar nota..."
-                />
-                <button
-                  onClick={handleSubmit}
-                  disabled={!newNote.trim()}
-                  className="p-1.5 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100 disabled:opacity-40 transition-colors"
-                >
-                  <Send size={12} />
-                </button>
+    <div className="p-4">
+      <div className="flex items-center gap-2 mb-3"><GraduationCap className="w-4 h-4 text-teal-500" /><span className="text-gray-700" style={{ fontSize: '0.875rem', fontWeight: 600 }}>Notas do Professor</span></div>
+      {visibleNotes.length === 0 ? (
+        <p className="text-gray-400 text-center py-3" style={{ fontSize: '0.75rem' }}>Nenhuma nota do professor para esta keyword</p>
+      ) : (
+        <div className="space-y-2">
+          {visibleNotes.map((n) => (
+            <div key={n.id} className="group p-2 rounded-lg bg-amber-50/50 border border-amber-100">
+              <div className="flex items-start justify-between gap-2">
+                <div><p className="text-gray-700" style={{ fontSize: '0.875rem' }}>{n.note}</p><p className="text-gray-400 mt-1" style={{ fontSize: '0.625rem' }}>{n.professor_name} — {n.created_at}</p></div>
+                <button onClick={() => toggleVisibility(n.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 p-1" title="Ocultar nota"><EyeOff className="w-3 h-3" /></button>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          ))}
+        </div>
+      )}
+      {hiddenNotes.length > 0 && (
+        <Collapsible open={showHidden} onOpenChange={setShowHidden} className="mt-2">
+          <CollapsibleTrigger className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors" style={{ fontSize: '0.75rem' }}>
+            {showHidden ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />} Notas ocultas ({hiddenNotes.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-1">
+            {hiddenNotes.map((n) => (
+              <div key={n.id} className="flex items-center gap-2 p-1.5 rounded bg-gray-50">
+                <p className="text-gray-400 truncate flex-1" style={{ fontSize: '0.75rem' }}>{n.note}</p>
+                <button onClick={() => restoreVisibility(n.id)} className="text-teal-600 hover:text-teal-700 shrink-0"><Eye className="w-3 h-3" /></button>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// A6-07: Placeholder Diagnostico + BKT
+// ============================================================
+function DiagnosticoSection({ pKnow, flashcardCount, quizCount, quizAccuracy }: { pKnow: number; flashcardCount: number; quizCount: number; quizAccuracy: number }) {
+  const bkt = getBktColor(pKnow);
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-gray-700" style={{ fontSize: '0.875rem' }}>Tu nivel de dominio</span>
+          <Badge style={{ backgroundColor: bkt.bg, color: bkt.color, borderColor: bkt.color }}>{bkt.label}</Badge>
+        </div>
+        <div className="h-3 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pKnow * 100}%`, backgroundColor: bkt.color }} /></div>
+        <div className="flex justify-between mt-1">
+          <span className="text-gray-400" style={{ fontSize: '0.625rem' }}>0%</span>
+          <span style={{ fontSize: '0.75rem', color: bkt.color, fontWeight: 600 }}>{(pKnow * 100).toFixed(0)}%</span>
+          <span className="text-gray-400" style={{ fontSize: '0.625rem' }}>100%</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-gray-900" style={{ fontFamily: "'Georgia', serif" }}>{flashcardCount}</p><p className="text-gray-400" style={{ fontSize: '0.625rem' }}>Flashcards</p></div>
+        <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-gray-900" style={{ fontFamily: "'Georgia', serif" }}>{quizCount}</p><p className="text-gray-400" style={{ fontSize: '0.625rem' }}>Quiz</p></div>
+        <div className="text-center p-2 rounded-lg bg-gray-50"><p className="text-gray-900" style={{ fontFamily: "'Georgia', serif" }}>{quizAccuracy}%</p><p className="text-gray-400" style={{ fontSize: '0.625rem' }}>Acerto</p></div>
+      </div>
+      <div className="p-3 rounded-lg border border-dashed border-gray-300 bg-gray-50/50 text-center">
+        <BarChart3 className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+        <p className="text-gray-400" style={{ fontSize: '0.75rem' }}>Diagnostico AI disponivel em breve</p>
+        <p className="text-gray-300" style={{ fontSize: '0.625rem' }}>Analise detalhada de pontos fortes e fracos</p>
+      </div>
     </div>
   );
 }
