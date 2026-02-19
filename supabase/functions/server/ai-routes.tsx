@@ -2,6 +2,11 @@
 // Axon — AI Routes (Dev 6)
 // D29: Batch generation, D20: Approval flow,
 // D43: Keyword-contextualized chat, D42: Keyword popup
+//
+// Agent 2 (SCRIBE) extension:
+//   GET /keyword-popup/:keywordId now includes:
+//     - professor_notes (visible to students)
+//     - student_notes_count
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -474,6 +479,7 @@ Definition: ${kw.definition}`;
 
 // ────────────────────────────────────────────────────────────
 // GET /keyword-popup/:keywordId — Hub assembly (D42)
+// Extended by Agent 2 (SCRIBE): +professor_notes, +student_notes_count
 // ────────────────────────────────────────────────────────────
 ai.get("/keyword-popup/:keywordId", async (c) => {
   try {
@@ -536,6 +542,34 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
       quizCount = qIds.length;
     } catch (_e) {}
 
+    // 6. Get professor notes visible to students (Agent 2 — SCRIBE)
+    let professorNotes: unknown[] = [];
+    try {
+      const profNoteIds = await kv.getByPrefix(`idx:kw-prof-notes:${kwId}:`);
+      if (profNoteIds.length > 0) {
+        const allProfNotes = (await kv.mget(
+          (profNoteIds as string[]).map((id: string) => `kw-prof-note:${id}`)
+        )).filter(Boolean);
+        professorNotes = allProfNotes.filter(
+          (n: any) => n.visibility === "students" && !n.deleted_at
+        );
+      }
+    } catch (_e) {}
+
+    // 7. Count student's own notes on this keyword (Agent 2 — SCRIBE)
+    let studentNotesCount = 0;
+    try {
+      const studentNoteIds = await kv.getByPrefix(
+        `idx:kw-student-notes:${kwId}:${userId}:`
+      );
+      if (studentNoteIds.length > 0) {
+        const studentNotes = (await kv.mget(
+          (studentNoteIds as string[]).map((id: string) => `kw-student-note:${id}`)
+        )).filter(Boolean);
+        studentNotesCount = studentNotes.filter((n: any) => !n.deleted_at).length;
+      }
+    } catch (_e) {}
+
     return c.json({
       success: true,
       data: {
@@ -546,6 +580,8 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
         chat_history: chatHistory,
         flashcard_count: flashcardCount,
         quiz_count: quizCount,
+        professor_notes: professorNotes,
+        student_notes_count: studentNotesCount,
       },
     });
   } catch (err: unknown) {

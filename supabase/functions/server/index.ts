@@ -1,15 +1,15 @@
 // ============================================================
 // Axon v4.4 — Server Entry Point (COMPLETE)
-// Mounts ALL 12 route modules + inline seed endpoint.
+// Mounts ALL 14 route modules + inline seed endpoint.
 // Prefix: /server (MUST match the deployed function name)
-// Deploy: 2026-02-19T00:15Z
+// Deploy: 2026-02-19T12:00Z
 //
 // IMPORTANT: When deploying via `supabase functions deploy server`,
 // the function name is 'server'. Supabase includes the function name
 // in the path, so Hono receives /server/<route>. PREFIX must equal
 // the function name for routes to match.
 //
-// Route modules (90+ endpoints total):
+// Route modules (110+ endpoints total):
 //   auth         — signup, signin, me, signout (4)
 //   institutions — by-id, by-slug (2)
 //   content      — institutions, courses, semesters, sections,
@@ -25,6 +25,8 @@
 //   sessions     — CRUD (varies)
 //   model3d      — upload, CRUD, thumbnail (7)
 //   ai           — generate, approve, drafts, chat, keyword-popup (5)
+//   kwNotes      — student notes CRUD, prof notes CRUD+visibility (13) [SCRIBE]
+//   videoNotes   — timestamped video notes CRUD (6) [SCRIBE]
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -44,6 +46,8 @@ import reviews from "./routes-reviews.tsx";
 import sessions from "./routes-sessions.tsx";
 import model3d from "./routes-model3d.tsx";
 import ai from "./ai-routes.tsx";
+import kwNotes from "./routes-kw-notes.tsx";        // Agent 2 — SCRIBE
+import videoNotes from "./routes-video-notes.tsx";  // Agent 2 — SCRIBE
 
 // KV key functions (for inline seed)
 import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
@@ -75,7 +79,7 @@ app.get(`${PREFIX}/health`, (c) => {
     routes: [
       "auth", "institutions", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
-      "model3d", "ai", "seed",
+      "model3d", "ai", "kwNotes", "videoNotes", "seed",
     ],
   });
 });
@@ -93,6 +97,8 @@ app.route(PREFIX, reviews);
 app.route(PREFIX, sessions);
 app.route(PREFIX, model3d);
 app.route(PREFIX, ai);
+app.route(PREFIX, kwNotes);      // Agent 2 — SCRIBE
+app.route(PREFIX, videoNotes);   // Agent 2 — SCRIBE
 
 // ── Inline seed (FSRS flashcards — complements seed.tsx) ─────
 app.post(`${PREFIX}/seed`, async (c) => {
