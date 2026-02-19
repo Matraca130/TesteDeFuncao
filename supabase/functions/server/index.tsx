@@ -64,7 +64,7 @@ const K = {
   },
 };
 
-// ── Helpers ────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────
 const PREFIX = "/make-server-ae4c3d80";
 
 function supabaseAdmin() {
@@ -135,7 +135,7 @@ async function createMembership(userId: string, instId: string, role: string): P
   return membership;
 }
 
-// ── Health ─────────────────────────────────────────────────────
+// ── Health ───────────────────────────────────────────────────────
 app.get(`${PREFIX}/health`, (c) => {
   return c.json({ status: "ok", version: "4.4", prefix: PREFIX, keys_aligned: "kv-keys.ts" });
 });
@@ -176,7 +176,7 @@ app.post(`${PREFIX}/auth/signup`, async (c) => {
   }
 });
 
-// ── GET /auth/me ──────────────────────────────────────────────
+// ── GET /auth/me ────────────────────────────────────────────
 app.get(`${PREFIX}/auth/me`, async (c) => {
   const user = await getUserFromToken(c);
   if (!user) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, 401);
@@ -209,7 +209,7 @@ app.post(`${PREFIX}/auth/signin`, async (c) => {
   }
 });
 
-// ── Institutions ───────────────────────────────────────────────
+// ── Institutions ───────────────────────────────────────────
 app.get(`${PREFIX}/institutions`, async (c) => {
   try {
     const institutions = await kv.getByPrefix(K.PFX.INST);
@@ -252,7 +252,7 @@ app.post(`${PREFIX}/institutions`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Courses ────────────────────────────────────────────────────
+// ── Courses ────────────────────────────────────────────────
 app.get(`${PREFIX}/courses`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -299,7 +299,7 @@ app.delete(`${PREFIX}/courses/:id`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Semesters ──────────────────────────────────────────────────
+// ── Semesters ──────────────────────────────────────────────
 app.get(`${PREFIX}/semesters`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -337,7 +337,7 @@ app.post(`${PREFIX}/semesters`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Sections ───────────────────────────────────────────────────
+// ── Sections ───────────────────────────────────────────────
 app.get(`${PREFIX}/sections`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -379,7 +379,7 @@ app.post(`${PREFIX}/sections`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Topics ─────────────────────────────────────────────────────
+// ── Topics ─────────────────────────────────────────────────
 app.get(`${PREFIX}/topics`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -425,7 +425,7 @@ app.post(`${PREFIX}/topics`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Summaries ──────────────────────────────────────────────────
+// ── Summaries ──────────────────────────────────────────────
 app.get(`${PREFIX}/summaries`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -489,7 +489,7 @@ app.put(`${PREFIX}/summaries/:id/status`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Keywords ───────────────────────────────────────────────────
+// ── Keywords ───────────────────────────────────────────────
 app.get(`${PREFIX}/keywords`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -523,7 +523,7 @@ app.post(`${PREFIX}/keywords`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Members management ─────────────────────────────────────────
+// ── Members management ─────────────────────────────────────
 app.get(`${PREFIX}/members/:institutionId`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
@@ -551,7 +551,7 @@ app.post(`${PREFIX}/members`, async (c) => {
   } catch (err) { return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500); }
 });
 
-// ── Seed ───────────────────────────────────────────────────────
+// ── Seed ───────────────────────────────────────────────────
 app.post(`${PREFIX}/seed`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
