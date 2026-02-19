@@ -9,6 +9,14 @@ import { DIFFICULTY_OPTIONS } from './types';
 import type { QuizDifficulty } from './types';
 import type { GeneratedQuestion } from '@/app/services/aiService';
 
+// Explicit class map — Tailwind cannot detect dynamic interpolation
+// like `bg-${color}-100`, so we map each difficulty to full class strings.
+const DIFFICULTY_ACTIVE_CLASSES: Record<QuizDifficulty, string> = {
+  basic:        'bg-emerald-100 text-emerald-700 border border-emerald-300',
+  intermediate: 'bg-amber-100 text-amber-700 border border-amber-300',
+  advanced:     'bg-red-100 text-red-700 border border-red-300',
+};
+
 interface QuizViewProps {
   topic: string;
   setTopic: (v: string) => void;
@@ -64,7 +72,7 @@ export function QuizView({
   );
 }
 
-// ── Form ────────────────────────────────────────────────
+// ── Form ──────────────────────────────────────────────────
 
 function QuizForm({
   topic,
@@ -125,7 +133,7 @@ function QuizForm({
                 className={clsx(
                   'flex-1 py-2 rounded-lg text-xs font-medium transition-all',
                   difficulty === d.id
-                    ? `bg-${d.color}-100 text-${d.color}-700 border border-${d.color}-300`
+                    ? DIFFICULTY_ACTIVE_CLASSES[d.id]
                     : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
                 )}
               >
@@ -151,7 +159,7 @@ function QuizForm({
   );
 }
 
-// ── Results ─────────────────────────────────────────────
+// ── Results ───────────────────────────────────────────────
 
 function QuizResults({
   questions,
