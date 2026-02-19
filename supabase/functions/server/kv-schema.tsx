@@ -34,6 +34,14 @@ export const K = {
   video:            (id: string) => `axon:video:${id}`,
   adminScope:       (id: string) => `axon:admin-scope:${id}`,
   quizAttempt:      (id: string) => `axon:quiz-attempt:${id}`,
+
+  // NEW: P4 entities (Agent 6 unblock)
+  flashcard:        (id: string) => `axon:flashcard:${id}`,
+  kwSummaryLink:    (id: string) => `axon:kw-summary-link:${id}`,
+  quizQuestion:     (id: string) => `axon:quiz-question:${id}`,
+  studyPlan:        (id: string) => `axon:study-plan:${id}`,
+  studyGoal:        (id: string) => `axon:study-goal:${id}`,
+  smartRec:         (id: string) => `axon:smart-rec:${id}`,
 } as const;
 
 // ── Prefix constants for getByPrefix queries ──────────────
@@ -59,6 +67,13 @@ export const PFX = {
   readingStates:    'axon:reading-state:',
   learningProfiles: 'axon:learning-profile:',
   studentProfiles:  'axon:student:profile:',
+  // NEW: P4
+  flashcards:       'axon:flashcard:',
+  kwSummaryLinks:   'axon:kw-summary-link:',
+  quizQuestions:    'axon:quiz-question:',
+  studyPlans:       'axon:study-plan:',
+  studyGoals:       'axon:study-goal:',
+  smartRecs:        'axon:smart-rec:',
 } as const;
 
 // ── Helpers ────────────────────────────────────────────────

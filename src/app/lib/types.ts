@@ -11,3 +11,4 @@ export * from './types-student';
 export * from './types-quiz';
 export * from './types-popup';
 export * from './types-api';
+export * from './types-extended';

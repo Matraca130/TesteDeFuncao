@@ -11,3 +11,7 @@ export * from './api-sacred';
 export * from './api-quiz';
 export * from './api-student';
 export * from './api-content';
+export * from './api-flashcards';
+export * from './api-quiz-content';
+export * from './api-study-plans';
+export * from './api-smart-study';
