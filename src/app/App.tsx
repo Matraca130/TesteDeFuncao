@@ -1,28 +1,25 @@
 // ============================================================
-// Axon v4.4 — App Entry Point
-// Provider nesting order: Auth -> Admin -> App -> Api -> Router
+// Axon v4.4 — Root App Component
 // ============================================================
-import { RouterProvider } from 'react-router';
+// Provider hierarchy:
+//   AuthProvider → ApiProvider → RouterProvider
+//
+// AuthProvider MUST wrap ApiProvider because ApiProvider calls
+// useAuth() to get the access token for API requests.
+// ============================================================
 import { Toaster } from 'sonner';
-import { router } from './routes';
-
-// Providers (nesting order matters — see LOGIN-CONTRACT R7)
+import { RouterProvider } from 'react-router';
 import { AuthProvider } from './context/AuthContext';
-import { AdminProvider } from './context/AdminContext';
-import { AppProvider } from './context/AppContext';
 import { ApiProvider } from './lib/api-provider';
+import { router } from './routes';
 
 export default function App() {
   return (
     <AuthProvider>
-      <AdminProvider>
-        <AppProvider>
-          <ApiProvider>
-            <RouterProvider router={router} />
-            <Toaster position="bottom-right" richColors closeButton />
-          </ApiProvider>
-        </AppProvider>
-      </AdminProvider>
+      <ApiProvider>
+        <RouterProvider router={router} />
+        <Toaster position="top-center" richColors closeButton />
+      </ApiProvider>
     </AuthProvider>
   );
 }

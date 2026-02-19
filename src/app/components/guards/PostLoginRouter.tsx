@@ -5,23 +5,8 @@
 import { useEffect } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
-import type { MembershipRole } from '../../types/auth';
+import { getRouteForRole } from '../../types/auth';
 import { Loader2 } from 'lucide-react';
-
-function routeByRole(role: MembershipRole): string {
-  switch (role) {
-    case 'owner':
-      return '/admin';
-    case 'admin':
-      return '/admin';
-    case 'professor':
-      return '/professor';
-    case 'student':
-      return '/study';
-    default:
-      return '/';
-  }
-}
 
 export function PostLoginRouter() {
   const { isAuthenticated, isLoading, memberships, currentMembership, selectInstitution } =
@@ -60,7 +45,7 @@ export function PostLoginRouter() {
 
   // If membership is selected -> redirect by role
   if (currentMembership) {
-    const target = routeByRole(currentMembership.role);
+    const target = getRouteForRole(currentMembership.role);
     console.log(
       `[Router] PostLoginRouter: role='${currentMembership.role}', redirecting to ${target}`
     );
