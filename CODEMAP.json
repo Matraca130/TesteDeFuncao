@@ -1,11 +1,11 @@
 {
   "_meta": {
-    "version": "2.1.0",
-    "updated": "2026-02-17",
+    "version": "2.2.0",
+    "updated": "2026-02-19",
     "description": "Mapa do frontend Axon/TesteDeFuncao. Cada pool tem read_first (ler SEMPRE) e read_if_needed (ler conforme a tarefa).",
-    "total_files": 100,
-    "total_files_detail": "51 domain + 48 ui/shadcn + 1 figma/infra = 100 .ts/.tsx + 4 CSS",
-    "pools_count": 10,
+    "total_files": 111,
+    "total_files_detail": "62 domain + 48 ui/shadcn + 1 figma/infra = 111 .ts/.tsx + 4 CSS",
+    "pools_count": 11,
     "implicit_dependency": "design-system/ e importado por 17 arquivos em quase todos os pools. Nao e listado em cada pool — consulte cross_reference.",
 
     "read_protocol": {
@@ -18,6 +18,25 @@
     },
 
     "changelog": [
+      {
+        "version": "2.2.0",
+        "date": "2026-02-19",
+        "description": "Modularizado AxonAIAssistant de 1 arquivo (~580 linhas) em 11 sub-modulos. Custom hook useAIAssistant gerencia toda logica/estado. Views (Chat, Flashcards, Quiz, Explain) sao componentes puros com props tipadas. Tipos e constantes extraidos para types.ts. MarkdownRenderer reutilizavel.",
+        "files_added": [
+          "src/app/components/content/ai-assistant/types.ts",
+          "src/app/components/content/ai-assistant/useAIAssistant.ts",
+          "src/app/components/content/ai-assistant/MarkdownRenderer.tsx",
+          "src/app/components/content/ai-assistant/AssistantHeader.tsx",
+          "src/app/components/content/ai-assistant/ModeTabs.tsx",
+          "src/app/components/content/ai-assistant/ChatView.tsx",
+          "src/app/components/content/ai-assistant/FlashcardsView.tsx",
+          "src/app/components/content/ai-assistant/QuizView.tsx",
+          "src/app/components/content/ai-assistant/ExplainView.tsx",
+          "src/app/components/content/ai-assistant/AxonAIAssistant.tsx",
+          "src/app/components/content/ai-assistant/index.ts"
+        ],
+        "files_modified": ["CODEMAP.json"]
+      },
       {
         "version": "2.1.0",
         "date": "2026-02-17",
@@ -55,6 +74,17 @@
     "canvas/AnnotationPanel.tsx": 229,
     "canvas/BlockActions.tsx": 102,
     "canvas/ReorderBlockWrapper.tsx": 347,
+    "ai-assistant/types.ts": 77,
+    "ai-assistant/useAIAssistant.ts": 270,
+    "ai-assistant/MarkdownRenderer.tsx": 87,
+    "ai-assistant/AssistantHeader.tsx": 41,
+    "ai-assistant/ModeTabs.tsx": 35,
+    "ai-assistant/ChatView.tsx": 242,
+    "ai-assistant/FlashcardsView.tsx": 228,
+    "ai-assistant/QuizView.tsx": 297,
+    "ai-assistant/ExplainView.tsx": 198,
+    "ai-assistant/AxonAIAssistant.tsx": 117,
+    "ai-assistant/index.ts": 7,
     "AxonPageHeader.tsx": 49,
     "AdminBanner.tsx": 312,
     "Sidebar.tsx": 220,
@@ -72,6 +102,32 @@
   },
 
   "pools": {
+
+    "ai-assistant": {
+      "description": "Axon AI Assistant — painel flutuante com chat, geracao de flashcards, geracao de quiz e explicacao de conceitos powered by Gemini. Modularizado em 11 sub-modulos.",
+      "read_first": [
+        "src/app/components/content/ai-assistant/AxonAIAssistant.tsx",
+        "src/app/components/content/ai-assistant/types.ts",
+        "src/app/components/content/ai-assistant/useAIAssistant.ts"
+      ],
+      "read_first_lines": 464,
+      "read_if_needed": {
+        "chat_view": ["src/app/components/content/ai-assistant/ChatView.tsx"],
+        "flashcards_view": ["src/app/components/content/ai-assistant/FlashcardsView.tsx"],
+        "quiz_view": ["src/app/components/content/ai-assistant/QuizView.tsx"],
+        "explain_view": ["src/app/components/content/ai-assistant/ExplainView.tsx"],
+        "ui_shell": ["src/app/components/content/ai-assistant/AssistantHeader.tsx", "src/app/components/content/ai-assistant/ModeTabs.tsx"],
+        "markdown": ["src/app/components/content/ai-assistant/MarkdownRenderer.tsx"],
+        "ai_service": ["src/app/services/aiService.ts"],
+        "barrel": ["src/app/components/content/ai-assistant/index.ts"]
+      },
+      "shared_warnings": [
+        "useAIAssistant.ts — usa useApp() de AppContext para currentCourse/currentTopic",
+        "aiService.ts — camada API Gemini. Editar aqui afeta todas as views do AI Assistant",
+        "types.ts — tipos compartilhados por todos os 10 sub-componentes do modulo"
+      ],
+      "notes": "Modularizado de ~580 linhas em 11 arquivos. Arquitetura: useAIAssistant (hook de logica) -> AxonAIAssistant (orquestrador slim ~117 linhas) -> Views puras (ChatView, FlashcardsView, QuizView, ExplainView). Constantes em types.ts. Import externo: import { AxonAIAssistant } from './ai-assistant'."
+    },
 
     "study": {
       "description": "Sessao de estudo — plano de estudos (StudyPlan) + leitor de conteudo (StudySession) com keywords, imagens, CanvasBlocksRenderer, timer",
@@ -308,12 +364,16 @@
     "student.ts": ["study", "resumos", "canvas", "admin", "dashboard", "types-services"],
     "studentApi.ts": ["study", "resumos", "canvas", "admin", "types-services"],
     "AdminContext.tsx": ["admin", "navigation", "shared-components (AdminBanner, Sidebar)"],
-    "AppContext.tsx": ["study", "resumos", "admin (bridge)", "dashboard", "navigation", "shared-components"],
+    "AppContext.tsx": ["study", "resumos", "admin (bridge)", "dashboard", "navigation", "shared-components", "ai-assistant (useAIAssistant)"],
     "StudentDataContext.tsx": ["dashboard", "types-services"],
     "AxonPageHeader.tsx": ["study", "resumos", "dashboard", "admin", "shared-components"],
     "AdminBanner.tsx": ["study", "resumos", "shared-components"],
     "CanvasBlocksRenderer.tsx": ["study", "resumos"],
     "ResumoCanvas.tsx": ["canvas", "admin"],
+    "aiService.ts": ["ai-assistant (useAIAssistant, todas as views)"],
+    "ai-assistant/types.ts": ["ai-assistant (todos os sub-componentes)"],
+    "ai-assistant/useAIAssistant.ts": ["ai-assistant (AxonAIAssistant)"],
+    "ai-assistant/MarkdownRenderer.tsx": ["ai-assistant (ChatView, ExplainView)"],
     "design-system/*": ["study", "resumos", "canvas", "admin", "dashboard", "navigation", "shared-components"]
   },
 
