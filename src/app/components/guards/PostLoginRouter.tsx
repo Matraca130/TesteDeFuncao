@@ -5,7 +5,7 @@
 import { useEffect } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
-import { getRouteForRole } from '../../types/auth';
+import { getRouteForRole } from '../../../types/auth';
 import { Loader2 } from 'lucide-react';
 
 export function PostLoginRouter() {
