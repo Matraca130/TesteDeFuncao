@@ -22,3 +22,6 @@ export { StudentCardCreator } from './StudentCardCreator';
 // Custom Hook (Step 3)
 export { useFlashcardSession } from './useFlashcardSession';
 export type { UseFlashcardSessionReturn } from './useFlashcardSession';
+
+// Phase Views (Step 4)
+export { LoadingView, EmptyView, SummaryView, StudyingView } from './views';
