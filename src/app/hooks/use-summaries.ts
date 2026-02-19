@@ -1,7 +1,14 @@
 // ============================================================
 // useSummaries — Hook for summaries list
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mockFetchAll with GET /api/summaries
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4's Summary type has NO title field
+//     (Summary has content_markdown, status, version, etc.)
+//   - Agent 6 UI displays summary.title in Select dropdowns
+//   - Agent 4's getSummaries(topicId) requires a topicId,
+//     but Agent 6 needs ALL summaries across topics
+//   - Requires Agent 4 to add title field to Summary type
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { MOCK_SUMMARIES, type Summary } from '../data/mock-data';
@@ -24,7 +31,6 @@ export function useSummaries(): UseSummariesReturn {
     setIsLoading(true);
     setError(null);
     try {
-      // TODO P3+: Replace with real API call
       const data = await mockFetchAll(MOCK_SUMMARIES);
       setSummaries(data);
     } catch {

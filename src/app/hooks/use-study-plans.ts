@@ -1,7 +1,15 @@
 // ============================================================
 // useStudyPlans — CRUD hook for student study plans
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4's api-plans.ts has PricingPlan CRUD (admin billing)
+//     which is NOT the same as student StudyPlans
+//   - StudyPlan has items[] with keyword_id/summary_id references,
+//     progress tracking, date ranges — none of which exist in A4
+//   - Requires new api-study-plans.ts module with:
+//     getStudyPlans(studentId), createStudyPlan(),
+//     updateStudyPlan(), deleteStudyPlan(), togglePlanItem()
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';

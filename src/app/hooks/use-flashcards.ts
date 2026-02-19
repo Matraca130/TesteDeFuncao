@@ -1,7 +1,13 @@
 // ============================================================
 // useFlashcards — CRUD hook for professor flashcards
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4 has NO flashcard CRUD API for professors
+//   - Agent 4 only has submitFlashcardReview() (student-facing)
+//   - Requires new api-flashcards.ts module with:
+//     getFlashcards(summaryId), createFlashcard(), updateFlashcard(),
+//     deleteFlashcard() (soft-delete since student data)
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';

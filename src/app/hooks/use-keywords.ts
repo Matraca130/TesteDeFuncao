@@ -1,7 +1,14 @@
 // ============================================================
 // useKeywords — CRUD hook for professor keywords
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4's Keyword type has NO summary_id field
+//     (keywords are institution-level, not summary-level)
+//   - Agent 4's deleteKeyword uses HARD delete (no deleted_at)
+//   - Agent 6 UI filters keywords by summary_id
+//   - Requires Agent 4 to add keyword ↔ summary mapping
+//     or Agent 6 UI refactor to use institution-level keywords
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -92,7 +99,7 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
       toast.success('Keyword atualizada');
     } catch {
       toast.error('Erro ao atualizar keyword');
-      await fetchKeywords(); // rollback
+      await fetchKeywords();
     } finally {
       setIsMutating(false);
     }
@@ -101,7 +108,6 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
   const deleteKeyword = useCallback(async (id: string) => {
     setIsMutating(true);
     try {
-      // Soft-delete (R05)
       setKeywords((prev) =>
         prev.map((kw) =>
           kw.id === id ? { ...kw, deleted_at: new Date().toISOString() } : kw

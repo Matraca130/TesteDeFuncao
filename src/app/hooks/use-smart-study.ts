@@ -1,7 +1,15 @@
 // ============================================================
 // useSmartStudy — Hook for smart study session items
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4 has NO smart study API
+//   - SmartStudyItem requires BKT p_know + NeedScore computation
+//     which depends on Agent 2's FSRS engine + Agent 3's diagnostics
+//   - Agent 3 has GET /diagnostics/summary/:summaryId but it returns
+//     per-summary diagnostics, not a ranked keyword list
+//   - Requires new api-smart-study.ts module with:
+//     getSmartStudyItems(studentId), generateStudySession()
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -55,7 +63,6 @@ export function useSmartStudy(): UseSmartStudyReturn {
   const generateSession = useCallback(async () => {
     setIsGenerating(true);
     try {
-      // TODO P3+: Replace with POST /smart-study/generate
       const newItems = await mockAIGenerate(MOCK_SMART_STUDY, 1500);
       setItems(newItems);
       toast.success('Sessao de estudo gerada');

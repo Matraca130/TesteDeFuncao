@@ -2,13 +2,36 @@
 // useVideoNotes — SACRED CRUD hook for video annotations
 // Added by Agent 6 — PRISM — P3 Hook Layer
 // SACRED: Soft-delete ONLY. NEVER hard delete VideoNote.
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+// REWIRED: Now uses Agent 4 api-client (api-sacred module)
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { MOCK_VIDEO_NOTES, type VideoNote } from '../data/mock-data';
-import { mockFetchAll, mockCreate, mockUpdate, mockSoftDelete, mockRestore } from '../api-client/mock-api';
+import type { VideoNote } from '../data/mock-data';
+import {
+  getVideoNotesByVideo,
+  createVideoNote as apiCreateVideoNote,
+  updateVideoNote as apiUpdateVideoNote,
+  softDeleteVideoNote,
+  restoreVideoNote as apiRestoreVideoNote,
+} from '../lib/api-client';
+import type { VideoNote as A4VideoNote } from '../lib/types';
 import { formatTimestamp } from '../utils/media-helpers';
+
+// ── Type Adapter: Agent 4 VideoNote → Agent 6 VideoNote ──
+// Agent 4: { content, timestamp_ms } | Agent 6: { note, timestamp_seconds }
+const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
+
+function toA6VideoNote(a4: A4VideoNote): VideoNote {
+  return {
+    id: a4.id,
+    student_id: a4.student_id,
+    video_id: a4.video_id,
+    note: a4.content,
+    timestamp_seconds: a4.timestamp_ms != null ? Math.round(a4.timestamp_ms / 1000) : null,
+    created_at: a4.created_at,
+    deleted_at: a4.deleted_at,
+  };
+}
 
 interface UseVideoNotesOptions {
   videoId: string;
@@ -38,9 +61,11 @@ export function useVideoNotes({ videoId }: UseVideoNotesOptions): UseVideoNotesR
     setIsLoading(true);
     setError(null);
     try {
-      const data = await mockFetchAll(MOCK_VIDEO_NOTES.filter((n) => n.video_id === videoId));
-      setNotes(data);
-    } catch {
+      // REWIRED: Agent 4 api-sacred
+      const a4Notes = await getVideoNotesByVideo(videoId, STUDENT_ID);
+      setNotes(a4Notes.map(toA6VideoNote));
+    } catch (err) {
+      console.error('[useVideoNotes] fetch error:', err);
       setError('Erro ao carregar notas');
     } finally {
       setIsLoading(false);
@@ -73,19 +98,13 @@ export function useVideoNotes({ videoId }: UseVideoNotesOptions): UseVideoNotesR
     async (noteText: string, timestampSeconds: number | null) => {
       setIsMutating(true);
       try {
-        const newNote: VideoNote = {
-          id: `vn-${Date.now()}`,
-          student_id: 's-1',
-          video_id: videoId,
-          note: noteText.trim(),
-          timestamp_seconds: timestampSeconds,
-          created_at: new Date().toISOString().split('T')[0],
-          deleted_at: null,
-        };
-        await mockCreate(newNote);
-        setNotes((prev) => [...prev, newNote]);
+        // REWIRED: Agent 4 api-sacred — converts seconds → ms
+        const timestampMs = timestampSeconds != null ? timestampSeconds * 1000 : null;
+        const a4Note = await apiCreateVideoNote(videoId, STUDENT_ID, noteText.trim(), timestampMs);
+        setNotes((prev) => [...prev, toA6VideoNote(a4Note)]);
         toast.success('Nota salva');
-      } catch {
+      } catch (err) {
+        console.error('[useVideoNotes] create error:', err);
         toast.error('Erro ao salvar nota');
       } finally {
         setIsMutating(false);
@@ -97,12 +116,15 @@ export function useVideoNotes({ videoId }: UseVideoNotesOptions): UseVideoNotesR
   const updateNote = useCallback(async (id: string, noteText: string) => {
     setIsMutating(true);
     try {
+      // Optimistic update
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, note: noteText.trim() } : n)));
-      await mockUpdate({ id, note: noteText.trim() });
+      // REWIRED: Agent 4 api-sacred
+      await apiUpdateVideoNote(id, noteText.trim());
       toast.success('Nota atualizada');
-    } catch {
+    } catch (err) {
+      console.error('[useVideoNotes] update error:', err);
       toast.error('Erro ao atualizar nota');
-      await fetchNotes();
+      await fetchNotes(); // rollback
     } finally {
       setIsMutating(false);
     }
@@ -112,12 +134,15 @@ export function useVideoNotes({ videoId }: UseVideoNotesOptions): UseVideoNotesR
   const softDeleteNote = useCallback(async (id: string) => {
     setIsMutating(true);
     try {
+      // Optimistic update
       setNotes((prev) =>
         prev.map((n) => (n.id === id ? { ...n, deleted_at: new Date().toISOString() } : n))
       );
-      await mockSoftDelete(id);
+      // REWIRED: Agent 4 api-sacred — softDeleteVideoNote
+      await softDeleteVideoNote(id);
       toast.success('Nota eliminada (pode ser restaurada)');
-    } catch {
+    } catch (err) {
+      console.error('[useVideoNotes] softDelete error:', err);
       toast.error('Erro ao eliminar nota');
       await fetchNotes();
     } finally {
@@ -129,9 +154,11 @@ export function useVideoNotes({ videoId }: UseVideoNotesOptions): UseVideoNotesR
     setIsMutating(true);
     try {
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: null } : n)));
-      await mockRestore(id);
+      // REWIRED: Agent 4 api-sacred — restoreVideoNote
+      await apiRestoreVideoNote(id);
       toast.success('Nota restaurada');
-    } catch {
+    } catch (err) {
+      console.error('[useVideoNotes] restore error:', err);
       toast.error('Erro ao restaurar nota');
       await fetchNotes();
     } finally {

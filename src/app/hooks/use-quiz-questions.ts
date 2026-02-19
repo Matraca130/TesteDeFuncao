@@ -1,7 +1,14 @@
 // ============================================================
 // useQuizQuestions — CRUD hook for professor quiz questions
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+//
+// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
+//   - Agent 4 has NO quiz question CRUD API for professors
+//   - Agent 4 only has getQuizAttempts() and completeQuizSession()
+//     which are student-facing quiz RESULT endpoints
+//   - Requires new api-quiz-content.ts module with:
+//     getQuizQuestions(summaryId), createQuizQuestion(),
+//     updateQuizQuestion(), deleteQuizQuestion()
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
