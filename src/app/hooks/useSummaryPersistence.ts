@@ -1,17 +1,21 @@
 // ============================================================
-// useSummaryPersistence — Auto-save/load from Supabase
-// Depends on: textAnnotations, keywordMastery, personalNotes, sessionElapsed
+// Axon v4.4 — useSummaryPersistence (REWIRED by Agent 4 P3)
+// NOW: imports from api-client.ts (3-layer rule compliant)
+// BEFORE: imported from services/studentApi.ts (direct fetch)
+// FIX: TextAnnotation fields mapped camelCase→snake_case
 // ============================================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as studentApi from '@/app/services/studentApi';
-import type { SummaryAnnotation } from '@/app/types/student';
-import type { MasteryLevel } from '@/app/data/keywords';
-import type { TextAnnotation } from './useTextAnnotations';
-
-// ── Types ──
+import {
+  getStudySummaryByTopic,
+  saveStudySummaryByTopic,
+} from '../lib/api-client';
+import type { TextAnnotation } from '../lib/types';
+import type { StudySummaryAnnotation } from '../lib/types';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+const DEFAULT_STUDENT_ID = 'demo-student-001';
 
 export interface SummaryPersistenceParams {
   courseId: string | undefined;
@@ -19,16 +23,14 @@ export interface SummaryPersistenceParams {
   courseName: string;
   topicTitle: string;
   textAnnotations: TextAnnotation[];
-  keywordMastery: Record<string, MasteryLevel>;
+  keywordMastery: Record<string, string>;
   personalNotes: Record<string, string[]>;
   sessionElapsed: number;
   setTextAnnotations: (v: TextAnnotation[]) => void;
-  setKeywordMastery: (v: Record<string, MasteryLevel>) => void;
+  setKeywordMastery: (v: Record<string, string>) => void;
   setPersonalNotes: (v: Record<string, string[]>) => void;
   setSessionElapsed: (v: number) => void;
 }
-
-// ── Hook ──
 
 export function useSummaryPersistence({
   courseId,
@@ -52,61 +54,66 @@ export function useSummaryPersistence({
     if (!courseId || !topicId) return;
     let cancelled = false;
 
-    studentApi.getSummary(courseId, topicId).then((saved) => {
-      if (cancelled) return;
-      if (saved) {
-        if (saved.annotations && Array.isArray(saved.annotations) && saved.annotations.length > 0) {
-          const restored = saved.annotations.map((a: any) => ({
-            id: a.id || `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            originalText: a.selectedText || a.originalText || '',
-            displayText: a.selectedText || a.displayText || '',
-            color: a.color || 'yellow',
-            note: a.note || '',
-            type: a.type || 'highlight',
-            botReply: a.botReply,
-            timestamp: a.timestamp || Date.now(),
-          }));
-          setTextAnnotations(restored);
+    getStudySummaryByTopic(DEFAULT_STUDENT_ID, courseId, topicId)
+      .then((saved) => {
+        if (cancelled) return;
+        if (saved) {
+          if (saved.annotations && Array.isArray(saved.annotations) && saved.annotations.length > 0) {
+            const restored: TextAnnotation[] = saved.annotations.map((a: StudySummaryAnnotation) => ({
+              id: a.id || `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              summary_id: '',
+              student_id: DEFAULT_STUDENT_ID,
+              original_text: a.selected_text || '',
+              display_text: a.selected_text || '',
+              color: (a.color as TextAnnotation['color']) || 'yellow',
+              note: a.note || '',
+              type: (a.type as TextAnnotation['type']) || 'highlight',
+              bot_reply: a.bot_reply,
+              created_at: a.timestamp || new Date().toISOString(),
+              updated_at: a.timestamp || new Date().toISOString(),
+              deleted_at: null,
+            }));
+            setTextAnnotations(restored);
+          }
+          if (saved.keyword_mastery) {
+            setKeywordMastery(saved.keyword_mastery);
+          }
+          if (saved.keyword_notes) {
+            setPersonalNotes(saved.keyword_notes);
+          }
+          if (saved.edit_time_minutes) {
+            setSessionElapsed(saved.edit_time_minutes * 60);
+          }
         }
-        if (saved.keywordMastery) {
-          setKeywordMastery(saved.keywordMastery as Record<string, MasteryLevel>);
-        }
-        if (saved.keywordNotes) {
-          setPersonalNotes(saved.keywordNotes);
-        }
-        if (saved.editTimeMinutes) {
-          setSessionElapsed(saved.editTimeMinutes * 60);
-        }
-      }
-      setSummaryLoaded(true);
-    }).catch(() => {
-      if (!cancelled) setSummaryLoaded(true);
-    });
+        setSummaryLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setSummaryLoaded(true);
+      });
 
     return () => { cancelled = true; };
-  }, [courseId, topicId]);
+  }, [courseId, topicId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const buildPayload = useCallback(() => {
-    const summaryAnnotations: SummaryAnnotation[] = textAnnotations.map(a => ({
+    const annotations: StudySummaryAnnotation[] = textAnnotations.map(a => ({
       id: a.id,
-      title: a.type,
-      selectedText: a.originalText,
-      note: a.note,
-      timestamp: new Date(a.timestamp).toLocaleString('pt-BR'),
-      color: a.color,
       type: a.type,
-      botReply: a.botReply,
-    } as any));
+      selected_text: a.original_text,
+      note: a.note,
+      color: a.color,
+      bot_reply: a.bot_reply,
+      timestamp: a.created_at,
+    }));
 
     return {
-      courseName,
-      topicTitle,
+      course_name: courseName,
+      topic_title: topicTitle,
       content: '',
-      annotations: summaryAnnotations,
-      keywordMastery: keywordMastery as Record<string, string>,
-      keywordNotes: personalNotes,
-      editTimeMinutes: Math.round(sessionElapsed / 60),
-      tags: [],
+      annotations,
+      keyword_mastery: keywordMastery,
+      keyword_notes: personalNotes,
+      edit_time_minutes: Math.round(sessionElapsed / 60),
+      tags: [] as string[],
       bookmarked: false,
     };
   }, [textAnnotations, keywordMastery, personalNotes, sessionElapsed, courseName, topicTitle]);
@@ -120,7 +127,7 @@ export function useSummaryPersistence({
 
     saveTimeoutRef.current = setTimeout(() => {
       setSaveStatus('saving');
-      studentApi.saveSummary(courseId, topicId, buildPayload())
+      saveStudySummaryByTopic(DEFAULT_STUDENT_ID, courseId, topicId, buildPayload())
         .then(() => {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus('idle'), 2000);
@@ -140,28 +147,28 @@ export function useSummaryPersistence({
   useEffect(() => {
     return () => {
       if (!courseId || !topicId) return;
-      studentApi.saveSummary(courseId, topicId, {
-        courseName,
-        topicTitle,
+      const annotations: StudySummaryAnnotation[] = textAnnotations.map(a => ({
+        id: a.id,
+        type: a.type,
+        selected_text: a.original_text,
+        note: a.note,
+        color: a.color,
+        bot_reply: a.bot_reply,
+        timestamp: a.created_at,
+      }));
+      saveStudySummaryByTopic(DEFAULT_STUDENT_ID, courseId, topicId, {
+        course_name: courseName,
+        topic_title: topicTitle,
         content: '',
-        annotations: textAnnotations.map(a => ({
-          id: a.id,
-          title: a.type,
-          selectedText: a.originalText,
-          note: a.note,
-          timestamp: new Date(a.timestamp).toLocaleString('pt-BR'),
-          color: a.color,
-          type: a.type,
-          botReply: a.botReply,
-        } as any)),
-        keywordMastery: keywordMastery as Record<string, string>,
-        keywordNotes: personalNotes,
-        editTimeMinutes: Math.round(sessionElapsed / 60),
+        annotations,
+        keyword_mastery: keywordMastery,
+        keyword_notes: personalNotes,
+        edit_time_minutes: Math.round(sessionElapsed / 60),
         tags: [],
         bookmarked: false,
       }).catch(() => {});
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     summaryLoaded,

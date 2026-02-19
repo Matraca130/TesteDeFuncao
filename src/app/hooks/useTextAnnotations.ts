@@ -50,6 +50,11 @@ export interface UseTextAnnotationsReturn {
   deletedAnnotations: TextAnnotation[];
   loading: boolean;
   error: string | null;
+  addAnnotation: (text: string, type: AnnotationType, note?: string, color?: AnnotationColor) => Promise<void>;
+  updateAnnotation: (annotationId: string, data: Partial<TextAnnotation>) => Promise<void>;
+  deleteAnnotation: (annotationId: string) => Promise<void>;
+  restoreAnnotation: (annotationId: string) => Promise<void>;
+  refresh: () => Promise<void>;
 
   // CRUD (through api-client.ts)
   addAnnotation: (text: string, type: AnnotationType, note?: string, color?: AnnotationColor) => Promise<void>;
@@ -83,6 +88,9 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const annotations = useMemo(() => allAnnotations.filter(a => a.deleted_at === null), [allAnnotations]);
+  const deletedAnnotations = useMemo(() => allAnnotations.filter(a => a.deleted_at !== null), [allAnnotations]);
+
   // Separate active from soft-deleted
   const annotations = useMemo(
     () => allAnnotations.filter(a => a.deleted_at === null),
@@ -111,6 +119,60 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
       const data = await getTextAnnotations(summaryId);
       setAllAnnotations(data);
     } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar anotacoes');
+    } finally {
+      setLoading(false);
+    }
+  }, [summaryId]);
+
+  useEffect(() => { fetchAnnotations(); }, [fetchAnnotations]);
+
+  const addAnnotation = useCallback(async (text: string, type: AnnotationType, note = '', color: AnnotationColor = 'yellow') => {
+    setError(null);
+    try {
+      const created = await apiCreateAnnotation(summaryId, {
+        original_text: text,
+        display_text: text.length > 200 ? text.slice(0, 200) + '\u2026' : text,
+        color, note, type,
+      });
+      if (type === 'question') {
+        setAnnotationBotLoading(true);
+        setTimeout(async () => {
+          try {
+            await apiUpdateAnnotation(summaryId, created.id, {
+              bot_reply: `Com base no trecho selecionado, posso explicar que: "${text.slice(0, 60)}..." Este conceito e fundamental na medicina.`,
+            });
+            await fetchAnnotations();
+          } catch (e) { console.error('[useTextAnnotations] bot reply error:', e); }
+          finally { setAnnotationBotLoading(false); }
+        }, 1500);
+      }
+      setPendingAnnotation(null);
+      setAnnotationNoteInput('');
+      setAnnotationQuestionInput('');
+      await fetchAnnotations();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar anotacao');
+    }
+  }, [summaryId, fetchAnnotations]);
+
+  const updateAnnotation = useCallback(async (annotationId: string, data: Partial<TextAnnotation>) => {
+    setError(null);
+    try { await apiUpdateAnnotation(summaryId, annotationId, data); await fetchAnnotations(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Erro ao atualizar'); }
+  }, [summaryId, fetchAnnotations]);
+
+  const deleteAnnotation = useCallback(async (annotationId: string) => {
+    setError(null);
+    try { await apiDeleteAnnotation(summaryId, annotationId); await fetchAnnotations(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Erro ao deletar'); }
+  }, [summaryId, fetchAnnotations]);
+
+  const restoreAnnotation = useCallback(async (annotationId: string) => {
+    setError(null);
+    try { await apiRestoreAnnotation(summaryId, annotationId); await fetchAnnotations(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Erro ao restaurar'); }
+  }, [summaryId, fetchAnnotations]);
       const msg = err instanceof Error ? err.message : 'Erro ao carregar anotacoes';
       setError(msg);
       console.error('[useTextAnnotations] fetch error:', err);
@@ -218,18 +280,21 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     if (!pendingAnnotation) return;
     const handler = (e: MouseEvent) => {
       const popup = document.getElementById('text-annotation-popup');
-      if (popup && !popup.contains(e.target as Node)) {
-        setPendingAnnotation(null);
-      }
+      if (popup && !popup.contains(e.target as Node)) setPendingAnnotation(null);
     };
     const timer = setTimeout(() => document.addEventListener('mousedown', handler), 100);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handler);
-    };
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
   }, [pendingAnnotation]);
 
   return {
+    annotations, deletedAnnotations, loading, error,
+    addAnnotation, updateAnnotation, deleteAnnotation, restoreAnnotation,
+    refresh: fetchAnnotations,
+    pendingAnnotation, setPendingAnnotation,
+    annotationNoteInput, setAnnotationNoteInput,
+    annotationQuestionInput, setAnnotationQuestionInput,
+    annotationBotLoading, annotationActiveTab, setAnnotationActiveTab,
+    annotationColor, setAnnotationColor,
     // Data
     annotations,
     deletedAnnotations,
