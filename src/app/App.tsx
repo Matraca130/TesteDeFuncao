@@ -18,6 +18,7 @@ import {
 // API
 import { ApiProvider, useApi } from './lib/api-provider';
 import { supabase } from './lib/supabase-client';
+import { supabaseUrl, supabaseAnonKey, apiBaseUrl } from './lib/config';
 
 // Components
 import { CourseManager } from './components/admin/CourseManager';
@@ -235,16 +236,17 @@ function AdminPanel() {
     return () => api.setTokenGetter(null);
   }, [api]);
 
-  // ── Startup connectivity diagnostic ──
+  // ── Startup connectivity diagnostic (uses config.ts — no hardcoded values) ──
   useEffect(() => {
     (async () => {
-      const baseUrl = `https://xdnciktarvxyhkrokbng.supabase.co`;
       console.log('[Diag] Starting connectivity check...');
+      console.log('[Diag] supabaseUrl:', supabaseUrl);
+      console.log('[Diag] apiBaseUrl:', apiBaseUrl);
 
       // Test 1: Can we reach the Supabase Auth API?
       try {
-        const r = await fetch(`${baseUrl}/auth/v1/settings`, {
-          headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkbmNpa3RhcnZ4eWhrcm9rYm5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMTM4NjAsImV4cCI6MjA4Njc4OTg2MH0._nCGOiOh1bMWvqtQ62d368LlYj5xPI6e7pcsdjDEiYQ' },
+        const r = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+          headers: { 'apikey': supabaseAnonKey },
         });
         console.log(`[Diag] Auth API: status=${r.status}, ok=${r.ok}`);
         if (r.ok) {
@@ -261,8 +263,8 @@ function AdminPanel() {
 
       // Test 2: Can we reach the Edge Function?
       try {
-        const r = await fetch(`${baseUrl}/functions/v1/make-server-8cb6316a/health`, {
-          headers: { 'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkbmNpa3RhcnZ4eWhrcm9rYm5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMTM4NjAsImV4cCI6MjA4Njc4OTg2MH0._nCGOiOh1bMWvqtQ62d368LlYj5xPI6e7pcsdjDEiYQ' },
+        const r = await fetch(`${apiBaseUrl}/health`, {
+          headers: { 'Authorization': `Bearer ${supabaseAnonKey}` },
         });
         console.log(`[Diag] Edge Function: status=${r.status}, ok=${r.ok}`);
         if (r.ok) {
@@ -280,13 +282,11 @@ function AdminPanel() {
 
   // ── Restore session on mount + listen for auth state changes ──
   useEffect(() => {
-    // Check for existing Supabase session (auto-refreshes expired tokens)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setAuthUser(extractAuthUser(session.user));
         console.log('[Auth] Session restored for', session.user.email);
       } else {
-        // Clean up any legacy token from previous implementation
         localStorage.removeItem('axon_token');
       }
       setAuthChecking(false);
@@ -295,14 +295,12 @@ function AdminPanel() {
       setAuthChecking(false);
     });
 
-    // Listen for auth state changes (token refresh, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         setAuthUser(null);
       } else if (event === 'TOKEN_REFRESHED') {
         console.log('[Auth] Token refreshed automatically');
       } else if (event === 'SIGNED_IN' && session?.user) {
-        // Update user in case metadata changed
         setAuthUser(extractAuthUser(session.user));
       }
     });
@@ -313,7 +311,6 @@ function AdminPanel() {
   // ── Auth handlers ──
   const handleSignIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     console.log('[Auth] Sign-in attempt for:', email);
-    // Sign in directly via Supabase client — handles session persistence + refresh tokens
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.error('[Auth] signInWithPassword error:', error.name, error.message, error.status);
@@ -329,10 +326,6 @@ function AdminPanel() {
   const handleSignUp = useCallback(async (email: string, password: string, name: string): Promise<AuthResult> => {
     console.log('[Auth] Sign-up attempt for:', email);
 
-    // ── Strategy (inverted): try Supabase Auth API FIRST (always available),
-    //    fall back to Edge Function only if email confirmation is needed. ──
-
-    // Step 1: Try direct signup via Supabase Auth API
     let sessionFromSignUp = false;
     try {
       console.log('[Auth] Step 1: supabase.auth.signUp()...');
@@ -345,56 +338,45 @@ function AdminPanel() {
       if (signUpErr) {
         console.warn('[Auth] supabase.auth.signUp error:', signUpErr.name, signUpErr.message, signUpErr.status);
         const msg = signUpErr.message.toLowerCase();
-        // If user already exists, skip to sign-in
         if (msg.includes('already') || msg.includes('registered')) {
           console.log('[Auth] User already exists, will sign in directly');
         } else {
-          // Genuine error — throw it
           throw new Error(signUpErr.message);
         }
       } else if (signUpData?.session) {
-        // Email confirmation NOT required — we have a session directly!
         console.log('[Auth] Direct signup succeeded with session!');
         const user = extractAuthUser(signUpData.user!);
         user.name = name;
         localStorage.removeItem('axon_token');
-        // Non-blocking: notify backend to create KV profile
         api.publicPost('/auth/signup', { email, password, name }).catch(e =>
           console.warn('[Auth] Backend profile sync failed (non-blocking):', e.message)
         );
         return { user, access_token: signUpData.session.access_token };
       } else if (signUpData?.user && !signUpData?.session) {
-        // User created but email confirmation required
         console.log('[Auth] User created but no session (email confirmation required)');
-        // Try backend to auto-confirm via admin API
         try {
           console.log('[Auth] Step 2: Trying backend admin.createUser to bypass email confirmation...');
           await api.publicPost('/auth/signup', { email, password, name });
           console.log('[Auth] Backend signup succeeded');
         } catch (backendErr: any) {
           console.warn('[Auth] Backend also failed:', backendErr.message);
-          // User was created but can't be confirmed — they'll need manual confirmation
         }
       }
     } catch (signUpError: any) {
       console.error('[Auth] Signup attempt error:', signUpError.message);
-      // If the error is NOT a "user already exists" type, try the backend as last resort
       const msg = (signUpError?.message || '').toLowerCase();
       if (!msg.includes('already') && !msg.includes('registered')) {
-        // Try backend signup (may also fail if backend is down)
         try {
           console.log('[Auth] Fallback: trying backend signup...');
           await api.publicPost('/auth/signup', { email, password, name });
           console.log('[Auth] Backend signup succeeded');
         } catch (backendFallbackErr: any) {
           console.error('[Auth] Backend fallback also failed:', backendFallbackErr.message);
-          // Re-throw the original error with more context
           throw new Error(`${signUpError.message}. Backend tambem indisponivel.`);
         }
       }
     }
 
-    // Step 3: Sign in via Supabase client (user should exist by now)
     console.log('[Auth] Step 3: signInWithPassword()...');
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -426,11 +408,10 @@ function AdminPanel() {
 
   // ── Load ALL data from backend AFTER auth ──
   useEffect(() => {
-    if (!authUser) return; // Skip if not authenticated
+    if (!authUser) return;
     let cancelled = false;
 
     async function loadFromBackend() {
-      // ── JWT expiry tracking ──
       let jwtExpired = false;
 
       async function safeGet<T>(path: string, params?: Record<string, string>): Promise<T | null> {
@@ -446,7 +427,6 @@ function AdminPanel() {
         }
       }
 
-      // Hoisted accumulators for cross-block access
       let allSems: Semester[] = [];
       let allSecs: Section[] = [];
       let allTopics: Topic[] = [];
@@ -454,7 +434,6 @@ function AdminPanel() {
       let loadedKeywords: Keyword[] = [];
 
       try {
-        // Health check uses publicAnonKey (no user JWT needed)
         const health = await api.publicGet<{ status: string }>('/health');
         if (cancelled) return;
         if (health?.status !== 'ok') {
@@ -464,7 +443,6 @@ function AdminPanel() {
         setBackendStatus('connected');
         console.log('[Admin] Backend connected');
 
-        // Load courses
         try {
           const data = await safeGet<Course[]>('/courses', { institution_id: INST_ID });
           if (!cancelled && data && data.length > 0) {
@@ -509,7 +487,6 @@ function AdminPanel() {
           }
         } catch (e) { console.log('[Admin] Could not load content hierarchy:', e); }
 
-        // Load keywords
         try {
           const data = await safeGet<Keyword[]>('/keywords', { institution_id: INST_ID });
           if (!cancelled && data && data.length > 0) {
@@ -519,7 +496,6 @@ function AdminPanel() {
           }
         } catch (e) { console.log('[Admin] Could not load keywords:', e); }
 
-        // Load approval queue
         try {
           const data = await safeGet<ApprovalItem[]>('/content/approval-queue');
           if (!cancelled && data && data.length > 0) {
@@ -527,7 +503,6 @@ function AdminPanel() {
             console.log(`[Admin] Loaded ${data.length} approval items from endpoint`);
           }
         } catch (e) {
-          // Fallback: derive approval items from summaries + keywords + subtopics
           console.log('[Admin] Approval endpoint not available, deriving from loaded data');
           if (!cancelled) {
             const derived: ApprovalItem[] = [];
@@ -575,7 +550,6 @@ function AdminPanel() {
           }
         }
 
-        // ── JWT expiry: sign out gracefully after all loads complete ──
         if (jwtExpired && !cancelled) {
           console.log('[Admin] JWT expired during data load — clearing session, please log in again.');
           localStorage.removeItem('axon_token');
@@ -634,7 +608,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete course:', err); return false; }
   }, [api]);
 
-  // ── Semester CRUD callbacks ──
   const handleCreateSemester = useCallback(async (data: { course_id: string; name: string; order_index: number }) => {
     try { return await api.post<any, Semester>('/semesters', data); }
     catch (err) { console.error('[Admin] Failed to create semester:', err); return null; }
@@ -650,7 +623,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete semester:', err); return false; }
   }, [api]);
 
-  // ── Section CRUD callbacks ──
   const handleCreateSection = useCallback(async (data: { semester_id: string; name: string; order_index: number }) => {
     try { return await api.post<any, Section>('/sections', { ...data, image_url: null }); }
     catch (err) { console.error('[Admin] Failed to create section:', err); return null; }
@@ -666,7 +638,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete section:', err); return false; }
   }, [api]);
 
-  // ── Topic CRUD callbacks ──
   const handleCreateTopic = useCallback(async (data: { section_id: string; name: string; order_index: number }) => {
     try { return await api.post<any, Topic>('/topics', data); }
     catch (err) { console.error('[Admin] Failed to create topic:', err); return null; }
@@ -682,7 +653,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete topic:', err); return false; }
   }, [api]);
 
-  // ── Summary CRUD callbacks ──
   const handleCreateSummary = useCallback(async (data: { topic_id: string; course_id: string; content_markdown: string }) => {
     try {
       return await api.post<any, Summary>('/summaries', {
@@ -702,7 +672,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete summary:', err); return false; }
   }, [api]);
 
-  // ── Keyword CRUD callbacks ──
   const handleCreateKeyword = useCallback(async (data: { term: string; definition: string | null; priority: number }) => {
     try {
       return await api.post<any, Keyword>('/keywords', {
@@ -722,7 +691,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete keyword:', err); return false; }
   }, [api]);
 
-  // ── SubTopic CRUD callbacks ──
   const handleCreateSubTopic = useCallback(async (data: { keyword_id: string; title: string; description: string | null }) => {
     try { return await api.post<any, any>('/subtopics', { ...data, status: 'draft', source: 'professor' }); }
     catch (err) { console.error('[Admin] Failed to create subtopic:', err); return null; }
@@ -738,7 +706,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to update subtopic:', err); return null; }
   }, [api]);
 
-  // ── KeywordConnection CRUD callbacks ──
   const handleCreateConnection = useCallback(async (data: { keyword_a_id: string; keyword_b_id: string; relationship_type?: string; strength?: number; description?: string | null }) => {
     try { return await api.post<any, KeywordConnection>('/connections', data); }
     catch (err) { console.error('[Admin] Failed to create connection:', err); return null; }
@@ -749,7 +716,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Failed to delete connection:', err); return false; }
   }, [api]);
 
-  // ── Approval queue: status change handler ──
   const handleApprovalStatusChange = useCallback((changes: { entity_type: string; id: string; new_status: ContentStatus }[]) => {
     for (const change of changes) {
       if (change.entity_type === 'summary') {
@@ -768,7 +734,6 @@ function AdminPanel() {
     }
   }, []);
 
-  // ── Batch status callback ──
   const handleBatchStatus = useCallback(async (items: { entity_type: string; id: string; new_status: string; reviewer_note?: string }[]) => {
     try {
       const result = await api.put<any, any>('/content/batch-status', { items });
@@ -777,7 +742,6 @@ function AdminPanel() {
     catch (err) { console.error('[Admin] Batch status failed:', err); return null; }
   }, [api]);
 
-  // ── AI Generate callback ──
   const handleAiGenerate = useCallback(async (content: string, summaryId?: string, courseId?: string) => {
     try {
       const result = await api.post<any, any>('/ai/generate', {
@@ -792,7 +756,6 @@ function AdminPanel() {
 
   const isLive = backendStatus === 'connected';
 
-  // ── Show loading while checking session ──
   if (authChecking) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#f5f2ea]">
@@ -807,7 +770,6 @@ function AdminPanel() {
     );
   }
 
-  // ── Show auth screen if not logged in ──
   if (!authUser) {
     return (
       <AuthScreen
