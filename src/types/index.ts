@@ -60,3 +60,22 @@ export type {
   QuizAnswer,
   QuizAttempt,
 } from './student';
+
+// Content Entities (from lib/types.ts)
+export type {
+  Course,
+  Semester,
+  Section,
+  Topic,
+  Summary,
+  ContentKeyword,
+  ContentSubTopic,
+  SummaryChunk,
+  KeywordConnection,
+  RelationshipType,
+  BatchStatusItem,
+  ApprovalItem,
+  BatchStatusResult,
+  ApiResponse,
+  ApiError,
+} from './content';
