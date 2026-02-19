@@ -1,5 +1,6 @@
 // ============================================================
 // Axon — Auth Routes (Dev 6 + Dev 1 fixes + Dev 2 RBAC)
+// Dev 6 Integration: Added enrichMembershipsWithInstitution()
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -19,6 +20,33 @@ const auth = new Hono();
 // ── Error message extractor (type-safe) ─────────────────────────────────
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+// ── Dev 6: Enrich memberships with full institution data ────────────────
+// SelectInstitutionPage and PostLoginRouter need membership.institution
+// to display names and route by role correctly.
+async function enrichMembershipsWithInstitution(memberships: any[]): Promise<any[]> {
+  if (memberships.length === 0) return memberships;
+  try {
+    const uniqueInstIds = [...new Set(
+      memberships.map((m: any) => m.institution_id).filter(Boolean)
+    )];
+    if (uniqueInstIds.length === 0) return memberships;
+
+    const instMap = new Map<string, any>();
+    for (const id of uniqueInstIds) {
+      const inst = await kv.get(instKey(id));
+      if (inst) instMap.set(id, inst);
+    }
+
+    return memberships.map((m: any) => ({
+      ...m,
+      institution: instMap.get(m.institution_id) || null,
+    }));
+  } catch {
+    console.log("[Auth] Warning: Failed to enrich memberships with institution data");
+    return memberships;
+  }
 }
 
 /** Helper: extract userId from Authorization header
@@ -48,7 +76,9 @@ export async function getUserIdFromToken(
 auth.post("/auth/signup", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, name, institution_id } = body;
+    // FIX Dev 6: Accept both institution_id and institutionId for compat
+    const { email, password, name, institution_id, institutionId } = body;
+    const instId = institution_id || institutionId;
 
     if (!email || !password || !name) {
       return c.json(
@@ -91,10 +121,10 @@ auth.post("/auth/signup", async (c) => {
     // If institution_id provided, create membership as student (T1.5)
     let memberships: any[] = [];
 
-    if (institution_id) {
-      const inst = await kv.get(instKey(institution_id));
+    if (instId) {
+      const inst = await kv.get(instKey(instId));
       if (!inst) {
-        console.log(`[Auth] Signup: institution not found for id ${institution_id}`);
+        console.log(`[Auth] Signup: institution not found for id ${instId}`);
         return c.json(
           { success: false, error: { code: "NOT_FOUND", message: "Institution not found" } },
           404
@@ -104,7 +134,7 @@ auth.post("/auth/signup", async (c) => {
       const membership = {
         id: crypto.randomUUID(),
         user_id: data.user.id,
-        institution_id,
+        institution_id: instId,
         role: "student",
         plan_id: null,
         created_at: now,
@@ -113,16 +143,19 @@ auth.post("/auth/signup", async (c) => {
       // Save with the 3 mandatory KV keys (R5)
       await kv.mset(
         [
-          memberKey(institution_id, data.user.id),
-          idxUserInsts(data.user.id, institution_id),
-          idxInstMembers(institution_id, data.user.id),
+          memberKey(instId, data.user.id),
+          idxUserInsts(data.user.id, instId),
+          idxInstMembers(instId, data.user.id),
         ],
-        [membership, institution_id, data.user.id]
+        [membership, instId, data.user.id]
       );
 
       memberships = [membership];
-      console.log(`[Auth] Signup: created student membership for ${email} in institution ${institution_id}`);
+      console.log(`[Auth] Signup: created student membership for ${email} in institution ${instId}`);
     }
+
+    // Enrich memberships with institution data (Dev 6)
+    memberships = await enrichMembershipsWithInstitution(memberships);
 
     // Sign in to get access_token
     const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
@@ -136,7 +169,7 @@ auth.post("/auth/signup", async (c) => {
       return c.json({ success: true, data: { user, access_token: "", memberships } });
     }
 
-    console.log(`[Auth] Signup success for ${email} (${data.user.id}), institution: ${institution_id || "none"}`);
+    console.log(`[Auth] Signup success for ${email} (${data.user.id}), institution: ${instId || "none"}`);
     return c.json({
       success: true,
       data: {
@@ -214,6 +247,9 @@ auth.post("/auth/signin", async (c) => {
       // No memberships yet, that's OK
     }
 
+    // Enrich memberships with institution data (Dev 6)
+    memberships = await enrichMembershipsWithInstitution(memberships);
+
     console.log(`[Auth] Signin success for ${email} (${data.user.id}), memberships: ${memberships.length}`);
     return c.json({
       success: true,
@@ -261,7 +297,10 @@ auth.get("/auth/me", requireAuth(), async (c) => {
       }
     } catch (_e) {}
 
-    console.log(`[Auth] /me restored session for user ${userId}`);
+    // Enrich memberships with institution data (Dev 6)
+    memberships = await enrichMembershipsWithInstitution(memberships);
+
+    console.log(`[Auth] /me restored session for user ${userId}, memberships: ${memberships.length}`);
     return c.json({ success: true, data: { user, memberships } });
   } catch (err: unknown) {
     const msg = errMsg(err);

@@ -1,6 +1,6 @@
 // ============================================================
 // Axon v4.4 — Server Entry Point (COMPLETE)
-// Mounts ALL 11 route modules + inline seed endpoint.
+// Mounts ALL 12 route modules + inline seed endpoint.
 // Prefix: /server (MUST match the deployed function name)
 // Deploy: 2026-02-19T00:15Z
 //
@@ -9,8 +9,9 @@
 // in the path, so Hono receives /server/<route>. PREFIX must equal
 // the function name for routes to match.
 //
-// Route modules (89 endpoints total):
+// Route modules (90+ endpoints total):
 //   auth         — signup, signin, me, signout (4)
+//   institutions — by-id, by-slug (2)
 //   content      — institutions, courses, semesters, sections,
 //                   topics, summaries, chunks, keywords,
 //                   subtopics, connections, batch-status (~35)
@@ -32,6 +33,7 @@ import * as kv from "./kv_store.tsx";
 
 // Route modules
 import auth from "./auth.tsx";
+import institutions from "./routes-institutions.tsx";
 import content from "./routes-content.tsx";
 import canvas from "./routes-canvas.tsx";
 import dashboard from "./routes-dashboard.tsx";
@@ -71,7 +73,7 @@ app.get(`${PREFIX}/health`, (c) => {
     prefix: PREFIX,
     function_name: "server",
     routes: [
-      "auth", "content", "canvas", "dashboard", "flashcards",
+      "auth", "institutions", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
       "model3d", "ai", "seed",
     ],
@@ -80,6 +82,7 @@ app.get(`${PREFIX}/health`, (c) => {
 
 // ── Mount all route modules ──────────────────────────────────
 app.route(PREFIX, auth);
+app.route(PREFIX, institutions);
 app.route(PREFIX, content);
 app.route(PREFIX, canvas);
 app.route(PREFIX, dashboard);

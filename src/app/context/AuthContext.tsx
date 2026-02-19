@@ -1,6 +1,7 @@
 // ============================================================
-// Axon v4.4 — Auth Context (Dev 3)
+// Axon v4.4 — Auth Context (Dev 3 + Dev 6 Integration Fixes)
 // Provides authentication state & methods to the entire app
+// Dev 6 fixes: fetchMemberships uses /auth/me, signup uses /auth/signup
 // ============================================================
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -9,6 +10,9 @@ import type { AuthUser, Membership, Institution, AuthContextType } from '../type
 
 const supabaseUrl = `https://${projectId}.supabase.co`;
 const supabase = createClient(supabaseUrl, publicAnonKey);
+
+// FIX Dev 6: Centralized API base URL for auth endpoints
+const API_BASE = `${supabaseUrl}/functions/v1/make-server-50277a39`;
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -35,17 +39,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const isAuthenticated = !!user && !!accessToken;
 
-  // Fetch memberships from backend
+  // FIX Dev 6: Fetch memberships via GET /auth/me (the /memberships endpoint doesn't exist)
+  // Returns memberships enriched with institution data from the backend.
   const fetchMemberships = useCallback(async (token: string): Promise<Membership[]> => {
     try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/make-server-50277a39/memberships`, {
+      const res = await fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        console.log('[AuthContext] Failed to fetch memberships, status:', res.status);
+        console.log('[AuthContext] Failed to fetch from /auth/me, status:', res.status);
         return [];
       }
       const data = await res.json();
+      // Backend returns: { success: true, data: { user, memberships } }
+      if (data.success && data.data) {
+        return data.data.memberships || [];
+      }
+      // Fallback for unexpected response shapes
       return data.memberships || [];
     } catch (err) {
       console.log('[AuthContext] Error fetching memberships:', err);
@@ -155,18 +165,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/make-server-50277a39/signup`, {
+      // FIX Dev 6: Correct path is /auth/signup (not /signup)
+      // FIX Dev 6: Backend expects institution_id (not institutionId)
+      const res = await fetch(`${API_BASE}/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ email, password, name, institutionId }),
+        body: JSON.stringify({ email, password, name, institution_id: institutionId }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: 'Erro ao criar conta' }));
-        setError(data.error || 'Erro ao criar conta');
+        setError(data.error?.message || data.error || 'Erro ao criar conta');
         setIsLoading(false);
         return false;
       }

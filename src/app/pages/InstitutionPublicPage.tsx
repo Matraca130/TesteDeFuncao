@@ -1,6 +1,7 @@
 // ============================================================
-// Axon v4.4 — Institution Public Page (Dev 5)
+// Axon v4.4 — Institution Public Page (Dev 5 + Dev 6 fix)
 // Public page for /i/:slug — shows institution info + student access
+// Dev 6: Fixed response reading (data.data instead of data.institution)
 // ============================================================
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
@@ -42,7 +43,9 @@ export function InstitutionPublicPage() {
           return;
         }
         const data = await res.json();
-        setInstitution(data.institution);
+        // FIX Dev 6: Backend returns { success: true, data: inst }
+        const inst = data.data || data.institution;
+        setInstitution(inst);
       } catch (err) {
         console.log('[InstitutionPublicPage] Error fetching institution:', err);
         setNotFound(true);

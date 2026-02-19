@@ -1,6 +1,7 @@
 // ============================================================
-// Axon v4.4 — Student Login Page (Dev 5)
+// Axon v4.4 — Student Login Page (Dev 5 + Dev 6 fix)
 // Login form for students within institution context (/i/:slug/login)
+// Dev 6: Fixed institution response reading (data.data instead of data.institution)
 // ============================================================
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
@@ -32,7 +33,9 @@ function StudentLoginForm() {
         });
         if (res.ok) {
           const data = await res.json();
-          setInstitutionName(data.institution?.name || slug);
+          // FIX Dev 6: Backend returns { success: true, data: inst }
+          const inst = data.data || data.institution;
+          setInstitutionName(inst?.name || slug);
         }
       } catch {
         // silently fail

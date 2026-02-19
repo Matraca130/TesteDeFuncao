@@ -1,7 +1,8 @@
 // ============================================================
-// Axon v4.4 — Route Configuration (Dev 5)
+// Axon v4.4 — Route Configuration (Dev 5 + Dev 6 Integration)
 // Uses react-router (NOT react-router-dom)
 // All pages are now real implementations
+// Dev 6: Added RequireGuest wrapper for LandingPage
 // ============================================================
 import { createBrowserRouter } from 'react-router';
 
@@ -11,6 +12,7 @@ import { AdminLayout } from './components/layout/AdminLayout';
 
 // Guards
 import { PostLoginRouter } from './components/guards/PostLoginRouter';
+import { RequireGuest } from './components/guards/RequireGuest';
 
 // Legacy admin panel (extracted from old App.tsx monolith)
 import LegacyAdminPanel from './pages/LegacyAdminPanel';
@@ -35,7 +37,11 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     children: [
       // ── Public routes ──
-      { index: true, Component: LandingPage },
+      // FIX Dev 6: LandingPage wrapped with RequireGuest so authenticated users
+      // are redirected to /go instead of seeing the role selection.
+      // NOTE: AdminLoginPage, ProfessorLoginPage, StudentLoginPage, StudentSignupPage
+      // already have RequireGuest at the component level (done by Dev 5).
+      { index: true, element: <RequireGuest><LandingPage /></RequireGuest> },
       { path: 'admin/login', Component: AdminLoginPage },
       { path: 'professor/login', Component: ProfessorLoginPage },
       { path: 'i/:slug', Component: InstitutionPublicPage },
