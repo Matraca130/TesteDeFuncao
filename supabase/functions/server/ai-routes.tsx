@@ -11,6 +11,7 @@
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
 import { getUserIdFromToken } from "./auth.tsx";
+import { kwProfNoteKey, kwStudentNoteKey, KV_PREFIXES } from "./kv-keys.ts";
 
 const ai = new Hono();
 
@@ -545,10 +546,10 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     // 6. Get professor notes visible to students (Agent 2 — SCRIBE)
     let professorNotes: unknown[] = [];
     try {
-      const profNoteIds = await kv.getByPrefix(`idx:kw-prof-notes:${kwId}:`);
+      const profNoteIds = await kv.getByPrefix(`${KV_PREFIXES.IDX_KW_PROF_NOTES}${kwId}:`);
       if (profNoteIds.length > 0) {
         const allProfNotes = (await kv.mget(
-          (profNoteIds as string[]).map((id: string) => `kw-prof-note:${id}`)
+          (profNoteIds as string[]).map((id: string) => kwProfNoteKey(id))
         )).filter(Boolean);
         professorNotes = allProfNotes.filter(
           (n: any) => n.visibility === "students" && !n.deleted_at
@@ -560,11 +561,11 @@ ai.get("/keyword-popup/:keywordId", async (c) => {
     let studentNotesCount = 0;
     try {
       const studentNoteIds = await kv.getByPrefix(
-        `idx:kw-student-notes:${kwId}:${userId}:`
+        `${KV_PREFIXES.IDX_KW_STUDENT_NOTES}${kwId}:${userId}:`
       );
       if (studentNoteIds.length > 0) {
         const studentNotes = (await kv.mget(
-          (studentNoteIds as string[]).map((id: string) => `kw-student-note:${id}`)
+          (studentNoteIds as string[]).map((id: string) => kwStudentNoteKey(id))
         )).filter(Boolean);
         studentNotesCount = studentNotes.filter((n: any) => !n.deleted_at).length;
       }

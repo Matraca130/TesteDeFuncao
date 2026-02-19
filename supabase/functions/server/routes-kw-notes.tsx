@@ -6,14 +6,14 @@
 // DATA SAGRADA: soft-delete only (set deleted_at), NEVER hard delete.
 // Every entity has a /restore endpoint.
 //
-// Endpoints (13 total):
+// Endpoints (12 total):
 //   Student notes (5):
 //     POST   /keywords/:keywordId/student-notes
 //     GET    /keywords/:keywordId/student-notes
 //     PUT    /keywords/:keywordId/student-notes/:noteId
 //     DELETE /keywords/:keywordId/student-notes/:noteId   (soft)
 //     POST   /keywords/:keywordId/student-notes/:noteId/restore
-//   Professor notes (8):
+//   Professor notes (7):
 //     POST   /keywords/:keywordId/prof-notes
 //     GET    /keywords/:keywordId/prof-notes              (professor's own)
 //     GET    /keywords/:keywordId/prof-notes/visible      (student view)
