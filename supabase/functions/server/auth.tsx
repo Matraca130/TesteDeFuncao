@@ -1,18 +1,21 @@
 // ============================================================
-// Axon — Auth Routes (Dev 6)
+// Axon — Auth Routes (Dev 6 + Dev 1 fixes)
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
 import {
   userKey,
   memberKey,
+  instKey,
+  idxUserInsts,
+  idxInstMembers,
   KV_PREFIXES,
 } from "./kv-keys.ts";
 import { getSupabaseAdmin } from "./crud-factory.tsx";
 
 const auth = new Hono();
 
-// ── Error message extractor (type-safe) ──────────────────────
+// ── Error message extractor (type-safe) ─────────────────────────────────
 function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -34,13 +37,14 @@ export async function getUserIdFromToken(
   return { userId: user.id };
 }
 
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 // POST /auth/signup
-// ────────────────────────────────────────────────────────────
+// Accepts optional institution_id to auto-create membership
+// ────────────────────────────────────────────────────────────────
 auth.post("/auth/signup", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, name } = body;
+    const { email, password, name, institution_id } = body;
 
     if (!email || !password || !name) {
       return c.json(
@@ -68,16 +72,53 @@ auth.post("/auth/signup", async (c) => {
     }
 
     // Create User entity in KV
+    const now = new Date().toISOString();
     const user = {
       id: data.user.id,
       email,
       name,
       avatar_url: null,
       is_super_admin: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
     await kv.set(userKey(data.user.id), user);
+
+    // If institution_id provided, create membership as student (T1.5)
+    let memberships: any[] = [];
+
+    if (institution_id) {
+      const inst = await kv.get(instKey(institution_id));
+      if (!inst) {
+        console.log(`[Auth] Signup: institution not found for id ${institution_id}`);
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Institution not found" } },
+          404
+        );
+      }
+
+      const membership = {
+        id: crypto.randomUUID(),
+        user_id: data.user.id,
+        institution_id,
+        role: "student",
+        plan_id: null,
+        created_at: now,
+      };
+
+      // Save with the 3 mandatory KV keys (R5)
+      await kv.mset(
+        [
+          memberKey(institution_id, data.user.id),
+          idxUserInsts(data.user.id, institution_id),
+          idxInstMembers(institution_id, data.user.id),
+        ],
+        [membership, institution_id, data.user.id]
+      );
+
+      memberships = [membership];
+      console.log(`[Auth] Signup: created student membership for ${email} in institution ${institution_id}`);
+    }
 
     // Sign in to get access_token
     const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
@@ -86,17 +127,18 @@ auth.post("/auth/signup", async (c) => {
     });
 
     if (signInErr) {
-      console.log(`[Auth] Auto-signin after signup failed: ${signInErr.message}`);
+      console.log(`[Auth] Auto-signin after signup failed for ${email}: ${signInErr.message}`);
       // User was created but auto-login failed — still return the user
-      return c.json({ success: true, data: { user, access_token: "" } });
+      return c.json({ success: true, data: { user, access_token: "", memberships } });
     }
 
-    console.log(`[Auth] User signed up successfully: ${email} (${data.user.id})`);
+    console.log(`[Auth] Signup success for ${email} (${data.user.id}), institution: ${institution_id || "none"}`);
     return c.json({
       success: true,
       data: {
         user,
         access_token: signInData.session?.access_token ?? "",
+        memberships,
       },
     });
   } catch (err: unknown) {
@@ -109,9 +151,9 @@ auth.post("/auth/signup", async (c) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 // POST /auth/signin
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 auth.post("/auth/signin", async (c) => {
   try {
     const body = await c.req.json();
@@ -168,7 +210,7 @@ auth.post("/auth/signin", async (c) => {
       // No memberships yet, that's OK
     }
 
-    console.log(`[Auth] User signed in: ${email} (${data.user.id})`);
+    console.log(`[Auth] Signin success for ${email} (${data.user.id}), memberships: ${memberships.length}`);
     return c.json({
       success: true,
       data: {
@@ -187,9 +229,9 @@ auth.post("/auth/signin", async (c) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 // GET /auth/me — Restore session from token
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 auth.get("/auth/me", async (c) => {
   try {
     const result = await getUserIdFromToken(c.req.header("Authorization"));
@@ -221,6 +263,7 @@ auth.get("/auth/me", async (c) => {
       }
     } catch (_e) {}
 
+    console.log(`[Auth] /me restored session for user ${result.userId}`);
     return c.json({ success: true, data: { user, memberships } });
   } catch (err: unknown) {
     const msg = errMsg(err);
@@ -232,9 +275,9 @@ auth.get("/auth/me", async (c) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 // POST /auth/signout
-// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
 auth.post("/auth/signout", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split("Bearer ")[1];
