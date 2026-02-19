@@ -1,25 +1,16 @@
 // ============================================================
-// Axon v4.4 — Root App Component
+// Axon v4.4 — Root App Component — Agent 7 (NEXUS)
 // ============================================================
-// Provider hierarchy:
-//   AuthProvider → ApiProvider → RouterProvider
-//
-// AuthProvider MUST wrap ApiProvider because ApiProvider calls
-// useAuth() to get the access token for API requests.
-// ============================================================
-import { Toaster } from 'sonner';
 import { RouterProvider } from 'react-router';
-import { AuthProvider } from './context/AuthContext';
-import { ApiProvider } from './lib/api-provider';
+import { Toaster } from 'sonner';
 import { router } from './routes';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ApiProvider>
-        <RouterProvider router={router} />
-        <Toaster position="top-center" richColors closeButton />
-      </ApiProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <RouterProvider router={router} />
+      <Toaster position="top-center" richColors closeButton />
+    </ErrorBoundary>
   );
 }
