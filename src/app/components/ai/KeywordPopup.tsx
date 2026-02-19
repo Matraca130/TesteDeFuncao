@@ -17,14 +17,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useKeywordPopup } from '../../hooks/useKeywordPopup';
 import { useKeywordChat } from '../../hooks/useKeywordChat';
-import type { DeltaColor, SubTopicBktState, AIChatMessage } from '../../services/types';
+import type { DeltaColor } from '../../../types/enums';
+import type { SubTopicBktState, AIChatMessage } from '../../../types/keyword';
 import {
   X, Loader2, BookOpen, HelpCircle, Link2, MessageCircle,
   Layers, ChevronRight, Box, Send, Bot, User, Sparkles, Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// ── Props ───────────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────
 
 interface KeywordPopupProps {
   keywordId: string;
@@ -161,7 +162,7 @@ function ChatSection({ keywordId, keywordTerm }: { keywordId: string; keywordTer
   );
 }
 
-// ── Main Component ──────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────
 
 export function KeywordPopup({
   keywordId,
