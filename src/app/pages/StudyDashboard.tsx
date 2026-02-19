@@ -2,9 +2,9 @@
 // Axon v4.4 — Study Dashboard (Dev 5)
 // Student study area — browse approved content, study summaries
 // ============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useApi } from '../lib/api-provider';
+import { useContentData } from '../hooks/useContentData';
 import { RequireAuth } from '../components/guards/RequireAuth';
 import { AxonLogo } from '../components/AxonLogo';
 import {
@@ -23,67 +23,19 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-interface Course { id: string; name: string; description?: string; }
-interface Semester { id: string; name: string; course_id: string; }
-interface Section { id: string; name: string; semester_id: string; }
-interface Topic { id: string; name: string; section_id: string; }
-interface Summary { id: string; title: string; content: string; topic_id: string; status: string; }
-interface Keyword { id: string; term: string; definition: string; topic_id: string; }
-
 function StudyDashboardContent() {
   const { user, logout, currentInstitution } = useAuth();
-  const { api } = useApi();
+  const {
+    courses, semesters, sections, topics, summaries, keywords,
+    loading, refresh,
+  } = useContentData();
 
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [keywords, setKeywords] = useState<Keyword[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
   const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-
   const [activeTab, setActiveTab] = useState<'summaries' | 'keywords'>('summaries');
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [cRes, semRes, secRes, tRes, sRes, kRes] = await Promise.allSettled([
-        api.get('/courses'),
-        api.get('/semesters'),
-        api.get('/sections'),
-        api.get('/topics'),
-        api.get('/summaries'),
-        api.get('/keywords'),
-      ]);
-
-      const parse = async (r: PromiseSettledResult<Response>, key: string) => {
-        if (r.status === 'fulfilled' && r.value.ok) {
-          const d = await r.value.json();
-          return d[key] || [];
-        }
-        return [];
-      };
-
-      setCourses(await parse(cRes, 'courses'));
-      setSemesters(await parse(semRes, 'semesters'));
-      setSections(await parse(secRes, 'sections'));
-      setTopics(await parse(tRes, 'topics'));
-      setSummaries(await parse(sRes, 'summaries'));
-      setKeywords(await parse(kRes, 'keywords'));
-    } catch (err) {
-      console.log('[StudyDashboard] fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const toggle = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
     const next = new Set(set);
@@ -95,7 +47,7 @@ function StudyDashboardContent() {
   const approvedSummaries = summaries.filter(s => s.status === 'approved');
   const selectedTopic = topics.find(t => t.id === selectedTopicId);
   const topicSummaries = approvedSummaries.filter(s => s.topic_id === selectedTopicId);
-  const topicKeywords = keywords.filter(k => k.topic_id === selectedTopicId);
+  const topicKeywords = keywords.filter(k => (k as any).topic_id === selectedTopicId);
 
   // Search filter
   const filteredTopics = searchQuery.trim()
@@ -125,7 +77,6 @@ function StudyDashboardContent() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Search */}
           <div className="relative hidden sm:block">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -137,7 +88,7 @@ function StudyDashboardContent() {
             />
           </div>
           <button
-            onClick={fetchData}
+            onClick={refresh}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <RefreshCw size={16} />
@@ -175,7 +126,7 @@ function StudyDashboardContent() {
         </div>
       </div>
 
-      {/* Search results (mobile) */}
+      {/* Mobile search */}
       <div className="px-4 sm:px-6 pt-3 sm:hidden">
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -369,10 +320,10 @@ function StudyDashboardContent() {
                         <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-sm transition-shadow">
                           <div className="flex items-center gap-2 mb-3">
                             <CheckCircle size={14} className="text-green-500" />
-                            <h4 className="text-sm font-semibold text-gray-900">{s.title}</h4>
+                            <h4 className="text-sm font-semibold text-gray-900">{(s as any).title || s.id}</h4>
                           </div>
                           <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                            {s.content}
+                            {(s as any).content || s.content_markdown}
                           </p>
                         </div>
                       ))
