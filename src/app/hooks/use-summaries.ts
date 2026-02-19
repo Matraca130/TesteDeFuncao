@@ -1,18 +1,26 @@
 // ============================================================
 // useSummaries — Hook for summaries list
 // Added by Agent 6 — PRISM — P3 Hook Layer
-//
-// ⚠️ BLOCKED — Cannot rewire to Agent 4 api-client:
-//   - Agent 4's Summary type has NO title field
-//     (Summary has content_markdown, status, version, etc.)
-//   - Agent 6 UI displays summary.title in Select dropdowns
-//   - Agent 4's getSummaries(topicId) requires a topicId,
-//     but Agent 6 needs ALL summaries across topics
-//   - Requires Agent 4 to add title field to Summary type
+// REWIRED: Uses Agent 4 api-content fetchContentHierarchy
+// Note: A4 Summary lacks 'title'; derived from topic name or id
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
-import { MOCK_SUMMARIES, type Summary } from '../data/mock-data';
-import { mockFetchAll } from '../api-client/mock-api';
+import type { Summary } from '../data/mock-data';
+import { fetchContentHierarchy } from '../lib/api-client';
+
+// — Type Adapter: Agent 4 Summary → Agent 6 Summary —
+// A4: { id, topic_id, content_markdown, status, ... } — NO title
+// A6: { id, title, status, topic_id }
+function deriveTitle(a4Sum: { id: string; topic_id: string; content_markdown?: string }, topicNames: Map<string, string>): string {
+  // Use topic name as title, fallback to first line of content or id
+  const topicName = topicNames.get(a4Sum.topic_id);
+  if (topicName) return topicName;
+  if (a4Sum.content_markdown) {
+    const firstLine = a4Sum.content_markdown.split('\n')[0].replace(/^#+\s*/, '').trim();
+    if (firstLine && firstLine.length < 80) return firstLine;
+  }
+  return `Resumo ${a4Sum.id}`;
+}
 
 interface UseSummariesReturn {
   summaries: Summary[];
@@ -31,9 +39,18 @@ export function useSummaries(): UseSummariesReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await mockFetchAll(MOCK_SUMMARIES);
-      setSummaries(data);
-    } catch {
+      // REWIRED: Agent 4 api-content — fetch entire hierarchy
+      const hierarchy = await fetchContentHierarchy();
+      const topicNames = new Map(hierarchy.topics.map(t => [t.id, t.name]));
+      const a6Summaries: Summary[] = hierarchy.summaries.map(s => ({
+        id: s.id,
+        title: deriveTitle(s, topicNames),
+        status: (s.status === 'published' ? 'published' : 'draft') as 'draft' | 'published',
+        topic_id: s.topic_id,
+      }));
+      setSummaries(a6Summaries);
+    } catch (err) {
+      console.error('[useSummaries] fetch error:', err);
       setError('Erro ao carregar resumos');
     } finally {
       setIsLoading(false);
