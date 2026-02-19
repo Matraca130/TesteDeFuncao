@@ -3,10 +3,13 @@
 // ============================================================
 //
 // HOW IT WORKS:
-//   - In PRODUCTION (Vercel): reads from Vite env vars (VITE_SUPABASE_*)
-//   - In FIGMA MAKE (dev):    falls back to auto-generated utils/supabase/info.tsx
+//   - In FIGMA MAKE (DEV=true): ALWAYS uses auto-generated utils/supabase/info.tsx
+//     Even if VITE_SUPABASE_* vars exist, they are IGNORED in dev mode to avoid
+//     DNS conflicts between the sandbox and external Supabase projects.
+//   - In PRODUCTION (DEV=false, i.e. Vercel): reads from VITE_SUPABASE_* env vars.
+//     Falls back to info.tsx values only if env vars are missing.
 //
-// VERCEL ENV VARS (set in Vercel Dashboard → Settings → Environment Variables):
+// VERCEL ENV VARS (set in Vercel Dashboard > Settings > Environment Variables):
 //   VITE_SUPABASE_URL        https://<your-permanent-project>.supabase.co
 //   VITE_SUPABASE_ANON_KEY   your permanent anon key
 //   VITE_API_BASE_URL        (optional) override for the Edge Function base URL
@@ -16,11 +19,18 @@
 import { projectId as fmProjectId, publicAnonKey as fmAnonKey } from '/utils/supabase/info';
 
 // ── Detect environment ──────────────────────────────────────
+// import.meta.env.DEV === true in Figma Make preview (dev server)
+// import.meta.env.DEV === false in Vercel production build (vite build)
+const isDev = import.meta.env.DEV;
+
 const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const envApiBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
-const isProduction = !!(envUrl && envKey);
+// CRITICAL: In dev mode (Figma Make), ALWAYS use the auto-generated info.tsx.
+// The VITE_* secrets may point to an external Supabase project that is
+// unreachable from the sandbox (causes ERR_NAME_NOT_RESOLVED).
+const isProduction = !isDev && !!(envUrl && envKey);
 
 // ── Resolved values ─────────────────────────────────────────
 export const supabaseUrl: string = isProduction
@@ -41,10 +51,13 @@ export const apiBaseUrl: string = isProduction
   ? (envApiBase || `${envUrl!}/functions/v1/${PROD_FUNCTION_NAME}`)
   : `https://${fmProjectId}.supabase.co/functions/v1/${FM_FUNCTION_NAME}`;
 
-// ── Debug: log config at startup (stripped in prod builds) ───
-if (import.meta.env.DEV) {
-  console.log('[Config] Environment:', isProduction ? 'PRODUCTION' : 'FIGMA_MAKE');
-  console.log('[Config] Supabase URL:', supabaseUrl);
-  console.log('[Config] API Base URL:', apiBaseUrl);
+// ── Debug: log config at startup ─────────────────────────────
+console.log('[Config] Mode:', isProduction ? 'PRODUCTION' : 'FIGMA_MAKE', `(DEV=${isDev})`);
+console.log('[Config] Supabase URL:', supabaseUrl);
+console.log('[Config] API Base URL:', apiBaseUrl);
+if (isDev) {
   console.log('[Config] Anon Key:', supabaseAnonKey.substring(0, 20) + '...');
+  if (envUrl) {
+    console.log('[Config] Note: VITE_SUPABASE_URL is set but IGNORED in dev mode');
+  }
 }
