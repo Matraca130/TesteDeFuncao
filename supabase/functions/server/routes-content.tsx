@@ -7,13 +7,40 @@
 import { Hono } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
-import { KV } from "./kv-keys.tsx";
+import {
+  instKey,
+  memberKey,
+  courseKey,
+  semesterKey,
+  sectionKey,
+  topicKey,
+  summaryKey,
+  chunkKey,
+  kwKey,
+  kwInstKey,
+  subtopicKey,
+  connKey,
+  idxInstMembers,
+  idxUserInsts,
+  idxInstCourses,
+  idxCourseSemesters,
+  idxSemesterSections,
+  idxSectionTopics,
+  idxTopicSummaries,
+  idxSummaryChunks,
+  idxSummaryKw,
+  idxKwSummaries,
+  idxInstKw,
+  idxKwSubtopics,
+  idxKwConn,
+  idxSlugInst,
+  KV_PREFIXES,
+} from "./kv-keys.ts";
 
 const content = new Hono();
 
-// ── Auth helper ──────────────────────────────────────────
+// ── Auth helper ────────────────────────────────────────────
 async function getAuthUser(c: any) {
-  // Prefer X-Auth-Token (ES256 user JWT), fall back to Authorization Bearer
   const token = c.req.header("X-Auth-Token") || c.req.header("Authorization")?.split(" ")[1];
   if (!token) return null;
   try {
@@ -50,7 +77,7 @@ function validationError(c: any, msg: string, details?: any) {
 }
 
 function serverError(c: any, ctx: string, err: any) {
-  console.log(`[Content] ${ctx} error:`, err);
+  console.log(`[Content] ${ctx} error: ${err?.message || err}`);
   return c.json(
     { success: false, error: { code: "INTERNAL_ERROR", message: `${ctx}: ${err}` } },
     500
@@ -69,43 +96,96 @@ async function getChildren(prefix: string, primaryKeyFn: (id: string) => string)
 // GROUP 1 — INSTITUTIONS
 // ════════════════════════════════════════════════════════════
 
-// POST /institutions
+// POST /institutions (T1.1 + T1.2: fix membership + slug)
 content.post("/institutions", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const body = await c.req.json();
-    if (!body.name) return validationError(c, "Missing required field: name");
+    const { name, slug, logo_url } = await c.req.json();
+    if (!name) return validationError(c, "Missing required field: name");
+
+    // T1.2: Validate slug
+    if (!slug || !/^[a-z0-9-]{3,50}$/.test(slug)) {
+      return validationError(c, "Invalid slug: must be 3-50 chars, lowercase alphanumeric and hyphens only");
+    }
+
+    // T1.2: Check slug uniqueness
+    const existingSlug = await kv.get(idxSlugInst(slug));
+    if (existingSlug) {
+      return c.json(
+        { success: false, error: { code: "CONFLICT", message: "Slug already taken" } },
+        409
+      );
+    }
 
     const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     const inst = {
       id,
-      name: body.name,
-      slug: body.slug || body.name.toLowerCase().replace(/\s+/g, "-"),
-      logo_url: body.logo_url || null,
-      created_at: new Date().toISOString(),
+      name,
+      slug,
+      logo_url: logo_url || null,
+      created_at: now,
+      updated_at: now,
       created_by: user.id,
     };
-    await kv.set(KV.institution(id), inst);
+    await kv.set(instKey(id), inst);
 
-    // Auto-add creator as admin member
+    // T1.2: Save slug index
+    await kv.set(idxSlugInst(slug), id);
+
+    // T1.1: Auto-add creator as OWNER with generated id and created_at
+    const membershipId = crypto.randomUUID();
     const membership = {
-      institution_id: id,
+      id: membershipId,
       user_id: user.id,
-      role: "admin",
-      joined_at: inst.created_at,
+      institution_id: id,
+      role: "owner",
+      plan_id: null,
+      created_at: now,
     };
     await kv.mset(
       [
-        KV.membership(id, user.id),
-        KV.IDX.memberOfInst(id, user.id),
-        KV.IDX.instOfUser(user.id, id),
+        memberKey(id, user.id),
+        idxUserInsts(user.id, id),
+        idxInstMembers(id, user.id),
       ],
-      [membership, user.id, id]
+      [membership, id, user.id]
     );
 
+    console.log(`[Content] POST /institutions: created '${name}' (${id}) with slug '${slug}', owner: ${user.id}`);
     return c.json({ success: true, data: inst }, 201);
   } catch (err) { return serverError(c, "POST /institutions", err); }
+});
+
+// GET /institutions/by-slug/:slug (T1.4: public endpoint)
+content.get("/institutions/by-slug/:slug", async (c) => {
+  try {
+    const slug = c.req.param("slug");
+    const instId = await kv.get(idxSlugInst(slug));
+    if (!instId) {
+      console.log(`[Content] by-slug: institution not found for slug '${slug}'`);
+      return c.json({ success: false, error: { message: "Institution not found" } }, 404);
+    }
+    const inst = await kv.get(instKey(instId as string));
+    if (!inst) {
+      console.log(`[Content] by-slug: institution data missing for id '${instId}', slug '${slug}'`);
+      return c.json({ success: false, error: { message: "Institution not found" } }, 404);
+    }
+    // Return only PUBLIC data
+    return c.json({
+      success: true,
+      data: {
+        id: (inst as any).id,
+        name: (inst as any).name,
+        slug: (inst as any).slug,
+        logo_url: (inst as any).logo_url || null,
+      },
+    });
+  } catch (err: any) {
+    console.log(`[Content] by-slug error: ${err?.message}`);
+    return c.json({ success: false, error: { message: err?.message } }, 500);
+  }
 });
 
 // GET /institutions/:id
@@ -113,7 +193,7 @@ content.get("/institutions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const inst = await kv.get(KV.institution(c.req.param("id")));
+    const inst = await kv.get(instKey(c.req.param("id")));
     if (!inst) return notFound(c, "Institution");
     return c.json({ success: true, data: inst });
   } catch (err) { return serverError(c, "GET /institutions/:id", err); }
@@ -125,10 +205,10 @@ content.get("/institutions/:id/members", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const instId = c.req.param("id");
-    const userIds = await kv.getByPrefix(KV.PREFIX.membersOfInst(instId));
+    const userIds = await kv.getByPrefix(KV_PREFIXES.IDX_INST_MEMBERS + instId + ":");
     if (!userIds || userIds.length === 0) return c.json({ success: true, data: [] });
     const memberships = await kv.mget(
-      userIds.map((uid: string) => KV.membership(instId, uid))
+      userIds.map((uid: string) => memberKey(instId, uid))
     );
     return c.json({ success: true, data: memberships.filter(Boolean) });
   } catch (err) { return serverError(c, "GET /institutions/:id/members", err); }
@@ -145,19 +225,22 @@ content.post("/institutions/:id/members", async (c) => {
       return validationError(c, "Missing user_id or role");
 
     const membership = {
+      id: crypto.randomUUID(),
       institution_id: instId,
       user_id: body.user_id,
       role: body.role,
-      joined_at: new Date().toISOString(),
+      plan_id: null,
+      created_at: new Date().toISOString(),
     };
     await kv.mset(
       [
-        KV.membership(instId, body.user_id),
-        KV.IDX.memberOfInst(instId, body.user_id),
-        KV.IDX.instOfUser(body.user_id, instId),
+        memberKey(instId, body.user_id),
+        idxInstMembers(instId, body.user_id),
+        idxUserInsts(body.user_id, instId),
       ],
       [membership, body.user_id, instId]
     );
+    console.log(`[Content] POST /institutions/${instId}/members: added user ${body.user_id} as ${body.role}`);
     return c.json({ success: true, data: membership }, 201);
   } catch (err) { return serverError(c, "POST /institutions/:id/members", err); }
 });
@@ -170,24 +253,25 @@ content.delete("/institutions/:id/members/:userId", async (c) => {
     const instId = c.req.param("id");
     const userId = c.req.param("userId");
     await kv.mdel([
-      KV.membership(instId, userId),
-      KV.IDX.memberOfInst(instId, userId),
-      KV.IDX.instOfUser(userId, instId),
+      memberKey(instId, userId),
+      idxInstMembers(instId, userId),
+      idxUserInsts(userId, instId),
     ]);
+    console.log(`[Content] DELETE member: removed user ${userId} from institution ${instId}`);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) { return serverError(c, "DELETE member", err); }
 });
 
-// GET /users/:userId/institutions — Uses idx:user-insts reverse index
+// GET /users/:userId/institutions
 content.get("/users/:userId/institutions", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const userId = c.req.param("userId");
-    const instIds = await kv.getByPrefix(KV.PREFIX.instsOfUser(userId));
+    const instIds = await kv.getByPrefix(KV_PREFIXES.IDX_USER_INSTS + userId + ":");
     if (!instIds || instIds.length === 0) return c.json({ success: true, data: [] });
     const institutions = await kv.mget(
-      instIds.map((id: string) => KV.institution(id))
+      instIds.map((id: string) => instKey(id))
     );
     return c.json({ success: true, data: institutions.filter(Boolean) });
   } catch (err) { return serverError(c, "GET /users/:userId/institutions", err); }
@@ -219,9 +303,10 @@ content.post("/courses", async (c) => {
       created_by: user.id,
     };
     await kv.mset(
-      [KV.course(id), KV.IDX.courseOfInst(body.institution_id, id)],
+      [courseKey(id), idxInstCourses(body.institution_id, id)],
       [course, id]
     );
+    console.log(`[Content] POST /courses: created '${body.name}' (${id})`);
     return c.json({ success: true, data: course }, 201);
   } catch (err) { return serverError(c, "POST /courses", err); }
 });
@@ -234,8 +319,8 @@ content.get("/courses", async (c) => {
     const instId = c.req.query("institution_id");
     if (!instId) return validationError(c, "institution_id query param required");
     const courses = await getChildren(
-      KV.PREFIX.coursesOfInst(instId),
-      KV.course
+      KV_PREFIXES.IDX_INST_COURSES + instId + ":",
+      courseKey
     );
     return c.json({ success: true, data: courses });
   } catch (err) { return serverError(c, "GET /courses", err); }
@@ -246,7 +331,7 @@ content.get("/courses/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const course = await kv.get(KV.course(c.req.param("id")));
+    const course = await kv.get(courseKey(c.req.param("id")));
     if (!course) return notFound(c, "Course");
     return c.json({ success: true, data: course });
   } catch (err) { return serverError(c, "GET /courses/:id", err); }
@@ -258,11 +343,11 @@ content.put("/courses/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.course(id));
+    const existing = await kv.get(courseKey(id));
     if (!existing) return notFound(c, "Course");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.course(id), updated);
+    await kv.set(courseKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /courses/:id", err); }
 });
@@ -273,32 +358,33 @@ content.delete("/courses/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const course = await kv.get(KV.course(id));
+    const course = await kv.get(courseKey(id));
     if (!course) return notFound(c, "Course");
     // Cascade: delete semesters → sections → topics
-    const semIds = await kv.getByPrefix(KV.PREFIX.semestersOfCourse(id));
+    const semIds = await kv.getByPrefix(KV_PREFIXES.IDX_COURSE_SEMESTERS + id + ":");
     const keysToDelete: string[] = [
-      KV.course(id),
-      KV.IDX.courseOfInst(course.institution_id, id),
+      courseKey(id),
+      idxInstCourses(course.institution_id, id),
     ];
     for (const semId of semIds) {
-      keysToDelete.push(KV.semester(semId), KV.IDX.semesterOfCourse(id, semId));
-      const secIds = await kv.getByPrefix(KV.PREFIX.sectionsOfSemester(semId));
+      keysToDelete.push(semesterKey(semId), idxCourseSemesters(id, semId));
+      const secIds = await kv.getByPrefix(KV_PREFIXES.IDX_SEMESTER_SECTIONS + semId + ":");
       for (const secId of secIds) {
-        keysToDelete.push(KV.section(secId), KV.IDX.sectionOfSemester(semId, secId));
-        const topicIds = await kv.getByPrefix(KV.PREFIX.topicsOfSection(secId));
+        keysToDelete.push(sectionKey(secId), idxSemesterSections(semId, secId));
+        const topicIds = await kv.getByPrefix(KV_PREFIXES.IDX_SECTION_TOPICS + secId + ":");
         for (const topicId of topicIds) {
-          keysToDelete.push(KV.topic(topicId), KV.IDX.topicOfSection(secId, topicId));
+          keysToDelete.push(topicKey(topicId), idxSectionTopics(secId, topicId));
         }
       }
     }
     await kv.mdel(keysToDelete);
+    console.log(`[Content] DELETE /courses/${id}: cascade deleted ${keysToDelete.length} keys`);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) { return serverError(c, "DELETE /courses/:id", err); }
 });
 
 // ════════════════════════════════════════════════════════════
-// GROUP 1 — SEMESTERS
+// GROUP 1 — SEMESTERS (T1.6: title→name, sort_order→order_index)
 // ════════════════════════════════════════════════════════════
 
 content.post("/semesters", async (c) => {
@@ -306,23 +392,24 @@ content.post("/semesters", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
-    if (!body.title || !body.course_id)
-      return validationError(c, "Missing title or course_id");
+    if (!(body.name || body.title) || !body.course_id)
+      return validationError(c, "Missing name or course_id");
 
     const id = crypto.randomUUID();
     const semester = {
       id,
       course_id: body.course_id,
-      title: body.title,
+      name: body.name || body.title,
       year: body.year ?? null,
-      sort_order: body.sort_order ?? 0,
+      order_index: body.order_index ?? body.sort_order ?? 0,
       created_at: new Date().toISOString(),
       created_by: user.id,
     };
     await kv.mset(
-      [KV.semester(id), KV.IDX.semesterOfCourse(body.course_id, id)],
+      [semesterKey(id), idxCourseSemesters(body.course_id, id)],
       [semester, id]
     );
+    console.log(`[Content] POST /semesters: created '${semester.name}' (${id})`);
     return c.json({ success: true, data: semester }, 201);
   } catch (err) { return serverError(c, "POST /semesters", err); }
 });
@@ -334,8 +421,8 @@ content.get("/semesters", async (c) => {
     const courseId = c.req.query("course_id");
     if (!courseId) return validationError(c, "course_id query param required");
     const semesters = await getChildren(
-      KV.PREFIX.semestersOfCourse(courseId),
-      KV.semester
+      KV_PREFIXES.IDX_COURSE_SEMESTERS + courseId + ":",
+      semesterKey
     );
     return c.json({ success: true, data: semesters });
   } catch (err) { return serverError(c, "GET /semesters", err); }
@@ -345,7 +432,7 @@ content.get("/semesters/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const sem = await kv.get(KV.semester(c.req.param("id")));
+    const sem = await kv.get(semesterKey(c.req.param("id")));
     if (!sem) return notFound(c, "Semester");
     return c.json({ success: true, data: sem });
   } catch (err) { return serverError(c, "GET /semesters/:id", err); }
@@ -356,11 +443,11 @@ content.put("/semesters/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.semester(id));
+    const existing = await kv.get(semesterKey(id));
     if (!existing) return notFound(c, "Semester");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.semester(id), updated);
+    await kv.set(semesterKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /semesters/:id", err); }
 });
@@ -370,18 +457,18 @@ content.delete("/semesters/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const sem = await kv.get(KV.semester(id));
+    const sem = await kv.get(semesterKey(id));
     if (!sem) return notFound(c, "Semester");
     const keysToDelete: string[] = [
-      KV.semester(id),
-      KV.IDX.semesterOfCourse(sem.course_id, id),
+      semesterKey(id),
+      idxCourseSemesters(sem.course_id, id),
     ];
-    const secIds = await kv.getByPrefix(KV.PREFIX.sectionsOfSemester(id));
+    const secIds = await kv.getByPrefix(KV_PREFIXES.IDX_SEMESTER_SECTIONS + id + ":");
     for (const secId of secIds) {
-      keysToDelete.push(KV.section(secId), KV.IDX.sectionOfSemester(id, secId));
-      const topicIds = await kv.getByPrefix(KV.PREFIX.topicsOfSection(secId));
+      keysToDelete.push(sectionKey(secId), idxSemesterSections(id, secId));
+      const topicIds = await kv.getByPrefix(KV_PREFIXES.IDX_SECTION_TOPICS + secId + ":");
       for (const topicId of topicIds) {
-        keysToDelete.push(KV.topic(topicId), KV.IDX.topicOfSection(secId, topicId));
+        keysToDelete.push(topicKey(topicId), idxSectionTopics(secId, topicId));
       }
     }
     await kv.mdel(keysToDelete);
@@ -390,7 +477,7 @@ content.delete("/semesters/:id", async (c) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// GROUP 1 — SECTIONS
+// GROUP 1 — SECTIONS (T1.6: title→name, sort_order→order_index)
 // ════════════════════════════════════════════════════════════
 
 content.post("/sections", async (c) => {
@@ -398,24 +485,25 @@ content.post("/sections", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
-    if (!body.title || !body.semester_id)
-      return validationError(c, "Missing title or semester_id");
+    if (!(body.name || body.title) || !body.semester_id)
+      return validationError(c, "Missing name or semester_id");
 
     const id = crypto.randomUUID();
     const section = {
       id,
       semester_id: body.semester_id,
-      title: body.title,
+      name: body.name || body.title,
       region: body.region ?? null,
       image_url: body.image_url ?? null,
-      sort_order: body.sort_order ?? 0,
+      order_index: body.order_index ?? body.sort_order ?? 0,
       created_at: new Date().toISOString(),
       created_by: user.id,
     };
     await kv.mset(
-      [KV.section(id), KV.IDX.sectionOfSemester(body.semester_id, id)],
+      [sectionKey(id), idxSemesterSections(body.semester_id, id)],
       [section, id]
     );
+    console.log(`[Content] POST /sections: created '${section.name}' (${id})`);
     return c.json({ success: true, data: section }, 201);
   } catch (err) { return serverError(c, "POST /sections", err); }
 });
@@ -427,8 +515,8 @@ content.get("/sections", async (c) => {
     const semId = c.req.query("semester_id");
     if (!semId) return validationError(c, "semester_id query param required");
     const sections = await getChildren(
-      KV.PREFIX.sectionsOfSemester(semId),
-      KV.section
+      KV_PREFIXES.IDX_SEMESTER_SECTIONS + semId + ":",
+      sectionKey
     );
     return c.json({ success: true, data: sections });
   } catch (err) { return serverError(c, "GET /sections", err); }
@@ -438,7 +526,7 @@ content.get("/sections/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const sec = await kv.get(KV.section(c.req.param("id")));
+    const sec = await kv.get(sectionKey(c.req.param("id")));
     if (!sec) return notFound(c, "Section");
     return c.json({ success: true, data: sec });
   } catch (err) { return serverError(c, "GET /sections/:id", err); }
@@ -449,11 +537,11 @@ content.put("/sections/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.section(id));
+    const existing = await kv.get(sectionKey(id));
     if (!existing) return notFound(c, "Section");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.section(id), updated);
+    await kv.set(sectionKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /sections/:id", err); }
 });
@@ -463,15 +551,15 @@ content.delete("/sections/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const sec = await kv.get(KV.section(id));
+    const sec = await kv.get(sectionKey(id));
     if (!sec) return notFound(c, "Section");
     const keysToDelete: string[] = [
-      KV.section(id),
-      KV.IDX.sectionOfSemester(sec.semester_id, id),
+      sectionKey(id),
+      idxSemesterSections(sec.semester_id, id),
     ];
-    const topicIds = await kv.getByPrefix(KV.PREFIX.topicsOfSection(id));
+    const topicIds = await kv.getByPrefix(KV_PREFIXES.IDX_SECTION_TOPICS + id + ":");
     for (const topicId of topicIds) {
-      keysToDelete.push(KV.topic(topicId), KV.IDX.topicOfSection(id, topicId));
+      keysToDelete.push(topicKey(topicId), idxSectionTopics(id, topicId));
     }
     await kv.mdel(keysToDelete);
     return c.json({ success: true, data: { deleted: true } });
@@ -479,7 +567,7 @@ content.delete("/sections/:id", async (c) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// GROUP 1 — TOPICS
+// GROUP 1 — TOPICS (T1.6: title→name, sort_order→order_index)
 // ════════════════════════════════════════════════════════════
 
 content.post("/topics", async (c) => {
@@ -487,23 +575,24 @@ content.post("/topics", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
-    if (!body.title || !body.section_id)
-      return validationError(c, "Missing title or section_id");
+    if (!(body.name || body.title) || !body.section_id)
+      return validationError(c, "Missing name or section_id");
 
     const id = crypto.randomUUID();
     const topic = {
       id,
       section_id: body.section_id,
-      title: body.title,
+      name: body.name || body.title,
       description: body.description ?? null,
-      sort_order: body.sort_order ?? 0,
+      order_index: body.order_index ?? body.sort_order ?? 0,
       created_at: new Date().toISOString(),
       created_by: user.id,
     };
     await kv.mset(
-      [KV.topic(id), KV.IDX.topicOfSection(body.section_id, id)],
+      [topicKey(id), idxSectionTopics(body.section_id, id)],
       [topic, id]
     );
+    console.log(`[Content] POST /topics: created '${topic.name}' (${id})`);
     return c.json({ success: true, data: topic }, 201);
   } catch (err) { return serverError(c, "POST /topics", err); }
 });
@@ -515,8 +604,8 @@ content.get("/topics", async (c) => {
     const secId = c.req.query("section_id");
     if (!secId) return validationError(c, "section_id query param required");
     const topics = await getChildren(
-      KV.PREFIX.topicsOfSection(secId),
-      KV.topic
+      KV_PREFIXES.IDX_SECTION_TOPICS + secId + ":",
+      topicKey
     );
     return c.json({ success: true, data: topics });
   } catch (err) { return serverError(c, "GET /topics", err); }
@@ -526,7 +615,7 @@ content.get("/topics/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const topic = await kv.get(KV.topic(c.req.param("id")));
+    const topic = await kv.get(topicKey(c.req.param("id")));
     if (!topic) return notFound(c, "Topic");
     return c.json({ success: true, data: topic });
   } catch (err) { return serverError(c, "GET /topics/:id", err); }
@@ -537,11 +626,11 @@ content.put("/topics/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.topic(id));
+    const existing = await kv.get(topicKey(id));
     if (!existing) return notFound(c, "Topic");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.topic(id), updated);
+    await kv.set(topicKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /topics/:id", err); }
 });
@@ -551,20 +640,20 @@ content.delete("/topics/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const topic = await kv.get(KV.topic(id));
+    const topic = await kv.get(topicKey(id));
     if (!topic) return notFound(c, "Topic");
     // Cascade: delete summaries of this topic
-    const summaryIds = await kv.getByPrefix(KV.PREFIX.summariesOfTopic(id));
+    const summaryIds = await kv.getByPrefix(KV_PREFIXES.IDX_TOPIC_SUMMARIES + id + ":");
     const keysToDelete: string[] = [
-      KV.topic(id),
-      KV.IDX.topicOfSection(topic.section_id, id),
+      topicKey(id),
+      idxSectionTopics(topic.section_id, id),
     ];
     for (const sId of summaryIds) {
-      keysToDelete.push(KV.summary(sId), KV.IDX.summaryOfTopic(id, sId));
+      keysToDelete.push(summaryKey(sId), idxTopicSummaries(id, sId));
       // Also delete chunks
-      const chunkIds = await kv.getByPrefix(KV.PREFIX.chunksOfSummary(sId));
+      const chunkIds = await kv.getByPrefix(KV_PREFIXES.IDX_SUMMARY_CHUNKS + sId + ":");
       for (const cId of chunkIds) {
-        keysToDelete.push(KV.chunk(cId));
+        keysToDelete.push(chunkKey(cId));
       }
     }
     await kv.mdel(keysToDelete);
@@ -573,7 +662,7 @@ content.delete("/topics/:id", async (c) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// GROUP 2 — SUMMARIES (D13/D20: draft → published → rejected)
+// GROUP 2 — SUMMARIES (T1.6: content→content_markdown)
 // ════════════════════════════════════════════════════════════
 
 content.post("/summaries", async (c) => {
@@ -590,17 +679,18 @@ content.post("/summaries", async (c) => {
       topic_id: body.topic_id,
       institution_id: body.institution_id,
       title: body.title,
-      content: body.content ?? "",
-      status: body.status || "draft", // D13: starts as draft
-      source: body.source || "manual", // D29: "ai_generated" or "manual"
+      content_markdown: body.content_markdown ?? body.content ?? "",
+      status: body.status || "draft",
+      source: body.source || "manual",
       created_at: new Date().toISOString(),
       created_by: user.id,
       updated_at: new Date().toISOString(),
     };
     await kv.mset(
-      [KV.summary(id), KV.IDX.summaryOfTopic(body.topic_id, id)],
+      [summaryKey(id), idxTopicSummaries(body.topic_id, id)],
       [summary, id]
     );
+    console.log(`[Content] POST /summaries: created '${body.title}' (${id})`);
     return c.json({ success: true, data: summary }, 201);
   } catch (err) { return serverError(c, "POST /summaries", err); }
 });
@@ -612,8 +702,8 @@ content.get("/summaries", async (c) => {
     const topicId = c.req.query("topic_id");
     if (!topicId) return validationError(c, "topic_id query param required");
     const summaries = await getChildren(
-      KV.PREFIX.summariesOfTopic(topicId),
-      KV.summary
+      KV_PREFIXES.IDX_TOPIC_SUMMARIES + topicId + ":",
+      summaryKey
     );
     return c.json({ success: true, data: summaries });
   } catch (err) { return serverError(c, "GET /summaries", err); }
@@ -623,7 +713,7 @@ content.get("/summaries/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const summary = await kv.get(KV.summary(c.req.param("id")));
+    const summary = await kv.get(summaryKey(c.req.param("id")));
     if (!summary) return notFound(c, "Summary");
     return c.json({ success: true, data: summary });
   } catch (err) { return serverError(c, "GET /summaries/:id", err); }
@@ -634,7 +724,7 @@ content.put("/summaries/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.summary(id));
+    const existing = await kv.get(summaryKey(id));
     if (!existing) return notFound(c, "Summary");
     const body = await c.req.json();
     const updated = {
@@ -644,7 +734,7 @@ content.put("/summaries/:id", async (c) => {
       topic_id: existing.topic_id, // prevent parent change
       updated_at: new Date().toISOString(),
     };
-    await kv.set(KV.summary(id), updated);
+    await kv.set(summaryKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /summaries/:id", err); }
 });
@@ -654,23 +744,23 @@ content.delete("/summaries/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const summary = await kv.get(KV.summary(id));
+    const summary = await kv.get(summaryKey(id));
     if (!summary) return notFound(c, "Summary");
     const keysToDelete: string[] = [
-      KV.summary(id),
-      KV.IDX.summaryOfTopic(summary.topic_id, id),
+      summaryKey(id),
+      idxTopicSummaries(summary.topic_id, id),
     ];
     // Delete chunks
-    const chunkIds = await kv.getByPrefix(KV.PREFIX.chunksOfSummary(id));
+    const chunkIds = await kv.getByPrefix(KV_PREFIXES.IDX_SUMMARY_CHUNKS + id + ":");
     for (const cId of chunkIds) {
-      keysToDelete.push(KV.chunk(cId));
+      keysToDelete.push(chunkKey(cId));
     }
     // Delete keyword links (both directions)
-    const kwIds = await kv.getByPrefix(KV.PREFIX.keywordsOfSummary(id));
+    const kwIds = await kv.getByPrefix(KV_PREFIXES.IDX_SUMMARY_KW + id + ":");
     for (const kwId of kwIds) {
       keysToDelete.push(
-        KV.IDX.keywordOfSummary(id, kwId),
-        KV.IDX.summaryOfKeyword(kwId, id)
+        idxSummaryKw(id, kwId),
+        idxKwSummaries(kwId, id)
       );
     }
     await kv.mdel(keysToDelete);
@@ -685,8 +775,8 @@ content.get("/summaries/:id/chunks", async (c) => {
     if (!user) return unauthorized(c);
     const summaryId = c.req.param("id");
     const chunks = await getChildren(
-      KV.PREFIX.chunksOfSummary(summaryId),
-      KV.chunk
+      KV_PREFIXES.IDX_SUMMARY_CHUNKS + summaryId + ":",
+      chunkKey
     );
     return c.json({ success: true, data: chunks });
   } catch (err) { return serverError(c, "GET /summaries/:id/chunks", err); }
@@ -702,16 +792,15 @@ content.post("/summaries/:id/chunk", async (c) => {
     if (!body.content) return validationError(c, "Missing content");
 
     const id = crypto.randomUUID();
-    const sortOrder = body.sort_order ?? 0;
     const chunk = {
       id,
       summary_id: summaryId,
       content: body.content,
-      sort_order: sortOrder,
+      sort_order: body.sort_order ?? 0,
       created_at: new Date().toISOString(),
     };
     await kv.mset(
-      [KV.chunk(id), KV.IDX.chunkOfSummary(summaryId, sortOrder)],
+      [chunkKey(id), idxSummaryChunks(summaryId, id)],
       [chunk, id]
     );
     return c.json({ success: true, data: chunk }, 201);
@@ -736,25 +825,25 @@ content.post("/keywords", async (c) => {
       institution_id: body.institution_id,
       term: body.term,
       definition: body.definition ?? null,
-      priority: body.priority ?? 0, // D23: 0-3
-      status: body.status || "draft", // D13
+      priority: body.priority ?? 0,
+      status: body.status || "draft",
       summary_ids: body.summary_ids || [],
       created_at: new Date().toISOString(),
       created_by: user.id,
     };
 
     const keys: string[] = [
-      KV.keyword(id),
-      KV.IDX.keywordOfInst(body.institution_id, id),
+      kwKey(id),
+      idxInstKw(body.institution_id, id),
     ];
     const vals: any[] = [keyword, id];
 
     // Link keyword to summaries (D4)
     if (body.summary_ids && Array.isArray(body.summary_ids)) {
       for (const sId of body.summary_ids) {
-        keys.push(KV.IDX.keywordOfSummary(sId, id));
+        keys.push(idxSummaryKw(sId, id));
         vals.push(id);
-        keys.push(KV.IDX.summaryOfKeyword(id, sId));
+        keys.push(idxKwSummaries(id, sId));
         vals.push(sId);
       }
     }
@@ -771,11 +860,12 @@ content.post("/keywords", async (c) => {
         end_offset: body.end_offset ?? null,
         created_at: new Date().toISOString(),
       };
-      keys.push(KV.keywordInstance(instId));
+      keys.push(kwInstKey(instId));
       vals.push(instance);
     }
 
     await kv.mset(keys, vals);
+    console.log(`[Content] POST /keywords: created '${body.term}' (${id})`);
     return c.json({ success: true, data: keyword }, 201);
   } catch (err) { return serverError(c, "POST /keywords", err); }
 });
@@ -791,16 +881,16 @@ content.get("/keywords", async (c) => {
 
     if (summaryId) {
       const keywords = await getChildren(
-        KV.PREFIX.keywordsOfSummary(summaryId),
-        KV.keyword
+        KV_PREFIXES.IDX_SUMMARY_KW + summaryId + ":",
+        kwKey
       );
       return c.json({ success: true, data: keywords });
     }
 
     if (instId) {
       const keywords = await getChildren(
-        KV.PREFIX.keywordsOfInst(instId),
-        KV.keyword
+        KV_PREFIXES.IDX_INST_KW + instId + ":",
+        kwKey
       );
       return c.json({ success: true, data: keywords });
     }
@@ -815,20 +905,20 @@ content.get("/keywords/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const keyword = await kv.get(KV.keyword(id));
+    const keyword = await kv.get(kwKey(id));
     if (!keyword) return notFound(c, "Keyword");
 
     // Fetch related data
     const subtopics = await getChildren(
-      KV.PREFIX.subtopicsOfKeyword(id),
-      KV.subtopic
+      KV_PREFIXES.IDX_KW_SUBTOPICS + id + ":",
+      subtopicKey
     );
-    const connIds = await kv.getByPrefix(KV.PREFIX.connectionsOfKeyword(id));
+    const connIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_CONN + id + ":");
     let connections: any[] = [];
     if (connIds.length > 0) {
-      connections = (await kv.mget(connIds.map((cId: string) => KV.connection(cId)))).filter(Boolean);
+      connections = (await kv.mget(connIds.map((cId: string) => connKey(cId)))).filter(Boolean);
     }
-    const summaryIds = await kv.getByPrefix(KV.PREFIX.summariesOfKeyword(id));
+    const summaryIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_SUMMARIES + id + ":");
 
     return c.json({
       success: true,
@@ -848,11 +938,11 @@ content.put("/keywords/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.keyword(id));
+    const existing = await kv.get(kwKey(id));
     if (!existing) return notFound(c, "Keyword");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.keyword(id), updated);
+    await kv.set(kwKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /keywords/:id", err); }
 });
@@ -863,37 +953,38 @@ content.delete("/keywords/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const kw = await kv.get(KV.keyword(id));
+    const kw = await kv.get(kwKey(id));
     if (!kw) return notFound(c, "Keyword");
 
-    const stIds = await kv.getByPrefix(KV.PREFIX.subtopicsOfKeyword(id));
-    const connIds = await kv.getByPrefix(KV.PREFIX.connectionsOfKeyword(id));
-    const summaryIds = await kv.getByPrefix(KV.PREFIX.summariesOfKeyword(id));
+    const stIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_SUBTOPICS + id + ":");
+    const connIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_CONN + id + ":");
+    const summaryIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_SUMMARIES + id + ":");
 
     const keysToDelete: string[] = [
-      KV.keyword(id),
-      KV.IDX.keywordOfInst(kw.institution_id, id),
+      kwKey(id),
+      idxInstKw(kw.institution_id, id),
       // SubTopics
-      ...stIds.map((stId: string) => KV.subtopic(stId)),
-      ...stIds.map((stId: string) => KV.IDX.subtopicOfKeyword(id, stId)),
+      ...stIds.map((stId: string) => subtopicKey(stId)),
+      ...stIds.map((stId: string) => idxKwSubtopics(id, stId)),
       // Connections (both sides)
-      ...connIds.map((cId: string) => KV.connection(cId)),
-      ...connIds.map((cId: string) => KV.IDX.connectionOfKeyword(id, cId)),
+      ...connIds.map((cId: string) => connKey(cId)),
+      ...connIds.map((cId: string) => idxKwConn(id, cId)),
       // Summary links
-      ...summaryIds.map((sId: string) => KV.IDX.summaryOfKeyword(id, sId)),
-      ...summaryIds.map((sId: string) => KV.IDX.keywordOfSummary(sId, id)),
+      ...summaryIds.map((sId: string) => idxKwSummaries(id, sId)),
+      ...summaryIds.map((sId: string) => idxSummaryKw(sId, id)),
     ];
 
     // Also remove reverse connection indices
     for (const cId of connIds) {
-      const conn = await kv.get(KV.connection(cId));
+      const conn = await kv.get(connKey(cId));
       if (conn) {
         const otherId = conn.keyword_a_id === id ? conn.keyword_b_id : conn.keyword_a_id;
-        keysToDelete.push(KV.IDX.connectionOfKeyword(otherId, cId));
+        keysToDelete.push(idxKwConn(otherId, cId));
       }
     }
 
     await kv.mdel(keysToDelete);
+    console.log(`[Content] DELETE /keywords/${id}: cascade deleted ${keysToDelete.length} keys`);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) { return serverError(c, "DELETE /keywords/:id", err); }
 });
@@ -916,13 +1007,13 @@ content.post("/subtopics", async (c) => {
       keyword_id: body.keyword_id,
       title: body.title,
       description: body.description ?? null,
-      priority: body.priority ?? null, // D23: inherits from keyword if null
+      priority: body.priority ?? null,
       status: body.status || "draft",
       created_at: new Date().toISOString(),
       created_by: user.id,
     };
     await kv.mset(
-      [KV.subtopic(id), KV.IDX.subtopicOfKeyword(body.keyword_id, id)],
+      [subtopicKey(id), idxKwSubtopics(body.keyword_id, id)],
       [subtopic, id]
     );
     return c.json({ success: true, data: subtopic }, 201);
@@ -936,8 +1027,8 @@ content.get("/subtopics", async (c) => {
     const kwId = c.req.query("keyword_id");
     if (!kwId) return validationError(c, "keyword_id query param required");
     const subtopics = await getChildren(
-      KV.PREFIX.subtopicsOfKeyword(kwId),
-      KV.subtopic
+      KV_PREFIXES.IDX_KW_SUBTOPICS + kwId + ":",
+      subtopicKey
     );
     return c.json({ success: true, data: subtopics });
   } catch (err) { return serverError(c, "GET /subtopics", err); }
@@ -947,7 +1038,7 @@ content.get("/subtopics/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const st = await kv.get(KV.subtopic(c.req.param("id")));
+    const st = await kv.get(subtopicKey(c.req.param("id")));
     if (!st) return notFound(c, "SubTopic");
     return c.json({ success: true, data: st });
   } catch (err) { return serverError(c, "GET /subtopics/:id", err); }
@@ -958,11 +1049,11 @@ content.put("/subtopics/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const existing = await kv.get(KV.subtopic(id));
+    const existing = await kv.get(subtopicKey(id));
     if (!existing) return notFound(c, "SubTopic");
     const body = await c.req.json();
     const updated = { ...existing, ...body, id, updated_at: new Date().toISOString() };
-    await kv.set(KV.subtopic(id), updated);
+    await kv.set(subtopicKey(id), updated);
     return c.json({ success: true, data: updated });
   } catch (err) { return serverError(c, "PUT /subtopics/:id", err); }
 });
@@ -972,11 +1063,11 @@ content.delete("/subtopics/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const st = await kv.get(KV.subtopic(id));
+    const st = await kv.get(subtopicKey(id));
     if (!st) return notFound(c, "SubTopic");
     await kv.mdel([
-      KV.subtopic(id),
-      KV.IDX.subtopicOfKeyword(st.keyword_id, id),
+      subtopicKey(id),
+      idxKwSubtopics(st.keyword_id, id),
     ]);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) { return serverError(c, "DELETE /subtopics/:id", err); }
@@ -1006,9 +1097,9 @@ content.post("/connections", async (c) => {
     };
     await kv.mset(
       [
-        KV.connection(id),
-        KV.IDX.connectionOfKeyword(body.keyword_a_id, id),
-        KV.IDX.connectionOfKeyword(body.keyword_b_id, id),
+        connKey(id),
+        idxKwConn(body.keyword_a_id, id),
+        idxKwConn(body.keyword_b_id, id),
       ],
       [conn, id, id]
     );
@@ -1022,9 +1113,9 @@ content.get("/connections", async (c) => {
     if (!user) return unauthorized(c);
     const kwId = c.req.query("keyword_id");
     if (!kwId) return validationError(c, "keyword_id query param required");
-    const connIds = await kv.getByPrefix(KV.PREFIX.connectionsOfKeyword(kwId));
+    const connIds = await kv.getByPrefix(KV_PREFIXES.IDX_KW_CONN + kwId + ":");
     if (!connIds || connIds.length === 0) return c.json({ success: true, data: [] });
-    const conns = (await kv.mget(connIds.map((cId: string) => KV.connection(cId)))).filter(Boolean);
+    const conns = (await kv.mget(connIds.map((cId: string) => connKey(cId)))).filter(Boolean);
     return c.json({ success: true, data: conns });
   } catch (err) { return serverError(c, "GET /connections", err); }
 });
@@ -1033,7 +1124,7 @@ content.get("/connections/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
-    const conn = await kv.get(KV.connection(c.req.param("id")));
+    const conn = await kv.get(connKey(c.req.param("id")));
     if (!conn) return notFound(c, "Connection");
     return c.json({ success: true, data: conn });
   } catch (err) { return serverError(c, "GET /connections/:id", err); }
@@ -1044,12 +1135,12 @@ content.delete("/connections/:id", async (c) => {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const id = c.req.param("id");
-    const conn = await kv.get(KV.connection(id));
+    const conn = await kv.get(connKey(id));
     if (!conn) return notFound(c, "Connection");
     await kv.mdel([
-      KV.connection(id),
-      KV.IDX.connectionOfKeyword(conn.keyword_a_id, id),
-      KV.IDX.connectionOfKeyword(conn.keyword_b_id, id),
+      connKey(id),
+      idxKwConn(conn.keyword_a_id, id),
+      idxKwConn(conn.keyword_b_id, id),
     ]);
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) { return serverError(c, "DELETE /connections/:id", err); }
@@ -1058,7 +1149,6 @@ content.delete("/connections/:id", async (c) => {
 // ════════════════════════════════════════════════════════════
 // GROUP 4 — BATCH CONTENT APPROVAL (D20)
 // PUT /content/batch-status
-// Changes status of multiple entities at once
 // ════════════════════════════════════════════════════════════
 
 content.put("/content/batch-status", async (c) => {
@@ -1067,17 +1157,15 @@ content.put("/content/batch-status", async (c) => {
     if (!user) return unauthorized(c);
 
     const body = await c.req.json();
-    // body = { items: [{ entity_type, id, new_status }], reviewer_note? }
     const items = body.items;
     if (!items || !Array.isArray(items) || items.length === 0)
       return validationError(c, "Missing items array");
 
     const validStatuses = ["draft", "published", "rejected"];
     const entityKeyFns: Record<string, (id: string) => string> = {
-      keyword: KV.keyword,
-      subtopic: KV.subtopic,
-      summary: KV.summary,
-      // flashcard and quiz_question would be added by Dev 3/4
+      keyword: kwKey,
+      subtopic: subtopicKey,
+      summary: summaryKey,
     };
 
     const results: any[] = [];
@@ -1119,6 +1207,7 @@ content.put("/content/batch-status", async (c) => {
       await kv.mset(keysToWrite, valsToWrite);
     }
 
+    console.log(`[Content] PUT /content/batch-status: processed ${results.length} items`);
     return c.json({
       success: true,
       data: {
