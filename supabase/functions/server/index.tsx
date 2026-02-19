@@ -1,7 +1,9 @@
 // ============================================================
-// Axon v4.4 — Hono Server (Dev 5)
+// Axon v4.4 — Hono Server (Dev 5 + Dev 6 Integration)
 // Backend endpoints for auth, memberships, content CRUD
 // All data stored in kv_store with prefixed keys
+// Dev 6: Added /auth/me, /auth/signup compat endpoints for
+//        updated frontend (AuthContext uses /auth/* paths)
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -52,12 +54,46 @@ async function getUserId(c: any): Promise<string | null> {
   }
 }
 
+// Dev 6: Helper to get full user info from token
+async function getUserFromToken(c: any): Promise<{ id: string; email: string; name: string; avatar_url: string | null } | null> {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return null;
+    const sb = supabaseAdmin();
+    const { data: { user }, error } = await sb.auth.getUser(token);
+    if (error || !user?.id) return null;
+    return {
+      id: user.id,
+      email: user.email || "",
+      name: user.user_metadata?.name || user.email?.split("@")[0] || "",
+      avatar_url: user.user_metadata?.avatar_url || null,
+    };
+  } catch (err) {
+    console.log("[Server] getUserFromToken error:", err);
+    return null;
+  }
+}
+
+// Dev 6: Helper to get enriched memberships for a user
+async function getEnrichedMemberships(userId: string): Promise<any[]> {
+  const raw = await kv.getByPrefix(`membership:${userId}:`);
+  const memberships = [];
+  for (const m of raw) {
+    let institution = null;
+    if (m.institution_id) {
+      institution = await kv.get(`inst:${m.institution_id}`);
+    }
+    memberships.push({ ...m, institution });
+  }
+  return memberships;
+}
+
 // ── Health ─────────────────────────────────────────────────────
 app.get(`${PREFIX}/health`, (c) => {
   return c.json({ status: "ok" });
 });
 
-// ── Signup ─────────────────────────────────────────────────────
+// ── Signup (legacy path — kept for backward compat) ────────────
 app.post(`${PREFIX}/signup`, async (c) => {
   try {
     const { email, password, name, institutionId, role } = await c.req.json();
@@ -105,7 +141,93 @@ app.post(`${PREFIX}/signup`, async (c) => {
   }
 });
 
-// ── Memberships ────────────────────────────────────────────────
+// ── Dev 6: POST /auth/signup (new format — matches modular server) ──
+app.post(`${PREFIX}/auth/signup`, async (c) => {
+  try {
+    const body = await c.req.json();
+    // Accept both field names for compatibility
+    const { email, password, name, institution_id, institutionId, role } = body;
+    const instId = institution_id || institutionId;
+
+    if (!email || !password || !name) {
+      return c.json(
+        { success: false, error: { code: "VALIDATION", message: "email, password and name are required" } },
+        400
+      );
+    }
+
+    const sb = supabaseAdmin();
+    const { data, error } = await sb.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { name },
+      email_confirm: true,
+    });
+
+    if (error) {
+      console.log(`[Server] /auth/signup error for ${email}: ${error.message}`);
+      return c.json(
+        { success: false, error: { code: "AUTH_ERROR", message: error.message } },
+        400
+      );
+    }
+
+    const userId = data.user?.id;
+    if (!userId) {
+      return c.json(
+        { success: false, error: { code: "SERVER_ERROR", message: "No user ID returned" } },
+        500
+      );
+    }
+
+    const user = {
+      id: userId,
+      email,
+      name,
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+    };
+
+    let memberships: any[] = [];
+
+    if (instId) {
+      const inst = await kv.get(`inst:${instId}`);
+      const membershipId = uuid();
+      const memberRole = role || "student";
+      const membership = {
+        id: membershipId,
+        user_id: userId,
+        institution_id: instId,
+        role: memberRole,
+        created_at: new Date().toISOString(),
+      };
+      await kv.set(`membership:${userId}:${instId}`, membership);
+      memberships = [{ ...membership, institution: inst || null }];
+      console.log(`[Server] /auth/signup: created ${memberRole} membership for ${email} in ${instId}`);
+    }
+
+    // Sign in to get access_token
+    const { data: signInData, error: signInErr } = await sb.auth.signInWithPassword({ email, password });
+
+    console.log(`[Server] /auth/signup success for ${email} (${userId})`);
+    return c.json({
+      success: true,
+      data: {
+        user,
+        access_token: signInData?.session?.access_token || "",
+        memberships,
+      },
+    });
+  } catch (err) {
+    console.log("[Server] /auth/signup unexpected error:", err);
+    return c.json(
+      { success: false, error: { code: "SERVER_ERROR", message: `Signup error: ${err}` } },
+      500
+    );
+  }
+});
+
+// ── Memberships (legacy path — kept for backward compat) ──────
 app.get(`${PREFIX}/memberships`, async (c) => {
   const userId = await getUserId(c);
   if (!userId) {
@@ -113,20 +235,37 @@ app.get(`${PREFIX}/memberships`, async (c) => {
   }
 
   try {
-    const raw = await kv.getByPrefix(`membership:${userId}:`);
-    // Enrich with institution data
-    const memberships = [];
-    for (const m of raw) {
-      let institution = null;
-      if (m.institution_id) {
-        institution = await kv.get(`inst:${m.institution_id}`);
-      }
-      memberships.push({ ...m, institution });
-    }
+    const memberships = await getEnrichedMemberships(userId);
     return c.json({ memberships });
   } catch (err) {
     console.log("[Server] Memberships error:", err);
     return c.json({ error: `Erro ao buscar memberships: ${err}` }, 500);
+  }
+});
+
+// ── Dev 6: GET /auth/me (new format — matches modular server) ──
+app.get(`${PREFIX}/auth/me`, async (c) => {
+  const user = await getUserFromToken(c);
+  if (!user) {
+    return c.json(
+      { success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+      401
+    );
+  }
+
+  try {
+    const memberships = await getEnrichedMemberships(user.id);
+    console.log(`[Server] /auth/me: restored session for ${user.email}, ${memberships.length} memberships`);
+    return c.json({
+      success: true,
+      data: { user, memberships },
+    });
+  } catch (err) {
+    console.log("[Server] /auth/me error:", err);
+    return c.json(
+      { success: false, error: { code: "SERVER_ERROR", message: `Session restore error: ${err}` } },
+      500
+    );
   }
 });
 
@@ -146,18 +285,34 @@ app.get(`${PREFIX}/institutions`, async (c) => {
 app.get(`${PREFIX}/institutions/by-slug/:slug`, async (c) => {
   try {
     const slug = c.req.param("slug");
+
+    // Strategy 1: Direct index lookup
     const instId = await kv.get(`inst:slug:${slug}`);
-    if (!instId) {
-      return c.json({ error: "Instituicao nao encontrada" }, 404);
+    if (instId) {
+      const institution = await kv.get(`inst:${instId}`);
+      if (institution) {
+        // Dev 6: Return in BOTH formats for frontend compat
+        // Frontend reads data.data || data.institution
+        return c.json({ success: true, data: institution, institution });
+      }
     }
-    const institution = await kv.get(`inst:${instId}`);
+
+    // Strategy 2: Fallback scan
+    const allInsts = await kv.getByPrefix("inst:");
+    const institution = allInsts.find((i: any) => i && typeof i === "object" && i.slug === slug);
     if (!institution) {
-      return c.json({ error: "Instituicao nao encontrada" }, 404);
+      return c.json({ success: false, error: { code: "NOT_FOUND", message: "Instituicao nao encontrada" } }, 404);
     }
-    return c.json({ institution });
+
+    // Cache for next time
+    if ((institution as any).id) {
+      try { await kv.set(`inst:slug:${slug}`, (institution as any).id); } catch { /* non-critical */ }
+    }
+
+    return c.json({ success: true, data: institution, institution });
   } catch (err) {
     console.log("[Server] Get institution by slug error:", err);
-    return c.json({ error: `Erro ao buscar instituicao: ${err}` }, 500);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `Erro ao buscar instituicao: ${err}` } }, 500);
   }
 });
 
