@@ -18,3 +18,7 @@ export { SpeedometerGauge } from './SpeedometerGauge';
 export { GradeButtons } from './GradeButtons';
 export { ReviewFeedbackDisplay } from './ReviewFeedbackDisplay';
 export { StudentCardCreator } from './StudentCardCreator';
+
+// Custom Hook (Step 3)
+export { useFlashcardSession } from './useFlashcardSession';
+export type { UseFlashcardSessionReturn } from './useFlashcardSession';
