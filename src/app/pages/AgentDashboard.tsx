@@ -3,7 +3,7 @@
 import { useNavigate } from 'react-router';
 import {
   Brain, Layers, BookOpen, User, AlertTriangle,
-  Sparkles, ArrowRight, Shield
+  Sparkles, ArrowRight
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -80,9 +80,9 @@ export function AgentDashboard() {
             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300">
               AI: indigo-500
             </Badge>
-            <Badge variant="outline">
-              <Shield className="w-3 h-3 mr-1" />
-              Mock Data
+            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-300">
+              <Sparkles className="w-3 h-3 mr-1" />
+              AI Live + Mock Fallback
             </Badge>
           </div>
         </div>
