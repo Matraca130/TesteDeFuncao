@@ -1,70 +1,65 @@
-// ============================================================
-// Axon v4.4 — Hono Server Entrypoint
-// ============================================================
-// Slim entrypoint: middleware + route composition.
-// All route logic lives in dedicated modules:
-//   routes-auth.tsx         — signup, signin, signout, me
-//   routes-institutions.tsx — CRUD institutions + by-slug
-//   routes-curriculum.tsx   — courses, semesters, sections, topics
-//   routes-content.tsx      — summaries, keywords
-//   routes-members.tsx      — members management
-//   routes-seed.tsx         — seed demo data
-//   routes-dashboard.tsx    — dashboard/progress/smart-study/plans
-//
-// Shared helpers in:
-//   _server-helpers.ts      — K keys, auth, membership utils
-//   dashboard/_helpers.ts   — NeedScore, BKT, hierarchy walkers
-//
-// FIXES PRESERVED:
-//   1. ALL key patterns match kv-keys.ts EXACTLY
-//   2. membership:${instId}:${userId} (inst-first, NOT user-first)
-//   3. Index keys use idx: prefix
-//   4. Keyword primary key is kw:${id}
-//   5. Triple-write on membership
-//   6. Indices store IDs (not full objects)
-// ============================================================
+// Axon v4.4 — Hono Server: Main entrypoint
+// 72 endpoints across 4 route modules, backed by KV store
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-import { PREFIX } from "./_server-helpers.ts";
 
-// Route modules
-import auth from "./routes-auth.tsx";
-import institutions from "./routes-institutions.tsx";
-import curriculum from "./routes-curriculum.tsx";
-import content from "./routes-content.tsx";
-import members from "./routes-members.tsx";
-import seed from "./routes-seed.tsx";
-import dashboard from "./routes-dashboard.tsx";
+import studentRoutes from "./routes-student.tsx";
+import sacredRoutes from "./routes-sacred.tsx";
+import contentRoutes from "./routes-content.tsx";
+import miscRoutes from "./routes-misc.tsx";
+import { seedContentAndSacred } from "./seed-all.tsx";
+import { ok, err } from "./kv-schema.tsx";
 
 const app = new Hono();
 
-// ── Middleware ───────────────────────────────────────────────
-app.use("*", logger(console.log));
+// Enable logger
+app.use('*', logger(console.log));
 
+// Enable CORS for all routes and methods
 app.use(
   "/*",
   cors({
     origin: "*",
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
   }),
 );
 
-// ── Health ───────────────────────────────────────────────────
-app.get(`${PREFIX}/health`, (c) => {
-  return c.json({ status: "ok", version: "4.4", prefix: PREFIX, keys_aligned: "kv-keys.ts" });
+// Health check endpoint
+app.get("/make-server-6e4db60a/health", (c) => {
+  return c.json({ status: "ok", version: "4.4", routes: 72 });
 });
 
-// ── Mount route modules ─────────────────────────────────────
-app.route("/", auth);
-app.route("/", institutions);
-app.route("/", curriculum);
-app.route("/", content);
-app.route("/", members);
-app.route("/", seed);
-app.route("/", dashboard);
+// Mount domain route groups under the server prefix
+app.route("/make-server-6e4db60a", studentRoutes);
+app.route("/make-server-6e4db60a", sacredRoutes);
+app.route("/make-server-6e4db60a", contentRoutes);
+app.route("/make-server-6e4db60a", miscRoutes);
+
+// Override seed to also seed content + sacred + misc
+app.post("/make-server-6e4db60a/seed-all", async (c) => {
+  try {
+    // First seed student data via the student routes seed
+    const studentRes = await app.request(
+      new Request("http://localhost/make-server-6e4db60a/seed", { method: "POST" }),
+    );
+    const studentData = await studentRes.json();
+
+    // Then seed content + sacred + misc
+    const miscCount = await seedContentAndSacred();
+
+    return c.json(ok({
+      student_keys: studentData?.data?.seeded ?? 0,
+      content_sacred_misc_keys: miscCount,
+      total: (studentData?.data?.seeded ?? 0) + miscCount,
+    }));
+  } catch (e) {
+    console.log("POST seed-all error:", e);
+    return c.json(err(`Full seed failed: ${e}`), 500);
+  }
+});
 
 Deno.serve(app.fetch);
