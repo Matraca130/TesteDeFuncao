@@ -4,20 +4,14 @@
 // 6 routes: reading-state CRUD, annotations CRUD
 // 1 shared route: GET /topics/:topicId/full
 //
-// Imports:
-//   ./kv-keys.ts      — Canonical key generation functions
-//   ./shared-types.ts  — Entity type definitions
-//   ./crud-factory.tsx — Shared helpers (auth, errors, children)
-//   ./kv_store.tsx     — KV CRUD operations
+// ── Agent 3 (PROBE) addition for v4.4: ──
+// GET /diagnostics/summary/:summaryId — Consolidated diagnostic
 //
 // KV Keys used:
 //   reading:{studentId}:{summaryId}  → SummaryReadingState
 //   annotation:{id}                  → SummaryAnnotation
 //   idx:student-reading:{sId}:{sumId}            → summaryId
 //   idx:student-annotations:{sId}:{sumId}:{annId} → annotationId
-//
-// Decisions: D13 (published only), D34 (PostSummaryChoice),
-//            D38 (student reads only), D15 (inline quiz placeholder)
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -39,6 +33,8 @@ import {
   quizKey,
   fsrsKey,
   KV_PREFIXES,
+  // Agent 3: for diagnostics
+  quizAttemptKey,
 } from "./kv-keys.ts";
 import {
   getAuthUser,
@@ -51,21 +47,12 @@ import {
 
 const reading = new Hono();
 
-// ── Valid highlight colors (canonical HighlightColor enum) ─
 const VALID_HIGHLIGHT_COLORS: HighlightColor[] = [
-  "yellow",
-  "green",
-  "blue",
-  "pink",
-  "purple",
+  "yellow", "green", "blue", "pink", "purple",
 ];
 
 // ================================================================
 // PUT /reading-state — Upsert reading progress
-// ================================================================
-// Auto-saves from frontend every ~30s.
-// reading_time_seconds is ADDITIVE (accumulated).
-// completed flips to true once and stays true.
 // ================================================================
 reading.put("/reading-state", async (c) => {
   try {
@@ -85,18 +72,15 @@ reading.put("/reading-state", async (c) => {
       student_id: userId,
       summary_id: body.summary_id,
       scroll_position: body.scroll_position ?? existing?.scroll_position ?? 0,
-      // Additive: frontend sends delta seconds since last save
       reading_time_seconds:
         (existing?.reading_time_seconds ?? 0) +
         (body.reading_time_seconds ?? 0),
-      // Once completed, stays completed
       completed: body.completed || existing?.completed || false,
       furthest_chunk_index:
         body.furthest_chunk_index ?? existing?.furthest_chunk_index ?? undefined,
       last_read_at: new Date().toISOString(),
     };
 
-    // Write primary + index atomically
     await kv.mset(
       [key, idxStudentReading(userId, body.summary_id)],
       [state, body.summary_id]
@@ -114,10 +98,7 @@ reading.put("/reading-state", async (c) => {
 });
 
 // ================================================================
-// GET /reading-state/:summaryId — Get reading state for a summary
-// ================================================================
-// Returns null (not 404) if no state exists yet — frontend
-// treats null as "never started reading".
+// GET /reading-state/:summaryId
 // ================================================================
 reading.get("/reading-state/:summaryId", async (c) => {
   try {
@@ -138,10 +119,6 @@ reading.get("/reading-state/:summaryId", async (c) => {
 // ================================================================
 // POST /annotations — Create a new highlight/annotation
 // ================================================================
-// Body: { summary_id, selected_text, note?, highlight_color?,
-//         chunk_id?, start_offset?, end_offset? }
-// highlight_color defaults to "yellow" if not provided or invalid.
-// ================================================================
 reading.post("/annotations", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -156,7 +133,6 @@ reading.post("/annotations", async (c) => {
       );
     }
 
-    // Validate highlight_color — default to yellow
     const highlight_color: HighlightColor = VALID_HIGHLIGHT_COLORS.includes(
       body.highlight_color
     )
@@ -180,7 +156,6 @@ reading.post("/annotations", async (c) => {
       updated_at: now,
     };
 
-    // Write primary + index
     await kv.mset(
       [
         annotationKey(id),
@@ -201,10 +176,7 @@ reading.post("/annotations", async (c) => {
 });
 
 // ================================================================
-// GET /annotations?summary_id=X — List annotations for a summary
-// ================================================================
-// Returns all annotations the authenticated student has on
-// the given summary. Empty array if none.
+// GET /annotations?summary_id=X
 // ================================================================
 reading.get("/annotations", async (c) => {
   try {
@@ -216,7 +188,6 @@ reading.get("/annotations", async (c) => {
       return validationError(c, "summary_id query param required");
     }
 
-    // getByPrefix returns VALUES (annotation IDs stored in index)
     const annotationIds = await kv.getByPrefix(
       KV_PREFIXES.IDX_STUDENT_ANNOTATIONS + user.id + ":" + summaryId + ":"
     );
@@ -225,7 +196,6 @@ reading.get("/annotations", async (c) => {
       return c.json({ success: true, data: [] });
     }
 
-    // Fetch annotation objects by primary key
     const annotations = await kv.mget(
       annotationIds.map((id: string) => annotationKey(id))
     );
@@ -240,10 +210,7 @@ reading.get("/annotations", async (c) => {
 });
 
 // ================================================================
-// PUT /annotations/:id — Update an annotation (note, highlight_color)
-// ================================================================
-// Only the owning student can update. Cannot change summary_id
-// or selected_text (immutable after creation).
+// PUT /annotations/:id
 // ================================================================
 reading.put("/annotations/:id", async (c) => {
   try {
@@ -254,7 +221,6 @@ reading.put("/annotations/:id", async (c) => {
     const existing: SummaryAnnotation | null = await kv.get(annotationKey(id));
     if (!existing) return notFound(c, "Annotation");
 
-    // Ownership check
     if (existing.student_id !== user.id) {
       return c.json(
         {
@@ -272,7 +238,6 @@ reading.put("/annotations/:id", async (c) => {
 
     const updated: SummaryAnnotation = {
       ...existing,
-      // Mutable fields only
       note: body.note !== undefined ? body.note : existing.note,
       highlight_color:
         body.highlight_color &&
@@ -295,9 +260,7 @@ reading.put("/annotations/:id", async (c) => {
 });
 
 // ================================================================
-// DELETE /annotations/:id — Delete an annotation
-// ================================================================
-// Removes primary key + index entry. Only owner can delete.
+// DELETE /annotations/:id
 // ================================================================
 reading.delete("/annotations/:id", async (c) => {
   try {
@@ -308,7 +271,6 @@ reading.delete("/annotations/:id", async (c) => {
     const annotation: SummaryAnnotation | null = await kv.get(annotationKey(id));
     if (!annotation) return notFound(c, "Annotation");
 
-    // Ownership check
     if (annotation.student_id !== user.id) {
       return c.json(
         {
@@ -322,7 +284,6 @@ reading.delete("/annotations/:id", async (c) => {
       );
     }
 
-    // Delete primary + index
     await kv.mdel([
       annotationKey(id),
       idxStudentAnnotations(
@@ -343,14 +304,7 @@ reading.delete("/annotations/:id", async (c) => {
 });
 
 // ================================================================
-// GET /topics/:topicId/full — Full topic payload (shared w/ Dev 5)
-// ================================================================
-// Returns EVERYTHING the student needs for a topic in one call:
-//   topic, summaries (D13: published only), keywords + subtopics,
-//   flashcards, quiz questions, reading states, BKT states,
-//   annotations.
-//
-// This is the "hot path" — called when a student opens a topic.
+// GET /topics/:topicId/full — Full topic payload
 // ================================================================
 reading.get("/topics/:topicId/full", async (c) => {
   try {
@@ -359,11 +313,9 @@ reading.get("/topics/:topicId/full", async (c) => {
     const userId = user.id;
     const topicId = c.req.param("topicId");
 
-    // ── 1. Topic ──────────────────────────────────────────
     const topic = await kv.get(topicKey(topicId));
     if (!topic) return notFound(c, "Topic");
 
-    // ── 2. Summaries ──────────────────────────────────────
     const summaryIds: string[] = await kv.getByPrefix(
       KV_PREFIXES.IDX_TOPIC_SUMMARIES + topicId + ":"
     );
@@ -373,16 +325,13 @@ reading.get("/topics/:topicId/full", async (c) => {
       const raw = await kv.mget(
         summaryIds.map((id: string) => summaryKey(id))
       );
-      // D13: Only published summaries are visible to students
       summaries = raw.filter(
         (s: any) => s && s.status === "published"
       );
     }
 
-    // IDs of published summaries (used for subsequent lookups)
     const pubSummaryIds = summaries.map((s: any) => s.id);
 
-    // ── 3. Keywords (from all published summaries) ────────
     const allKeywords: any[] = [];
     const seenKwIds = new Set<string>();
 
@@ -397,7 +346,6 @@ reading.get("/topics/:topicId/full", async (c) => {
         const kw = await kv.get(kwKey(kwId));
         if (!kw) continue;
 
-        // Subtopics for this keyword
         const stIds: string[] = await kv.getByPrefix(
           KV_PREFIXES.IDX_KW_SUBTOPICS + kwId + ":"
         );
@@ -412,7 +360,6 @@ reading.get("/topics/:topicId/full", async (c) => {
       }
     }
 
-    // ── 4. Flashcards (from all keywords in this topic) ───
     const allFlashcards: any[] = [];
     for (const kw of allKeywords) {
       const fcIds: string[] = await kv.getByPrefix(
@@ -426,7 +373,6 @@ reading.get("/topics/:topicId/full", async (c) => {
       }
     }
 
-    // ── 5. Quiz Questions (from all keywords) ─────────────
     const allQuizQuestions: any[] = [];
     for (const kw of allKeywords) {
       const qIds: string[] = await kv.getByPrefix(
@@ -440,15 +386,12 @@ reading.get("/topics/:topicId/full", async (c) => {
       }
     }
 
-    // ── 6. Reading states (this student, all summaries) ───
     const readingStates: SummaryReadingState[] = [];
     for (const sumId of pubSummaryIds) {
       const rs = await kv.get(readingKey(userId, sumId));
       if (rs) readingStates.push(rs);
     }
 
-    // ── 7. BKT states (this student, all subtopics) ───────
-    // Key pattern: bkt:{studentId}:{subtopicId}
     const bktStates: any[] = [];
     for (const kw of allKeywords) {
       for (const st of kw.subtopics || []) {
@@ -457,15 +400,12 @@ reading.get("/topics/:topicId/full", async (c) => {
       }
     }
 
-    // ── 8. Card FSRS states (this student, all flashcards)
-    // Key pattern: fsrs:{studentId}:{cardId}
     const cardFsrsStates: any[] = [];
     for (const fc of allFlashcards) {
       const fsrs = await kv.get(fsrsKey(userId, fc.id));
       if (fsrs) cardFsrsStates.push(fsrs);
     }
 
-    // ── 9. Annotations (this student, all published summaries)
     const allAnnotations: SummaryAnnotation[] = [];
     for (const sumId of pubSummaryIds) {
       const annIds: string[] = await kv.getByPrefix(
@@ -503,6 +443,141 @@ reading.get("/topics/:topicId/full", async (c) => {
     });
   } catch (err) {
     return serverError(c, "GET /topics/:topicId/full", err);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// Agent 3 (PROBE) — Consolidated Summary Diagnostic (v4.4)
+// GET /diagnostics/summary/:summaryId
+// ════════════════════════════════════════════════════════════════
+reading.get("/diagnostics/summary/:summaryId", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+    const userId = user.id;
+    const summaryId = c.req.param("summaryId");
+
+    const summary = await kv.get(summaryKey(summaryId));
+    if (!summary) return notFound(c, "Summary");
+
+    const readingState: SummaryReadingState | null = await kv.get(
+      readingKey(userId, summaryId)
+    );
+
+    const annotationIds: string[] = await kv.getByPrefix(
+      KV_PREFIXES.IDX_STUDENT_ANNOTATIONS + userId + ":" + summaryId + ":"
+    );
+
+    const kwIds: string[] = await kv.getByPrefix(
+      KV_PREFIXES.IDX_SUMMARY_KW + summaryId + ":"
+    );
+
+    let totalPKnow = 0;
+    let bktCount = 0;
+    const keywordDetails: any[] = [];
+
+    for (const kwId of kwIds) {
+      const kw = await kv.get(kwKey(kwId));
+      if (!kw) continue;
+
+      const stIds: string[] = await kv.getByPrefix(
+        KV_PREFIXES.IDX_KW_SUBTOPICS + kwId + ":"
+      );
+
+      let kwPKnow = 0;
+      let kwBktCount = 0;
+
+      for (const stId of stIds) {
+        const bkt = await kv.get(`bkt:${userId}:${stId}`);
+        if (bkt) {
+          totalPKnow += bkt.p_know;
+          bktCount++;
+          kwPKnow += bkt.p_know;
+          kwBktCount++;
+        }
+      }
+
+      keywordDetails.push({
+        keyword_id: kwId,
+        term: kw.term,
+        avg_p_know: kwBktCount > 0 ? kwPKnow / kwBktCount : 0,
+        subtopic_count: stIds.length,
+        evaluated_count: kwBktCount,
+      });
+    }
+
+    let totalQuizAttempts = 0;
+    let correctQuizAttempts = 0;
+
+    for (const kwId of kwIds) {
+      const attemptIds: string[] = await kv.getByPrefix(
+        KV_PREFIXES.IDX_KW_ATTEMPTS + kwId + ":"
+      );
+      for (const aId of attemptIds) {
+        const attempt = await kv.get(quizAttemptKey(aId));
+        if (attempt && attempt.student_id === userId) {
+          totalQuizAttempts++;
+          if (attempt.correct) correctQuizAttempts++;
+        }
+      }
+    }
+
+    let totalRetention = 0;
+    let fsrsCount = 0;
+
+    for (const kwId of kwIds) {
+      const fcIds: string[] = await kv.getByPrefix(
+        KV_PREFIXES.IDX_KW_FC + kwId + ":"
+      );
+      for (const fcId of fcIds) {
+        const fsrs = await kv.get(fsrsKey(userId, fcId));
+        if (fsrs) {
+          totalRetention += fsrs.stability > 0 ? Math.min(fsrs.stability / 30, 1) : 0;
+          fsrsCount++;
+        }
+      }
+    }
+
+    const diagnostic = {
+      summary_id: summaryId,
+      student_id: userId,
+      reading: {
+        time_seconds: readingState?.reading_time_seconds ?? 0,
+        scroll_position: readingState?.scroll_position ?? 0,
+        completed: readingState?.completed ?? false,
+      },
+      annotations: {
+        count: annotationIds.length,
+      },
+      keywords: {
+        total: kwIds.length,
+        avg_mastery: bktCount > 0 ? +(totalPKnow / bktCount).toFixed(3) : 0,
+        details: keywordDetails,
+      },
+      quiz: {
+        total_attempts: totalQuizAttempts,
+        correct_attempts: correctQuizAttempts,
+        score_avg: totalQuizAttempts > 0
+          ? +(correctQuizAttempts / totalQuizAttempts).toFixed(3)
+          : 0,
+      },
+      flashcards: {
+        cards_with_fsrs: fsrsCount,
+        avg_retention: fsrsCount > 0
+          ? +(totalRetention / fsrsCount).toFixed(3)
+          : 0,
+      },
+      generated_at: new Date().toISOString(),
+    };
+
+    console.log(
+      `[Reading] Diagnostic: summary=${summaryId.slice(0, 8)}… student=${userId.slice(0, 8)}… ` +
+        `kw=${kwIds.length} quiz=${totalQuizAttempts} fc_fsrs=${fsrsCount}`
+    );
+
+    return c.json({ success: true, data: diagnostic });
+  } catch (err) {
+    return serverError(c, "GET /diagnostics/summary/:summaryId", err);
   }
 });
 

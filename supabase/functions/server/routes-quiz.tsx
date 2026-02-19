@@ -8,6 +8,13 @@
 // PUT  /quiz-questions/:id       — Update question fields
 // DELETE /quiz-questions/:id     — Delete question + clean indices
 //
+// ── Agent 3 (PROBE) additions for v4.4: ──
+// POST /quiz-attempts            — Save immutable quiz attempt
+// GET  /quiz-attempts            — List attempts by student+keyword
+// POST /quiz-bundles             — Create quiz session bundle
+// GET  /quiz-bundles             — List bundles by student
+// SIGNAL: QUIZ_PERSISTENCE_DONE, QUIZ_BUNDLES_DONE
+//
 // Key decisions:
 //   D16 — Quiz is system-evaluated (the system compares answer)
 //   D30 — QUIZ_MULTIPLIER = 0.70 (less weight than flashcard)
@@ -32,7 +39,7 @@ import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
 
 // Types — import ONLY the ones this file uses
-import type { QuizQuestion, QuizOption } from "./shared-types.ts";
+import type { QuizQuestion, QuizOption, QuizAttempt, QuizBundle } from "./shared-types.ts";
 
 // Keys — canonical kv-keys.ts (ZERO references to kv-keys.tsx)
 import {
@@ -40,6 +47,12 @@ import {
   idxSummaryQuiz,
   idxKwQuiz,
   KV_PREFIXES,
+  // Agent 3 additions
+  quizAttemptKey,
+  quizBundleKey,
+  idxStudentAttempts,
+  idxKwAttempts,
+  idxStudentBundles,
 } from "./kv-keys.ts";
 
 // Shared CRUD helpers
@@ -81,20 +94,6 @@ function matchesAnswer(
 // ================================================================
 // POST /quiz-questions/evaluate — System-evaluate student answer
 // ================================================================
-// MUST be registered BEFORE /quiz-questions/:id to avoid Hono
-// matching "evaluate" as an :id param.
-//
-// Input:  { question_id, student_answer }
-// Output: { correct, grade, correct_answer, explanation }
-//
-// D16: System-evaluated. The system determines if correct.
-// Grade: correct → 0.65 (GRADE_GOOD), incorrect → 0.00 (GRADE_AGAIN)
-//
-// Frontend flow after evaluate:
-//   1. Show correct/incorrect + explanation
-//   2. Call POST /reviews with grade: correct ? 3 : 1 (FsrsGrade)
-//   3. POST /reviews returns updated_card_fsrs = null (D36)
-// ================================================================
 quiz.post("/quiz-questions/evaluate", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -103,7 +102,6 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
     const body = await c.req.json();
     const { question_id, student_answer } = body;
 
-    // Validate required fields
     if (
       !question_id ||
       student_answer === undefined ||
@@ -125,8 +123,6 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
 
     switch (question.quiz_type) {
       case "mcq": {
-        // student_answer is the option label (e.g. "A", "B", "C", "D")
-        // Case-insensitive comparison (Bug 6 fix)
         const options = (question.options ?? []) as QuizOption[];
         const correctOpt = options.find((o) => o.is_correct);
         correct =
@@ -139,7 +135,6 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       }
 
       case "true_false": {
-        // student_answer is "true" or "false" (string)
         const normalized = String(student_answer).toLowerCase().trim();
         const normalizedCorrect = (
           question.correct_answer ?? ""
@@ -152,7 +147,6 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       }
 
       case "fill_blank": {
-        // Case-insensitive + accepted_variations
         correct = matchesAnswer(
           student_answer,
           question.correct_answer ?? "",
@@ -163,7 +157,6 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       }
 
       case "open": {
-        // Open (write-in): case-insensitive + accepted_variations
         correct = matchesAnswer(
           student_answer,
           question.correct_answer ?? "",
@@ -185,12 +178,11 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
       `[Quiz] Evaluate: question=${question_id}, type=${question.quiz_type}, correct=${correct}, user=${user.id}`
     );
 
-    // EvaluateQuizRes: exactly 4 fields
     return c.json({
       success: true,
       data: {
         correct,
-        grade: correct ? 0.65 : 0.0, // GRADE_GOOD or GRADE_AGAIN
+        grade: correct ? 0.65 : 0.0,
         correct_answer: correctAnswer,
         explanation: question.explanation ?? null,
       },
@@ -203,17 +195,12 @@ quiz.post("/quiz-questions/evaluate", async (c) => {
 // ================================================================
 // POST /quiz-questions — Create a quiz question
 // ================================================================
-// Validates required fields (keyword_id, question, quiz_type).
-// D39: source defaults to 'student' for student-created questions.
-// D27: subtopic_id defaults to keyword_id if not provided.
-// ================================================================
 quiz.post("/quiz-questions", async (c) => {
   try {
     const user = await getAuthUser(c);
     if (!user) return unauthorized(c);
     const body = await c.req.json();
 
-    // Validate required fields
     if (!body.keyword_id || !body.question || !body.quiz_type) {
       return validationError(
         c,
@@ -221,7 +208,6 @@ quiz.post("/quiz-questions", async (c) => {
       );
     }
 
-    // Validate quiz_type
     if (!VALID_QUIZ_TYPES.includes(body.quiz_type)) {
       return validationError(
         c,
@@ -229,7 +215,6 @@ quiz.post("/quiz-questions", async (c) => {
       );
     }
 
-    // For mcq, require options with at least one correct
     if (body.quiz_type === "mcq") {
       if (
         !body.options ||
@@ -250,7 +235,6 @@ quiz.post("/quiz-questions", async (c) => {
       }
     }
 
-    // For fill_blank, true_false, open — require correct_answer
     if (
       ["fill_blank", "true_false", "open"].includes(body.quiz_type) &&
       !body.correct_answer
@@ -264,13 +248,11 @@ quiz.post("/quiz-questions", async (c) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // QuizQuestion entity — matches shared-types.ts + subtopic_id (D27)
-    // + accepted_variations (for fill_blank and open types)
     const questionEntity: Record<string, any> = {
       id,
       summary_id: body.summary_id ?? null,
       keyword_id: body.keyword_id,
-      subtopic_id: body.subtopic_id ?? body.keyword_id, // D27
+      subtopic_id: body.subtopic_id ?? body.keyword_id,
       question: body.question,
       quiz_type: body.quiz_type,
       status: body.status ?? "active",
@@ -284,14 +266,12 @@ quiz.post("/quiz-questions", async (c) => {
       updated_at: now,
     };
 
-    // Primary key + indices
     const keys: string[] = [
       quizKey(id),
       idxKwQuiz(body.keyword_id, id),
     ];
     const vals: any[] = [questionEntity, id];
 
-    // Optional: link to summary
     if (body.summary_id) {
       keys.push(idxSummaryQuiz(body.summary_id, id));
       vals.push(id);
@@ -310,9 +290,6 @@ quiz.post("/quiz-questions", async (c) => {
 
 // ================================================================
 // GET /quiz-questions — List by summary_id or keyword_id
-// ================================================================
-// Requires one of summary_id or keyword_id as query param.
-// Uses getChildren to resolve index → primary keys.
 // ================================================================
 quiz.get("/quiz-questions", async (c) => {
   try {
@@ -350,14 +327,6 @@ quiz.get("/quiz-questions", async (c) => {
 // ================================================================
 // GET /quiz-questions/:id — Get single question
 // ================================================================
-// NOTE: No IDOR check here. Unlike flashcards which have a
-// "source" field to distinguish student-private vs shared cards,
-// quiz questions don't have an equivalent field. All quiz
-// questions are accessible to authenticated users.
-// If student-private quiz questions become a requirement,
-// add a "source" field to QuizQuestion and mirror the
-// flashcard IDOR pattern.
-// ================================================================
 quiz.get("/quiz-questions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -373,14 +342,6 @@ quiz.get("/quiz-questions/:id", async (c) => {
 // ================================================================
 // PUT /quiz-questions/:id — Update question fields
 // ================================================================
-// Security: Only the creator can edit (D39). Consistent with
-// flashcard PUT IDOR pattern using strict `created_by !== user.id`.
-//
-// Whitelist: question, options, correct_answer, accepted_variations,
-//            explanation, status, difficulty_tier
-// Immutable: id, keyword_id, subtopic_id, summary_id,
-//            quiz_type, created_by, created_at
-// ================================================================
 quiz.put("/quiz-questions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -390,8 +351,6 @@ quiz.put("/quiz-questions/:id", async (c) => {
     const existing = await kv.get(quizKey(id));
     if (!existing) return notFound(c, "Quiz question");
 
-    // D39: Only the creator can edit. Strict check — consistent
-    // with flashcard PUT IDOR (no bypass when created_by is null).
     if (existing.created_by !== user.id) {
       return c.json(
         {
@@ -407,7 +366,6 @@ quiz.put("/quiz-questions/:id", async (c) => {
 
     const body = await c.req.json();
 
-    // Whitelist: only these fields are updatable
     const UPDATABLE = [
       "question",
       "options",
@@ -424,8 +382,6 @@ quiz.put("/quiz-questions/:id", async (c) => {
       }
     }
     updated.updated_at = new Date().toISOString();
-    // Immutable: id, keyword_id, subtopic_id, summary_id,
-    // quiz_type, created_by, created_at
 
     await kv.set(quizKey(id), updated);
 
@@ -439,11 +395,6 @@ quiz.put("/quiz-questions/:id", async (c) => {
 // ================================================================
 // DELETE /quiz-questions/:id — Delete question + clean all indices
 // ================================================================
-// Security: Only the creator can delete (D39). Strict check —
-// consistent with flashcard DELETE IDOR.
-// Cleans: primary key, keyword index, summary index (if linked).
-// Quiz has NO FSRS state (D36), so no FSRS cleanup needed.
-// ================================================================
 quiz.delete("/quiz-questions/:id", async (c) => {
   try {
     const user = await getAuthUser(c);
@@ -453,8 +404,6 @@ quiz.delete("/quiz-questions/:id", async (c) => {
     const question = await kv.get(quizKey(id));
     if (!question) return notFound(c, "Quiz question");
 
-    // D39: Only the creator can delete. Strict check — consistent
-    // with flashcard DELETE IDOR (no bypass when created_by is null).
     if (question.created_by !== user.id) {
       return c.json(
         {
@@ -473,13 +422,9 @@ quiz.delete("/quiz-questions/:id", async (c) => {
       idxKwQuiz(question.keyword_id, id),
     ];
 
-    // Remove summary index if linked
     if (question.summary_id) {
       keysToDelete.push(idxSummaryQuiz(question.summary_id, id));
     }
-
-    // Quiz has NO FSRS state (D36) — no FSRS cleanup needed
-    // (unlike flashcards which need fsrsKey, idxStudentFsrs, idxDue cleanup)
 
     await kv.mdel(keysToDelete);
 
@@ -489,6 +434,233 @@ quiz.delete("/quiz-questions/:id", async (c) => {
     return c.json({ success: true, data: { deleted: true } });
   } catch (err) {
     return serverError(c, "DELETE /quiz-questions/:id", err);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// Agent 3 (PROBE) — Quiz Attempt Persistence (v4.4)
+// SIGNAL: QUIZ_PERSISTENCE_DONE
+//
+// QuizAttempts are IMMUTABLE — no PUT or DELETE.
+// Stored at quiz-attempt:{id}, indexed by student and keyword.
+// ════════════════════════════════════════════════════════════════
+
+// ================================================================
+// POST /quiz-attempts — Save an immutable quiz attempt
+// ================================================================
+quiz.post("/quiz-attempts", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+
+    const body = await c.req.json();
+
+    if (!body.question_id || !body.keyword_id || body.correct === undefined) {
+      return validationError(
+        c,
+        "Missing required fields: question_id, keyword_id, correct"
+      );
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const attempt: QuizAttempt = {
+      id,
+      student_id: user.id,
+      session_id: body.session_id ?? undefined,
+      question_id: body.question_id,
+      keyword_id: body.keyword_id,
+      quiz_type: body.quiz_type ?? "mcq",
+      student_answer: String(body.student_answer ?? ""),
+      correct: Boolean(body.correct),
+      grade: body.correct ? 0.65 : 0.0,
+      response_time_ms: body.response_time_ms ?? 0,
+      difficulty_tier: body.difficulty_tier ?? undefined,
+      created_at: now,
+    };
+
+    const keys: string[] = [
+      quizAttemptKey(id),
+      idxStudentAttempts(user.id, id),
+      idxKwAttempts(body.keyword_id, id),
+    ];
+    const vals: any[] = [attempt, id, id];
+
+    await kv.mset(keys, vals);
+
+    console.log(
+      `[Quiz] Attempt saved: ${id.slice(0, 8)}… q=${body.question_id.slice(0, 8)}… ` +
+        `correct=${attempt.correct} student=${user.id.slice(0, 8)}…`
+    );
+
+    return c.json({ success: true, data: attempt }, 201);
+  } catch (err) {
+    return serverError(c, "POST /quiz-attempts", err);
+  }
+});
+
+// ================================================================
+// GET /quiz-attempts — List attempts by student (+ optional keyword_id)
+// ================================================================
+quiz.get("/quiz-attempts", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+
+    const keywordId = c.req.query("keyword_id");
+
+    if (keywordId) {
+      const attemptIds: string[] = await kv.getByPrefix(
+        KV_PREFIXES.IDX_KW_ATTEMPTS + keywordId + ":"
+      );
+      if (!attemptIds || attemptIds.length === 0) {
+        return c.json({ success: true, data: [] });
+      }
+      const attempts = await kv.mget(
+        attemptIds.map((id: string) => quizAttemptKey(id))
+      );
+      const filtered = attempts.filter(
+        (a: any) => a && a.student_id === user.id
+      );
+      return c.json({ success: true, data: filtered });
+    }
+
+    const attemptIds: string[] = await kv.getByPrefix(
+      KV_PREFIXES.IDX_STUDENT_ATTEMPTS + user.id + ":"
+    );
+    if (!attemptIds || attemptIds.length === 0) {
+      return c.json({ success: true, data: [] });
+    }
+    const attempts = await kv.mget(
+      attemptIds.map((id: string) => quizAttemptKey(id))
+    );
+    return c.json({
+      success: true,
+      data: attempts.filter(Boolean),
+    });
+  } catch (err) {
+    return serverError(c, "GET /quiz-attempts", err);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// Agent 3 (PROBE) — Quiz Bundle Persistence (v4.4)
+// SIGNAL: QUIZ_BUNDLES_DONE
+// ════════════════════════════════════════════════════════════════
+
+// ================================================================
+// POST /quiz-bundles — Create a quiz session bundle
+// ================================================================
+quiz.post("/quiz-bundles", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+
+    const body = await c.req.json();
+
+    if (!body.session_id || !body.attempt_ids || !Array.isArray(body.attempt_ids)) {
+      return validationError(
+        c,
+        "Missing required fields: session_id, attempt_ids[]"
+      );
+    }
+
+    if (body.attempt_ids.length === 0) {
+      return validationError(c, "attempt_ids must not be empty");
+    }
+
+    const attempts = await kv.mget(
+      body.attempt_ids.map((id: string) => quizAttemptKey(id))
+    );
+    const validAttempts = attempts.filter(
+      (a: any) => a && a.student_id === user.id
+    );
+
+    if (validAttempts.length === 0) {
+      return validationError(c, "No valid attempts found for this student");
+    }
+
+    const byType: Record<string, { total: number; correct: number }> = {};
+    const byKeyword: Record<string, { total: number; correct: number }> = {};
+    let totalTime = 0;
+
+    for (const a of validAttempts) {
+      if (!byType[a.quiz_type]) byType[a.quiz_type] = { total: 0, correct: 0 };
+      byType[a.quiz_type].total++;
+      if (a.correct) byType[a.quiz_type].correct++;
+
+      if (!byKeyword[a.keyword_id]) byKeyword[a.keyword_id] = { total: 0, correct: 0 };
+      byKeyword[a.keyword_id].total++;
+      if (a.correct) byKeyword[a.keyword_id].correct++;
+
+      totalTime += a.response_time_ms || 0;
+    }
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const bundle: QuizBundle = {
+      id,
+      student_id: user.id,
+      session_id: body.session_id,
+      summary_id: body.summary_id ?? undefined,
+      attempt_ids: validAttempts.map((a: any) => a.id),
+      stats: {
+        total: validAttempts.length,
+        correct: validAttempts.filter((a: any) => a.correct).length,
+        by_type: byType,
+        by_keyword: byKeyword,
+        avg_time_ms: validAttempts.length > 0 ? Math.round(totalTime / validAttempts.length) : 0,
+      },
+      created_at: now,
+    };
+
+    const keys: string[] = [
+      quizBundleKey(id),
+      idxStudentBundles(user.id, id),
+    ];
+    const vals: any[] = [bundle, id];
+
+    await kv.mset(keys, vals);
+
+    console.log(
+      `[Quiz] Bundle created: ${id.slice(0, 8)}… session=${body.session_id.slice(0, 8)}… ` +
+        `${bundle.stats.correct}/${bundle.stats.total} correct, student=${user.id.slice(0, 8)}…`
+    );
+
+    return c.json({ success: true, data: bundle }, 201);
+  } catch (err) {
+    return serverError(c, "POST /quiz-bundles", err);
+  }
+});
+
+// ================================================================
+// GET /quiz-bundles — List bundles for authenticated student
+// ================================================================
+quiz.get("/quiz-bundles", async (c) => {
+  try {
+    const user = await getAuthUser(c);
+    if (!user) return unauthorized(c);
+
+    const bundleIds: string[] = await kv.getByPrefix(
+      KV_PREFIXES.IDX_STUDENT_BUNDLES + user.id + ":"
+    );
+
+    if (!bundleIds || bundleIds.length === 0) {
+      return c.json({ success: true, data: [] });
+    }
+
+    const bundles = await kv.mget(
+      bundleIds.map((id: string) => quizBundleKey(id))
+    );
+
+    return c.json({
+      success: true,
+      data: bundles.filter(Boolean),
+    });
+  } catch (err) {
+    return serverError(c, "GET /quiz-bundles", err);
   }
 });
 

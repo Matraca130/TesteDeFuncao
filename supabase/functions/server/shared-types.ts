@@ -3,6 +3,12 @@
 // This file is the SINGLE SOURCE OF TRUTH for all entity types.
 // All devs import from here. DO NOT duplicate types.
 // Generated: 2026-02-18
+//
+// ── Agent 3 (PROBE) surgical fixes applied: ──
+//   FB1: SummaryStatus corrected to 'draft'|'published'|'rejected'
+//   FB3: Summary.course_id → institution_id
+//   +6 new interfaces: QuizAttempt, QuizBundle, LearningProfile,
+//                      KwStudentNote, KwProfNote, VideoNote
 // ═════════════════════════════════════════════════════════════════
 
 // ────────────────── COMMON ──────────────────
@@ -12,7 +18,12 @@ export type ISODate = string; // "2026-02-18T..."
 export type DateOnly = string; // "2026-02-18"
 
 export type MembershipRole = "owner" | "admin" | "professor" | "student";
-export type SummaryStatus = "draft" | "processing" | "ready" | "error";
+
+// ── FB1 FIX (Agent 3): Was "draft" | "processing" | "ready" | "error"
+//    Corrected to match backend reality + frontend filter (status === 'published')
+//    routes-reading.tsx already filters by s.status === "published" in /topics/:topicId/full
+export type SummaryStatus = "draft" | "published" | "rejected";
+
 export type FlashcardStatus = "active" | "suspended" | "deleted";
 export type FlashcardSource = "ai" | "manual" | "imported";
 export type QuizType = "mcq" | "true_false" | "fill_blank" | "open";
@@ -96,10 +107,13 @@ export interface Topic {
 
 // ────────────────── Dev 1+2: SUMMARIES & CHUNKS ──────────────────
 
+// ── FB3 FIX (Agent 3): Changed course_id → institution_id.
+//    Backend POST /summaries requires institution_id, not course_id.
+//    This aligns with the KV key pattern and route validation.
 export interface Summary {
   id: UUID;
   topic_id: UUID;
-  course_id: UUID;
+  institution_id: UUID;  // FB3 FIX: was course_id
   title?: string;
   content_markdown: string;
   status: SummaryStatus;
@@ -567,4 +581,96 @@ export interface PaginatedResponse<T> {
   total: number;
   offset: number;
   limit: number;
+}
+
+// ═════════════════════════════════════════════════════════════════
+// Agent 3 (PROBE) — New interfaces for v4.4
+// Quiz Diagnostics, Bundles, Learning Profile, Notes
+// SIGNAL: TYPES_FIXED
+// ═════════════════════════════════════════════════════════════════
+
+/** DIAG1: Individual quiz attempt record — IMMUTABLE (never edit/delete).
+ *  Stored at quiz-attempt:{id}, indexed by student+keyword. */
+export interface QuizAttempt {
+  id: UUID;
+  student_id: UUID;
+  session_id?: UUID;
+  question_id: UUID;
+  keyword_id: UUID;
+  quiz_type: QuizType;
+  student_answer: string;
+  correct: boolean;
+  grade: number;              // 0.65 (good) or 0.00 (again)
+  response_time_ms: number;
+  difficulty_tier?: number;
+  created_at: ISODate;
+}
+
+/** DIAG2: Quiz session bundle with aggregated metrics.
+ *  Stored at quiz-bundle:{id}. Created when a quiz session ends. */
+export interface QuizBundle {
+  id: UUID;
+  student_id: UUID;
+  session_id: UUID;
+  summary_id?: UUID;
+  attempt_ids: UUID[];        // references to QuizAttempt.id
+  stats: {
+    total: number;
+    correct: number;
+    by_type: Record<string, { total: number; correct: number }>;
+    by_keyword: Record<string, { total: number; correct: number }>;
+    avg_time_ms: number;
+  };
+  created_at: ISODate;
+}
+
+/** DIAG3: AI-generated learning profile — placeholder for future AI.
+ *  Stored at learning-profile:{studentId}. */
+export interface LearningProfile {
+  student_id: UUID;
+  preferred_instrument: 'quiz' | 'flashcard' | 'mixed';
+  avg_response_time_ms: number;
+  retention_curve: number[];
+  strength_keywords: UUID[];
+  weakness_keywords: UUID[];
+  patterns: Record<string, unknown>;
+  generated_at: ISODate;
+}
+
+/** Student personal notes on a keyword (soft-delete).
+ *  Stored at kw-student-note:{id}. */
+export interface KwStudentNote {
+  id: UUID;
+  keyword_id: UUID;
+  student_id: UUID;
+  content: string;
+  created_at: ISODate;
+  updated_at: ISODate;
+  deleted_at?: ISODate;
+}
+
+/** Professor notes on a keyword with visibility control (soft-delete).
+ *  Stored at kw-prof-note:{id}. */
+export interface KwProfNote {
+  id: UUID;
+  keyword_id: UUID;
+  professor_id: UUID;
+  content: string;
+  visibility: 'private' | 'students';
+  created_at: ISODate;
+  updated_at: ISODate;
+  deleted_at?: ISODate;
+}
+
+/** Timestamped video notes (soft-delete).
+ *  Stored at video-note:{id}. */
+export interface VideoNote {
+  id: UUID;
+  video_id: UUID;
+  student_id: UUID;
+  timestamp_ms: number;
+  content: string;
+  created_at: ISODate;
+  updated_at: ISODate;
+  deleted_at?: ISODate;
 }
