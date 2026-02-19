@@ -7,7 +7,7 @@
 //   - Backend live/local status indicator
 //   - Canvas blocks + markdown rendering
 // ============================================================
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '@/app/context/AppContext';
 import { AdminBanner } from '@/app/components/shared/AdminBanner';
