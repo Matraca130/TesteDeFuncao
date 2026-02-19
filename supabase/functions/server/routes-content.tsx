@@ -1,54 +1,135 @@
 // ============================================================
-// Axon v4.4 — Dev 1: Content Management Routes (Orchestrator)
-// ============================================================
-// This file is a thin orchestrator that imports and re-exports
-// all content sub-routers. Each entity group lives in its own
-// file under ./content/ for readability and maintainability.
-//
-// Sub-modules:
-//   content/_helpers.ts      — shared auth, errors, getChildren
-//   content/institutions.ts  — Institution CRUD + members + slug
-//   content/courses.ts       — Course CRUD with cascade delete
-//   content/semesters.ts     — Semester CRUD with cascade delete
-//   content/sections.ts      — Section CRUD with cascade delete
-//   content/topics.ts        — Topic CRUD with cascade delete
-//   content/summaries.ts     — Summary CRUD + chunks
-//   content/keywords.ts      — Keyword CRUD with cascade delete
-//   content/subtopics.ts     — SubTopic CRUD
-//   content/connections.ts   — Connection CRUD
-//   content/batch.ts         — Batch content approval (D20)
-//
-// CRUD for: Institution, Membership, Course, Semester, Section,
-//           Topic, Summary, Chunk, Keyword, SubTopic, Connection
-// + Batch content approval (D20)
+// routes-content.tsx
+// Routes: summaries (GET, POST, PUT status),
+//         keywords (GET, POST)
 // ============================================================
 import { Hono } from "npm:hono";
-
-// Sub-routers
-import institutions from "./content/institutions.ts";
-import courses from "./content/courses.ts";
-import semesters from "./content/semesters.ts";
-import sections from "./content/sections.ts";
-import topics from "./content/topics.ts";
-import summaries from "./content/summaries.ts";
-import keywords from "./content/keywords.ts";
-import subtopics from "./content/subtopics.ts";
-import connections from "./content/connections.ts";
-import batch from "./content/batch.ts";
+import * as kv from "./kv_store.tsx";
+import { K, PREFIX, getUserId, uuid } from "./_server-helpers.ts";
 
 const content = new Hono();
 
-// Mount all sub-routers on the same path prefix ("/")
-// Each sub-router defines its own paths (e.g. /institutions, /courses, etc.)
-content.route("/", institutions);
-content.route("/", courses);
-content.route("/", semesters);
-content.route("/", sections);
-content.route("/", topics);
-content.route("/", summaries);
-content.route("/", keywords);
-content.route("/", subtopics);
-content.route("/", connections);
-content.route("/", batch);
+// ================================================================
+// SUMMARIES
+// ================================================================
+
+content.get(`${PREFIX}/summaries`, async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const instIds = await kv.getByPrefix(`${K.PFX.IDX_USER_INSTS}${userId}:`);
+    const all: any[] = [];
+    for (const instId of instIds) {
+      if (typeof instId !== "string") continue;
+      const courseIds = await kv.getByPrefix(`${K.PFX.IDX_INST_COURSES}${instId}:`);
+      for (const courseId of courseIds) {
+        if (typeof courseId !== "string") continue;
+        const semIds = await kv.getByPrefix(`${K.PFX.IDX_COURSE_SEMESTERS}${courseId}:`);
+        for (const semId of semIds) {
+          if (typeof semId !== "string") continue;
+          const secIds = await kv.getByPrefix(`${K.PFX.IDX_SEMESTER_SECTIONS}${semId}:`);
+          for (const secId of secIds) {
+            if (typeof secId !== "string") continue;
+            const topicIds = await kv.getByPrefix(`${K.PFX.IDX_SECTION_TOPICS}${secId}:`);
+            for (const topicId of topicIds) {
+              if (typeof topicId !== "string") continue;
+              const sumIds = await kv.getByPrefix(`${K.PFX.IDX_TOPIC_SUMMARIES}${topicId}:`);
+              for (const sumId of sumIds) {
+                if (typeof sumId !== "string") continue;
+                const summary = await kv.get(K.summary(sumId));
+                if (summary) all.push(summary);
+              }
+            }
+          }
+        }
+      }
+    }
+    return c.json({ success: true, data: all, summaries: all });
+  } catch (err) {
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+content.post(`${PREFIX}/summaries`, async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const { title, content: bodyContent, topic_id, status } = await c.req.json();
+    if (!title || !bodyContent || !topic_id) return c.json({ success: false, error: { code: "VALIDATION", message: "title, content, topic_id required" } }, 400);
+    const id = uuid();
+    const summary = {
+      id, title, content: bodyContent, content_markdown: bodyContent,
+      topic_id, status: status || "draft", author_id: userId,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    await kv.set(K.summary(id), summary);
+    await kv.set(K.idxTopicSummaries(topic_id, id), id);
+    return c.json({ success: true, data: summary, summary });
+  } catch (err) {
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+content.put(`${PREFIX}/summaries/:id/status`, async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const id = c.req.param("id");
+    const { status } = await c.req.json();
+    const summary: any = await kv.get(K.summary(id));
+    if (!summary) return c.json({ success: false, error: { code: "NOT_FOUND", message: "Summary not found" } }, 404);
+    const updated = { ...summary, status, updated_at: new Date().toISOString() };
+    await kv.set(K.summary(id), updated);
+    return c.json({ success: true, data: updated });
+  } catch (err) {
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+// ================================================================
+// KEYWORDS
+// ================================================================
+
+content.get(`${PREFIX}/keywords`, async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const instIds = await kv.getByPrefix(`${K.PFX.IDX_USER_INSTS}${userId}:`);
+    const all: any[] = [];
+    for (const instId of instIds) {
+      if (typeof instId !== "string") continue;
+      const kwIds = await kv.getByPrefix(`${K.PFX.IDX_INST_KW}${instId}:`);
+      for (const kwId of kwIds) {
+        if (typeof kwId !== "string") continue;
+        const keyword = await kv.get(K.kw(kwId));
+        if (keyword) all.push(keyword);
+      }
+    }
+    return c.json({ success: true, data: all, keywords: all });
+  } catch (err) {
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+content.post(`${PREFIX}/keywords`, async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const { term, definition, topic_id, institution_id } = await c.req.json();
+    if (!term) return c.json({ success: false, error: { code: "VALIDATION", message: "term is required" } }, 400);
+    const id = uuid();
+    const keyword = {
+      id, term, definition: definition || "",
+      topic_id: topic_id || null, institution_id: institution_id || null,
+      priority: 3,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    await kv.set(K.kw(id), keyword);
+    if (institution_id) await kv.set(K.idxInstKw(institution_id, id), id);
+    return c.json({ success: true, data: keyword, keyword });
+  } catch (err) {
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
 
 export default content;
