@@ -1,0 +1,57 @@
+/* ============================================================
+   AXON v4.4 — Design Tokens
+   ============================================================
+   BLOQUEADO — Ningun dev modifica este archivo sin autorizacion.
+   Estos tokens definen la identidad visual de Axon.
+   ============================================================ */
+
+:root {
+  /* ── Sidebar (Dark Navy) ── */
+  --axon-sidebar-bg: #1a2332;
+  --axon-sidebar-bg-hover: #243044;
+  --axon-sidebar-bg-active: #2dd4bf1a;
+  --axon-sidebar-text: #94a3b8;
+  --axon-sidebar-text-active: #2dd4bf;
+  --axon-sidebar-text-hover: #e2e8f0;
+  --axon-sidebar-section-text: #64748b;
+  --axon-sidebar-width: 240px;
+  --axon-sidebar-width-collapsed: 64px;
+
+  /* ── Topbar ── */
+  --axon-topbar-bg: #1e293b;
+  --axon-topbar-height: 56px;
+  --axon-topbar-text: #e2e8f0;
+  --axon-topbar-text-muted: #94a3b8;
+
+  /* ── Brand Colors ── */
+  --axon-teal: #2dd4bf;
+  --axon-teal-dark: #14b8a6;
+  --axon-teal-light: #99f6e4;
+  --axon-teal-bg: rgba(45, 212, 191, 0.1);
+
+  /* ── Content Area ── */
+  --axon-content-bg: #f8fafc;
+  --axon-card-bg: #ffffff;
+  --axon-card-border: #e2e8f0;
+  --axon-card-radius: 16px;
+
+  /* ── Text ── */
+  --axon-text-primary: #0f172a;
+  --axon-text-secondary: #475569;
+  --axon-text-muted: #94a3b8;
+
+  /* ── Status Colors ── */
+  --axon-success: #10b981;
+  --axon-warning: #f59e0b;
+  --axon-danger: #ef4444;
+  --axon-info: #3b82f6;
+
+  /* ── Premium Badge ── */
+  --axon-premium-bg: #059669;
+  --axon-premium-text: #ffffff;
+
+  /* ── Spacing ── */
+  --axon-page-padding: 24px;
+  --axon-section-gap: 24px;
+  --axon-card-padding: 20px;
+}
