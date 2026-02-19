@@ -1,15 +1,12 @@
 // ============================================================
-// Axon v4.4 — Institution Public Page (Dev 5 + Dev 6 fix)
+// Axon v4.4 — Institution Public Page (FIXED: uses config.ts)
 // Public page for /i/:slug — shows institution info + student access
-// Dev 6: Fixed response reading (data.data instead of data.institution)
 // ============================================================
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { AxonLogo } from '../components/AxonLogo';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { apiBaseUrl, supabaseAnonKey } from '../lib/config';
 import { Loader2, GraduationCap, LogIn, UserPlus, Building2 } from 'lucide-react';
-
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-50277a39`;
 
 interface InstitutionData {
   id: string;
@@ -34,8 +31,8 @@ export function InstitutionPublicPage() {
         return;
       }
       try {
-        const res = await fetch(`${BASE_URL}/institutions/by-slug/${slug}`, {
-          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        const res = await fetch(`${apiBaseUrl}/institutions/by-slug/${slug}`, {
+          headers: { Authorization: `Bearer ${supabaseAnonKey}` },
         });
         if (!res.ok) {
           setNotFound(true);
@@ -43,7 +40,7 @@ export function InstitutionPublicPage() {
           return;
         }
         const data = await res.json();
-        // FIX Dev 6: Backend returns { success: true, data: inst }
+        // Backend returns { success: true, data: inst }
         const inst = data.data || data.institution;
         setInstitution(inst);
       } catch (err) {
