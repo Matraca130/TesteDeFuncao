@@ -1,3 +1,7 @@
+import { Hono } from "npm:hono";
+import { cors } from "npm:hono/cors";
+import { logger } from "npm:hono/logger";
+import * as kv from "./kv_store.tsx";
 // Axon v4.4 — Hono Server: Main entrypoint
 // 72 endpoints across 4 route modules, backed by KV store
 import { Hono } from "npm:hono";
@@ -29,6 +33,11 @@ app.use(
 );
 
 // Health check endpoint
+app.get("/make-server-722e576f/health", (c) => {
+  return c.json({ status: "ok" });
+});
+
+Deno.serve(app.fetch);
 app.get("/make-server-6e4db60a/health", (c) => {
   return c.json({ status: "ok", version: "4.4", routes: 72 });
 });
