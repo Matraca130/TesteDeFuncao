@@ -1,58 +1,30 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { supabase } from '../lib/supabase-client';
-import { supabaseAnonKey, apiBaseUrl } from '../lib/config';
-import type { AuthUser, Membership, MembershipRole, Institution } from '../types/auth';
+// ============================================================
+// Axon v4.4 — Auth Context (Dev 3)
+// Provides authentication state & methods to the entire app
+// ============================================================
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
+import type { AuthUser, Membership, Institution, AuthContextType } from '../types/auth';
 
-// Re-export for consumers that import from AuthContext
-export type { AuthUser, Membership } from '../types/auth';
+const supabaseUrl = `https://${projectId}.supabase.co`;
+const supabase = createClient(supabaseUrl, publicAnonKey);
 
-// ════════════════════════════════════════════════════════════
-// AUTH CONTEXT — Supabase Auth integration for Axon v4.4
-//
-// Provides: login, signup, logout, session restore, selectInstitution
-// Uses singleton Supabase client from lib/supabase-client.ts
-//
-// FIX (Dev3 T3.2):
-//   - Types imported from types/auth.ts (no inline definitions)
-//   - Login: signInWithPassword + GET /auth/me (no double signin)
-//   - Signup: accepts optional institutionId (4th param)
-//   - Added selectInstitution(), currentInstitution, currentMembership
-//   - isLoading managed in login/signup via try/finally
-// ════════════════════════════════════════════════════════════
+const AuthContext = createContext<AuthContextType | null>(null);
 
-interface AuthContextType {
-  user: AuthUser | null;
-  accessToken: string | null;
-  memberships: Membership[];
-  currentInstitution: Institution | null;
-  currentMembership: Membership | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (email: string, password: string, name: string, institutionId?: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  selectInstitution: (instId: string) => void;
-  clearError: () => void;
+export function useAuth(): AuthContextType {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('[AuthContext] useAuth must be used within AuthProvider');
+  }
+  return ctx;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  accessToken: null,
-  memberships: [],
-  currentInstitution: null,
-  currentMembership: null,
-  isAuthenticated: false,
-  isLoading: true,
-  error: null,
-  login: async () => false,
-  signup: async () => false,
-  logout: async () => {},
-  selectInstitution: () => {},
-  clearError: () => {},
-});
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -61,53 +33,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Ref to always read the latest accessToken — used by logout to avoid stale closure
-  const accessTokenRef = useRef<string | null>(null);
-  useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
+  const isAuthenticated = !!user && !!accessToken;
 
-  const clearError = useCallback(() => setError(null), []);
+  // Fetch memberships from backend
+  const fetchMemberships = useCallback(async (token: string): Promise<Membership[]> => {
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/make-server-50277a39/memberships`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        console.log('[AuthContext] Failed to fetch memberships, status:', res.status);
+        return [];
+      }
+      const data = await res.json();
+      return data.memberships || [];
+    } catch (err) {
+      console.log('[AuthContext] Error fetching memberships:', err);
+      return [];
+    }
+  }, []);
 
-  // ── Session restore on mount ──
+  // Restore session on mount
   useEffect(() => {
-    async function restoreSession() {
+    const restoreSession = async () => {
       try {
-        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-
-        if (sessionErr || !session?.access_token) {
-          console.log('[Auth] No active session found');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          console.log('[AuthContext] Session restore error:', sessionError.message);
           setIsLoading(false);
           return;
         }
-
-        // Validate session with our server
-        const res = await fetch(`${apiBaseUrl}/auth/me`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` },
-        });
-        const data = await res.json();
-
-        if (data.success && data.data?.user) {
-          setUser(data.data.user);
+        if (session?.user) {
+          const authUser: AuthUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || session.user.email || '',
+            avatar_url: session.user.user_metadata?.avatar_url,
+          };
+          setUser(authUser);
           setAccessToken(session.access_token);
-          setMemberships(data.data.memberships || []);
-          console.log(`[Auth] Session restored for: ${data.data.user.email}`);
+
+          const m = await fetchMemberships(session.access_token);
+          setMemberships(m);
+
+          // Auto-select if only one membership
+          if (m.length === 1) {
+            setCurrentMembership(m[0]);
+            setCurrentInstitution(m[0].institution || null);
+          }
+
+          console.log('[AuthContext] Session restored for user:', authUser.email);
         }
       } catch (err) {
-        console.log('[Auth] Session restore failed (user not logged in)');
+        console.log('[AuthContext] Unexpected error restoring session:', err);
       } finally {
         setIsLoading(false);
       }
-    }
+    };
 
     restoreSession();
-  }, []);
 
-  // ── Listen for Supabase auth state changes (token refresh, etc.) ──
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-        console.log('[Auth] Token refreshed automatically');
-        setAccessToken(session.access_token);
-      } else if (event === 'SIGNED_OUT') {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] Auth state changed:', event);
+      if (event === 'SIGNED_OUT' || !session) {
         setUser(null);
         setAccessToken(null);
         setMemberships([]);
@@ -117,166 +106,124 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchMemberships]);
 
-  // ── Login ──
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
     setIsLoading(true);
     try {
-      // Paso 1: signIn LOCAL (única vez)
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.log(`[Auth] Login failed for ${email}: ${error.message}`);
-        setError(error.message);
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) {
+        console.log('[AuthContext] Login error:', authError.message);
+        setError(authError.message);
+        setIsLoading(false);
         return false;
       }
-      const token = data.session?.access_token;
-      if (!token) {
-        setError('No token received');
-        return false;
+      if (data.session) {
+        const authUser: AuthUser = {
+          id: data.session.user.id,
+          email: data.session.user.email || '',
+          name: data.session.user.user_metadata?.name || data.session.user.email || '',
+          avatar_url: data.session.user.user_metadata?.avatar_url,
+        };
+        setUser(authUser);
+        setAccessToken(data.session.access_token);
+
+        const m = await fetchMemberships(data.session.access_token);
+        setMemberships(m);
+
+        if (m.length === 1) {
+          setCurrentMembership(m[0]);
+          setCurrentInstitution(m[0].institution || null);
+        }
+
+        console.log('[AuthContext] Login successful for:', authUser.email);
+        setIsLoading(false);
+        return true;
       }
-
-      // Paso 2: GET /auth/me (NO POST /auth/signin)
-      const res = await fetch(`${apiBaseUrl}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const result = await res.json();
-
-      if (!result.success) {
-        await supabase.auth.signOut().catch(() => {});
-        setError(result.error?.message || 'Failed to load profile');
-        return false;
-      }
-
-      setUser(result.data.user);
-      setAccessToken(token);
-      setMemberships(result.data.memberships || []);
-      console.log(`[Auth] Login successful: ${email}`);
-      return true;
-    } catch (err: any) {
-      console.log(`[Auth] Login error: ${err.message || err}`);
-      setError(err.message || 'Login failed');
-      return false;
-    } finally {
       setIsLoading(false);
+      return false;
+    } catch (err) {
+      console.log('[AuthContext] Unexpected login error:', err);
+      setError('Erro inesperado ao fazer login');
+      setIsLoading(false);
+      return false;
     }
-  }, []);
+  }, [fetchMemberships]);
 
-  // ── Signup ──
-  const signup = useCallback(async (
-    email: string,
-    password: string,
-    name: string,
-    institutionId?: string
-  ): Promise<boolean> => {
+  const signup = useCallback(async (email: string, password: string, name: string, institutionId?: string): Promise<boolean> => {
     setError(null);
     setIsLoading(true);
     try {
-      const body: Record<string, string> = { email, password, name };
-      if (institutionId) body.institution_id = institutionId;
-
-      const res = await fetch(`${apiBaseUrl}/auth/signup`, {
+      const res = await fetch(`${supabaseUrl}/functions/v1/make-server-50277a39/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${supabaseAnonKey}`,
+          Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password, name, institutionId }),
       });
-      const result = await res.json();
 
-      if (!result.success) {
-        setError(result.error?.message || 'Signup failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Erro ao criar conta' }));
+        setError(data.error || 'Erro ao criar conta');
+        setIsLoading(false);
         return false;
       }
 
-      // Auto-login: set the session in Supabase client
-      if (result.data.access_token) {
-        await supabase.auth.signInWithPassword({ email, password });
-      }
-
-      setUser(result.data.user);
-      setAccessToken(result.data.access_token);
-      setMemberships(result.data.memberships || []);
-      console.log(`[Auth] Signup successful: ${email}`);
-      return true;
-    } catch (err: any) {
-      console.log(`[Auth] Signup error: ${err.message || err}`);
-      setError(err.message || 'Signup failed');
-      return false;
-    } finally {
+      // Auto-login after signup
+      const success = await login(email, password);
       setIsLoading(false);
+      return success;
+    } catch (err) {
+      console.log('[AuthContext] Signup error:', err);
+      setError('Erro inesperado ao criar conta');
+      setIsLoading(false);
+      return false;
     }
+  }, [login]);
+
+  const logout = useCallback(async (): Promise<void> => {
+    console.log('[AuthContext] Logging out...');
+    await supabase.auth.signOut();
+    setUser(null);
+    setAccessToken(null);
+    setMemberships([]);
+    setCurrentInstitution(null);
+    setCurrentMembership(null);
+    setError(null);
   }, []);
 
-  // ── Logout ──
-  const logout = useCallback(async () => {
-    try {
-      const token = accessTokenRef.current;
-      if (token) {
-        await fetch(`${apiBaseUrl}/auth/signout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-        }).catch(() => {});
-      }
-      await supabase.auth.signOut();
-    } catch (err: unknown) {
-      console.log('[Auth] Logout cleanup error (non-fatal):', err);
-    } finally {
-      setUser(null);
-      setAccessToken(null);
-      setMemberships([]);
-      setCurrentInstitution(null);
-      setCurrentMembership(null);
-      setError(null);
-      console.log('[Auth] Logged out');
-    }
-  }, []); // stable — reads token from ref
-
-  // ── Select Institution ──
   const selectInstitution = useCallback((instId: string) => {
-    const m = memberships.find(m => m.institution_id === instId);
-    if (m) {
-      setCurrentMembership(m);
-      // Fetch institution data
-      fetch(`${apiBaseUrl}/institutions/${instId}`, {
-        headers: { Authorization: `Bearer ${accessToken || supabaseAnonKey}` },
-      })
-        .then(r => r.json())
-        .then(result => {
-          if (result.success) {
-            setCurrentInstitution(result.data);
-            console.log(`[Auth] Selected institution: ${result.data.name} (role: ${m.role})`);
-          }
-        })
-        .catch(err => console.log(`[Auth] Failed to fetch institution: ${err.message}`));
+    const membership = memberships.find((m) => m.institution_id === instId);
+    if (membership) {
+      setCurrentMembership(membership);
+      setCurrentInstitution(membership.institution || null);
+      console.log('[AuthContext] Selected institution:', instId, 'role:', membership.role);
+    } else {
+      console.log('[AuthContext] Institution not found in memberships:', instId);
     }
-  }, [memberships, accessToken]);
+  }, [memberships]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        accessToken,
-        memberships,
-        currentInstitution,
-        currentMembership,
-        isAuthenticated: !!user && !!accessToken,
-        isLoading,
-        error,
-        login,
-        signup,
-        logout,
-        selectInstitution,
-        clearError,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
-export function useAuth() {
-  return useContext(AuthContext);
+  const value: AuthContextType = {
+    user,
+    accessToken,
+    memberships,
+    currentInstitution,
+    currentMembership,
+    isAuthenticated,
+    isLoading,
+    error,
+    login,
+    signup,
+    logout,
+    selectInstitution,
+    clearError,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

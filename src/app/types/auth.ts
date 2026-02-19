@@ -1,8 +1,7 @@
-// ════════════════════════════════════════════════════════════
-// AXON v4.4 — Frontend Auth Types (CONTRATO)
-// SINGLE SOURCE OF TRUTH para tipos de auth en el frontend.
-// Todos los archivos importan de aquí. NO definir tipos inline.
-// ════════════════════════════════════════════════════════════
+// ============================================================
+// Axon v4.4 — Auth Types
+// Shared type definitions for authentication & authorization
+// ============================================================
 
 export type MembershipRole = 'owner' | 'admin' | 'professor' | 'student';
 
@@ -10,20 +9,8 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  avatar_url: string | null;
-  is_super_admin: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Membership {
-  id: string;
-  user_id: string;
-  institution_id: string;
-  role: MembershipRole;
-  plan_id?: string;
-  plan_expires_at?: string;
-  created_at: string;           // NOT "joined_at"
+  avatar_url?: string;
+  created_at?: string;
 }
 
 export interface Institution {
@@ -31,13 +18,30 @@ export interface Institution {
   name: string;
   slug: string;
   logo_url?: string;
+  plan?: string;
 }
 
-// ── Helpers ──
-export const ADMIN_ROLES: MembershipRole[] = ['owner', 'admin'];
+export interface Membership {
+  id: string;
+  user_id: string;
+  institution_id: string;
+  role: MembershipRole;
+  institution?: Institution;
+  created_at?: string;
+}
 
-export const isAdminRole = (role: MembershipRole): boolean =>
-  role === 'owner' || role === 'admin';
-
-export const canAccessAdmin = (role: MembershipRole): boolean =>
-  role === 'owner' || role === 'admin' || role === 'professor';
+export interface AuthContextType {
+  user: AuthUser | null;
+  accessToken: string | null;
+  memberships: Membership[];
+  currentInstitution: Institution | null;
+  currentMembership: Membership | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (email: string, password: string, name: string, institutionId?: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  selectInstitution: (instId: string) => void;
+  clearError: () => void;
+}

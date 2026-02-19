@@ -1,62 +1,67 @@
 // ============================================================
-// Axon v4.4 — API Provider (Infrastructure)
-// Path: /src/app/lib/api-provider.tsx
-// React Context + hook useApi() para acceso tipado al servidor.
-//
-// FIX (Dev3 T3.4):
-//   - Now calls client.setAuthToken(accessToken) so the API client
-//     actually uses the user's JWT instead of supabaseAnonKey.
+// Axon v4.4 — API Provider (Dev 3)
+// Provides a configured API client to the entire app
 // ============================================================
-
-import { createContext, useContext, useMemo } from 'react';
-import type { ReactNode } from 'react';
-import { createApiClient, type ApiClient } from './api-client';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabaseAnonKey, apiBaseUrl } from './config';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-interface ApiContextValue {
+const BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-50277a39`;
+
+interface ApiClient {
+  get: (path: string) => Promise<Response>;
+  post: (path: string, body?: unknown) => Promise<Response>;
+  put: (path: string, body?: unknown) => Promise<Response>;
+  del: (path: string) => Promise<Response>;
+  baseUrl: string;
+}
+
+interface ApiContextType {
   api: ApiClient;
-  userId: string | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
 }
 
-const ApiContext = createContext<ApiContextValue | null>(null);
+const ApiContext = createContext<ApiContextType | null>(null);
 
-export function ApiProvider({ children }: { children: ReactNode }) {
-  // Derive from AuthContext — no more duplicate state
-  const { accessToken, user } = useAuth();
-
-  // Create API client — uses user JWT if available, falls back to supabaseAnonKey
-  const api = useMemo(() => {
-    const client = createApiClient();
-    if (accessToken) {
-      client.setAuthToken(accessToken);
-    }
-    return client;
-  }, [accessToken]);
-
-  const value = useMemo<ApiContextValue>(
-    () => ({
-      api,
-      userId: user?.id ?? null,
-      accessToken,
-      isAuthenticated: !!accessToken && !!user,
-    }),
-    [api, user, accessToken],
-  );
-
-  return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;
-}
-
-/**
- * Hook to access the typed API client and auth state.
- * Must be used within <ApiProvider> (which must be within <AuthProvider>).
- */
-export function useApi(): ApiContextValue {
+export function useApi(): ApiContextType {
   const ctx = useContext(ApiContext);
   if (!ctx) {
-    throw new Error('useApi() must be used within <ApiProvider>');
+    throw new Error('[ApiProvider] useApi must be used within ApiProvider');
   }
   return ctx;
+}
+
+interface ApiProviderProps {
+  children: ReactNode;
+}
+
+export function ApiProvider({ children }: ApiProviderProps) {
+  const { accessToken } = useAuth();
+
+  const api = useMemo<ApiClient>(() => {
+    const headers = (): Record<string, string> => ({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken || publicAnonKey}`,
+    });
+
+    return {
+      baseUrl: BASE_URL,
+      get: (path: string) => fetch(`${BASE_URL}${path}`, { headers: headers() }),
+      post: (path: string, body?: unknown) =>
+        fetch(`${BASE_URL}${path}`, {
+          method: 'POST',
+          headers: headers(),
+          body: body ? JSON.stringify(body) : undefined,
+        }),
+      put: (path: string, body?: unknown) =>
+        fetch(`${BASE_URL}${path}`, {
+          method: 'PUT',
+          headers: headers(),
+          body: body ? JSON.stringify(body) : undefined,
+        }),
+      del: (path: string) =>
+        fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: headers() }),
+    };
+  }, [accessToken]);
+
+  return <ApiContext.Provider value={{ api }}>{children}</ApiContext.Provider>;
 }
