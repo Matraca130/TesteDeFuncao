@@ -2,7 +2,7 @@
 // useAIAssistant — Custom hook: all state & business logic
 // ============================================================
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '@/app/context/AppContext';
 import * as ai from '@/app/services/aiService';
 import type { ChatMessage, GeneratedFlashcard, GeneratedQuestion } from '@/app/services/aiService';
@@ -39,7 +39,7 @@ export function useAIAssistant(isOpen: boolean) {
   const [explainConcept, setExplainConcept] = useState('');
   const [explanation, setExplanation] = useState('');
 
-  // ── Effects ───────────────────────────────────────────
+  // ── Effects ─────────────────────────────────────────────
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,7 +51,7 @@ export function useAIAssistant(isOpen: boolean) {
     }
   }, [isOpen, mode]);
 
-  // ── Helpers ───────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────
 
   const context: ai.ChatContext = {
     courseName: currentCourse?.name,
@@ -206,7 +206,7 @@ export function useAIAssistant(isOpen: boolean) {
     }
   };
 
-  // ── Return ────────────────────────────────────────────
+  // ── Return ──────────────────────────────────────────────
 
   return {
     // Shared
