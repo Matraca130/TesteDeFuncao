@@ -69,6 +69,9 @@ export const curriculumKey   = (courseId: string) => `curriculum:${courseId}`;
 export const idxInstMembers  = (instId: string, userId: string) => `idx:inst-members:${instId}:${userId}`;
 export const idxUserInsts    = (userId: string, instId: string) => `idx:user-insts:${userId}:${instId}`;
 
+// Dev 1: Slug → Institution index
+export const idxSlugInst     = (slug: string) => `idx:slug-inst:${slug}`;
+
 // Dev 1: Content hierarchy indices
 export const idxInstCourses       = (instId: string, courseId: string) => `idx:inst-courses:${instId}:${courseId}`;
 export const idxCourseSemesters   = (courseId: string, semId: string) => `idx:course-semesters:${courseId}:${semId}`;
@@ -140,6 +143,7 @@ export const KV_PREFIXES = {
   // Index
   IDX_INST_MEMBERS: "idx:inst-members:",
   IDX_USER_INSTS: "idx:user-insts:",
+  IDX_SLUG_INST: "idx:slug-inst:",
   IDX_INST_COURSES: "idx:inst-courses:",
   IDX_COURSE_SEMESTERS: "idx:course-semesters:",
   IDX_SEMESTER_SECTIONS: "idx:semester-sections:",
