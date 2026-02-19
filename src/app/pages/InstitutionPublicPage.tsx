@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { AxonLogo } from '../components/AxonLogo';
 import { apiBaseUrl, supabaseAnonKey } from '../lib/config';
-import type { Institution, InstitutionBySlugResponse } from '../types/auth';
+import type { Institution, InstitutionBySlugResponse } from '../../types/auth';
 import { Loader2, GraduationCap, LogIn, UserPlus } from 'lucide-react';
 
 export function InstitutionPublicPage() {

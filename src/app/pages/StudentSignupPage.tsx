@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { RequireGuest } from '../components/guards/RequireGuest';
 import { apiBaseUrl, supabaseAnonKey } from '../lib/config';
-import type { Institution, InstitutionBySlugResponse } from '../types/auth';
+import type { Institution, InstitutionBySlugResponse } from '../../types/auth';
 import { Loader2, ArrowLeft, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 
