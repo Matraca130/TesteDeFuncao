@@ -2,10 +2,10 @@
 // Axon v4.4 — Professor Dashboard (Dev 5)
 // Dashboard for professors — manage content, view summaries
 // ============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { useApi } from '../lib/api-provider';
+import { useContentData } from '../hooks/useContentData';
 import { RequireAuth } from '../components/guards/RequireAuth';
 import { AxonLogo } from '../components/AxonLogo';
 import {
@@ -25,24 +25,18 @@ import {
   Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface Course { id: string; name: string; description?: string; institution_id?: string; }
-interface Semester { id: string; name: string; course_id: string; }
-interface Section { id: string; name: string; semester_id: string; }
-interface Topic { id: string; name: string; section_id: string; }
-interface Summary { id: string; title: string; content: string; topic_id: string; status: string; created_at?: string; }
+import { useApi } from '../lib/api-provider';
 
 function ProfessorDashboardContent() {
   const { user, logout, currentInstitution, currentMembership } = useAuth();
   const { api } = useApi();
   const navigate = useNavigate();
-
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    courses, semesters, sections, topics, summaries,
+    loading, refresh,
+  } = useContentData({
+    include: ['courses', 'semesters', 'sections', 'topics', 'summaries'],
+  });
 
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
@@ -54,39 +48,6 @@ function ProfessorDashboardContent() {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [cRes, semRes, secRes, tRes, sRes] = await Promise.allSettled([
-        api.get('/courses'),
-        api.get('/semesters'),
-        api.get('/sections'),
-        api.get('/topics'),
-        api.get('/summaries'),
-      ]);
-
-      const parse = async (r: PromiseSettledResult<Response>, key: string) => {
-        if (r.status === 'fulfilled' && r.value.ok) {
-          const d = await r.value.json();
-          return d[key] || [];
-        }
-        return [];
-      };
-
-      setCourses(await parse(cRes, 'courses'));
-      setSemesters(await parse(semRes, 'semesters'));
-      setSections(await parse(secRes, 'sections'));
-      setTopics(await parse(tRes, 'topics'));
-      setSummaries(await parse(sRes, 'summaries'));
-    } catch (err) {
-      console.log('[ProfessorDashboard] fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const toggle = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
     const next = new Set(set);
@@ -117,7 +78,7 @@ function ProfessorDashboardContent() {
         setNewTitle('');
         setNewContent('');
         setShowNewSummary(false);
-        fetchData();
+        refresh();
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || 'Erro ao criar resumo');
@@ -164,7 +125,7 @@ function ProfessorDashboardContent() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchData}
+            onClick={refresh}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             title="Atualizar"
           >
@@ -380,10 +341,10 @@ function ProfessorDashboardContent() {
                       {topicSummaries.map(s => (
                         <div key={s.id} className="border border-gray-100 rounded-lg p-3 hover:border-gray-200 transition-colors">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-gray-800">{s.title}</span>
+                            <span className="text-sm font-medium text-gray-800">{(s as any).title || s.id}</span>
                             {statusBadge(s.status)}
                           </div>
-                          <p className="text-xs text-gray-500 line-clamp-2">{s.content}</p>
+                          <p className="text-xs text-gray-500 line-clamp-2">{(s as any).content || s.content_markdown}</p>
                         </div>
                       ))}
                     </div>

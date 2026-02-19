@@ -4,22 +4,15 @@
 // individual pages inside AppShell in Phase 2.
 // Auth is handled by guards (RequireAuth + RequireRole in AdminLayout)
 // ============================================================
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useApi } from '../lib/api-provider';
+import { useContentData } from '../hooks/useContentData';
 import {
   LayoutDashboard, BookOpen, Users, Settings, LogOut,
   ChevronRight, ChevronDown, Plus, FileText, Tag,
   CheckCircle, Clock, XCircle, GraduationCap,
   Loader2, RefreshCw, Stethoscope,
 } from 'lucide-react';
-
-interface Course { id: string; name: string; description?: string; institution_id?: string; }
-interface Semester { id: string; name: string; course_id: string; }
-interface Section { id: string; name: string; semester_id: string; }
-interface Topic { id: string; name: string; section_id: string; }
-interface Summary { id: string; title: string; content: string; topic_id: string; status: string; created_at?: string; }
-interface Keyword { id: string; term: string; definition: string; topic_id?: string; }
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Visao Geral', icon: LayoutDashboard },
@@ -42,9 +35,9 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.color}`}>{c.label}</span>;
 }
 
-function OverviewDashboard({ courses, summaries }: { courses: Course[]; summaries: Summary[] }) {
-  const pendingCount = summaries.filter(s => s.status === 'pending').length;
-  const approvedCount = summaries.filter(s => s.status === 'approved' || s.status === 'published').length;
+function OverviewDashboard({ courses, summaries }: { courses: any[]; summaries: any[] }) {
+  const pendingCount = summaries.filter((s: any) => s.status === 'pending').length;
+  const approvedCount = summaries.filter((s: any) => s.status === 'approved' || s.status === 'published').length;
   const stats = [
     { label: 'Cursos', value: courses.length, icon: GraduationCap, color: 'text-indigo-600 bg-indigo-50' },
     { label: 'Resumos', value: summaries.length, icon: FileText, color: 'text-teal-600 bg-teal-50' },
@@ -64,9 +57,9 @@ function OverviewDashboard({ courses, summaries }: { courses: Course[]; summarie
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="text-base font-semibold text-gray-900 mb-4">Atividade Recente</h3>
         {summaries.length === 0 ? <p className="text-sm text-gray-400">Nenhuma atividade recente</p> : (
-          <div className="space-y-3">{summaries.slice(0, 5).map(s => (
+          <div className="space-y-3">{summaries.slice(0, 5).map((s: any) => (
             <div key={s.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-              <div className="flex items-center gap-3"><FileText size={16} className="text-gray-400" /><span className="text-sm text-gray-700">{s.title}</span></div>
+              <div className="flex items-center gap-3"><FileText size={16} className="text-gray-400" /><span className="text-sm text-gray-700">{s.title || s.id}</span></div>
               <StatusBadge status={s.status} />
             </div>
           ))}</div>
@@ -89,32 +82,13 @@ function PlaceholderSection({ title, icon: Icon, description }: { title: string;
 
 export default function LegacyAdminPanel() {
   const { user, logout, currentInstitution } = useAuth();
-  const { api } = useApi();
+  const {
+    courses, semesters, sections, topics, summaries, keywords,
+    loading: isLoadingData, refresh: fetchData,
+  } = useContentData();
+
   const [activeSection, setActiveSection] = useState('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [summaries, setSummaries] = useState<Summary[]>([]);
-  const [keywords, setKeywords] = useState<Keyword[]>([]);
-
-  const fetchData = useCallback(async () => {
-    setIsLoadingData(true);
-    try {
-      const [cR, seR, scR, tR, suR, kR] = await Promise.allSettled([
-        api.get<any>('/courses'), api.get<any>('/semesters'), api.get<any>('/sections'),
-        api.get<any>('/topics'), api.get<any>('/summaries'), api.get<any>('/keywords'),
-      ]);
-      const ex = (r: PromiseSettledResult<any>): any[] => r.status === 'fulfilled' && Array.isArray(r.value) ? r.value : [];
-      setCourses(ex(cR)); setSemesters(ex(seR)); setSections(ex(scR));
-      setTopics(ex(tR)); setSummaries(ex(suR)); setKeywords(ex(kR));
-    } catch (err) { console.log('[LegacyAdminPanel] Error:', err); }
-    finally { setIsLoadingData(false); }
-  }, [api]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const renderSection = () => {
     switch (activeSection) {

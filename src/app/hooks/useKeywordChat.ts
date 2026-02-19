@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../lib/api-provider';
 import * as popupApi from '../services/keywordPopupApi';
-import type { AIChatMessage } from '../services/types';
+import type { AIChatMessage } from '../../types/keyword';
 
 export function useKeywordChat(keywordId: string) {
   const { api } = useApi();

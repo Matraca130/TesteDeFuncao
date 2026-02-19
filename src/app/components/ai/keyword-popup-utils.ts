@@ -4,7 +4,7 @@
 // Extracted from KeywordPopup.tsx for modularity.
 // ============================================================
 
-import type { DeltaColor } from '../../services/types';
+import type { DeltaColor } from '../../../types/enums';
 
 // ── Priority label + color mapping ──────────────────────────
 

@@ -5,7 +5,7 @@
 // ============================================================
 
 import React from 'react';
-import type { SubTopicBktState } from '../../services/types';
+import type { SubTopicBktState } from '../../../types/keyword';
 import { DELTA_COLORS } from './keyword-popup-utils';
 
 interface SubTopicCardProps {

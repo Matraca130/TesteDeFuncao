@@ -1,19 +1,11 @@
 // ============================================================
-// Axon -- Student Data Types
+// Axon v4.4 — Student Data Types
+// Moved from: src/app/types/student.ts
+// KeywordState removed (canonical version is in keyword.ts)
 // ============================================================
 
-export interface KeywordState {
-  keyword: string;
-  mastery: number;
-  stability_days: number;
-  due_at: string | null;
-  lapses: number;
-  exposures: number;
-  card_coverage: number;
-  last_review_at: string | null;
-  color: 'red' | 'yellow' | 'green';
-  color_stability_counter: number;
-}
+// Re-export KeywordState from its canonical location
+export type { KeywordState } from './keyword';
 
 export interface StudentProfile {
   id: string;
@@ -71,7 +63,7 @@ export interface TopicProgress {
   lastReviewedAt?: string;
   nextReviewAt?: string;
   reviewCount: number;
-  keywords?: Record<string, KeywordState>;
+  keywords?: Record<string, import('./keyword').KeywordState>;
 }
 
 export interface FlashcardReview {
@@ -117,7 +109,7 @@ export interface StudySummary {
   courseName: string;
   topicTitle: string;
   content: string;
-  canvasBlocks?: string; // JSON-serialized canvas blocks for rich editor
+  canvasBlocks?: string;
   annotations: SummaryAnnotation[];
   keywordMastery?: Record<string, string>;
   keywordNotes?: Record<string, string[]>;
@@ -140,7 +132,7 @@ export interface SummaryAnnotation {
 export interface KeywordCollectionData {
   courseId: string;
   topicId?: string;
-  keywords: Record<string, KeywordState>;
+  keywords: Record<string, import('./keyword').KeywordState>;
   lastUpdated: string;
 }
 

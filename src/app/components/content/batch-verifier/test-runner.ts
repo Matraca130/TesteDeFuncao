@@ -4,10 +4,14 @@
 // Pure async function — takes callbacks, no React dependency.
 // ============================================================
 
-import { publicAnonKey } from '/utils/supabase/info';
-import { supabase } from '../../../services/supabaseClient';
+import { supabaseAnonKey } from '../../../lib/config';
+import { supabase } from '../../../lib/supabase-client';
 import { apiFetch, kvInspect } from './api-helper';
 import type { TestResult, RunOpts } from './types';
+
+// Alias for backward compatibility — test-runner used publicAnonKey
+// from info.tsx; now reads from the canonical config.ts instead.
+const publicAnonKey = supabaseAnonKey;
 
 /** Callbacks that the UI provides so the runner can report progress. */
 export interface RunnerCallbacks {
@@ -128,9 +132,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     body?: unknown, opts?: RunOpts,
   ) => runSingle(group, name, method, path, body, opts, accessToken, cb);
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 1: HEALTH + KV ROUNDTRIP
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('1/8 Health + KV Probe');
   await run('Server', 'GET /health', 'GET', '/health', undefined, { bearerToken: publicAnonKey });
 
@@ -164,9 +168,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     console.error('[KV ROUNDTRIP FULL]', JSON.stringify(rt, null, 2));
   }
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 2: AUTH
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('2/8 Auth');
 
   // Step 2a: Create user via POST /auth/signup
@@ -260,9 +264,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     email: testEmail, password: testPassword,
   }, { bearerToken: publicAnonKey, assertFields: ['user', 'access_token'] });
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 3: INSTITUTION + MEMBERSHIP
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('3/8 Inst + Membership KV');
 
   const instRes = await run('Inst+Membership', 'POST /institutions', 'POST', '/institutions', {
@@ -327,9 +331,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     await run('Inst+Membership', 'DELETE /.../members/:userId', 'DELETE', `/institutions/${instId}/members/${testMemberId}`);
   }
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 4: FULL CRUD CHAIN
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('4/8 CRUD Chain');
 
   let courseId = '';
@@ -469,9 +473,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     }, { assertFields: ['processed', 'approved'] });
   }
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 5: AI ROUTES
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('5/8 AI Routes');
 
   await run('AI', 'GET /ai/drafts', 'GET', '/ai/drafts');
@@ -484,9 +488,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     await run('AI', 'GET /keyword-popup/:id (real)', 'GET', `/keyword-popup/${kwId}`, undefined, { assertFields: ['keyword'] });
   }
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 6: CLEANUP
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('6/8 Cleanup');
 
   if (connId) await run('Cleanup', 'DEL connection', 'DELETE', `/connections/${connId}`);
@@ -520,9 +524,9 @@ export async function runAllTests(cb: RunnerCallbacks): Promise<void> {
     });
   }
 
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   // PHASE 7: SIGNOUT
-  // ════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════
   cb.setPhase('7/8 Signout');
   await run('Auth', 'POST /auth/signout', 'POST', '/auth/signout');
 
