@@ -25,3 +25,6 @@ export type { UseFlashcardSessionReturn } from './useFlashcardSession';
 
 // Phase Views (Step 4)
 export { LoadingView, EmptyView, SummaryView, StudyingView } from './views';
+
+// Orchestrator (Step 5) — drop-in replacement for flashcard-session.tsx
+export { FlashcardSession } from './FlashcardSession';
