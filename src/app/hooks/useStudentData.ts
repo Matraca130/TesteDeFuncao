@@ -1,10 +1,19 @@
 // ============================================================
-// Axon — useStudentData Hook
-// Fetches and caches student data from the backend
+// Axon v4.4 — useStudentData Hook (REWIRED by Agent 4 P3)
+// NOW: imports from api-client.ts (3-layer rule compliant)
+// BEFORE: imported from services/studentApi.ts (direct fetch)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import * as api from '@/app/services/studentApi';
+import {
+  getStudentProfile,
+  getStudentStats,
+  getCourseProgress,
+  getDailyActivity,
+  getStudySessions,
+  getFlashcardReviews,
+  seedDemoData,
+} from '../lib/api-client';
 import type {
   StudentProfile,
   StudentStats,
@@ -12,7 +21,12 @@ import type {
   DailyActivity,
   StudySession,
   FlashcardReview,
-} from '@/app/types/student';
+} from '../lib/types';
+
+// Re-export types so consumers can import from this hook
+export type { StudentProfile, StudentStats, CourseProgress, DailyActivity, StudySession, FlashcardReview };
+
+const DEFAULT_STUDENT_ID = 'demo-student-001';
 
 export interface StudentData {
   profile: StudentProfile | null;
@@ -32,7 +46,7 @@ export interface UseStudentDataResult {
   seedData: () => Promise<void>;
 }
 
-export function useStudentData(): UseStudentDataResult {
+export function useStudentData(studentId = DEFAULT_STUDENT_ID): UseStudentDataResult {
   const [data, setData] = useState<StudentData>({
     profile: null,
     stats: null,
@@ -51,12 +65,12 @@ export function useStudentData(): UseStudentDataResult {
     try {
       const [profile, stats, courseProgress, dailyActivity, sessions, reviews] =
         await Promise.all([
-          api.getProfile().catch(() => null),
-          api.getStats().catch(() => null),
-          api.getAllCourseProgress().catch(() => []),
-          api.getDailyActivity().catch(() => []),
-          api.getSessions().catch(() => []),
-          api.getReviews().catch(() => []),
+          getStudentProfile(studentId).catch(() => null),
+          getStudentStats(studentId).catch(() => null),
+          getCourseProgress(studentId).catch(() => []),
+          getDailyActivity(studentId).catch(() => []),
+          getStudySessions(studentId).catch(() => []),
+          getFlashcardReviews(studentId).catch(() => []),
         ]);
 
       setData({
@@ -68,7 +82,6 @@ export function useStudentData(): UseStudentDataResult {
         reviews: reviews as FlashcardReview[],
       });
 
-      // If profile exists, data has been seeded
       if (profile) setSeeded(true);
     } catch (err: any) {
       console.error('[useStudentData] Error fetching data:', err);
@@ -76,15 +89,14 @@ export function useStudentData(): UseStudentDataResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [studentId]);
 
-  const seedData = useCallback(async () => {
+  const seedDataFn = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await api.seedDemoData();
+      await seedDemoData();
       setSeeded(true);
-      // Refresh data after seeding
       await fetchAll();
     } catch (err: any) {
       console.error('[useStudentData] Error seeding data:', err);
@@ -97,5 +109,5 @@ export function useStudentData(): UseStudentDataResult {
     fetchAll();
   }, [fetchAll]);
 
-  return { data, loading, error, seeded, refresh: fetchAll, seedData };
+  return { data, loading, error, seeded, refresh: fetchAll, seedData: seedDataFn };
 }

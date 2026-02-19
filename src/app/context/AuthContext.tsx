@@ -1,14 +1,13 @@
 // ============================================================
-// Axon v4.4 — AuthContext (FIXED)
-// ============================================================
-// FIXES: Import types from types/auth.ts, fix MembershipRole,
-// fix joined_at->created_at, add selectInstitution/currentInstitution/
-// currentMembership, login uses /auth/me after signIn
+// Axon v4.4 — AuthContext (WIRED by Agent 4 P3)
+// NOW: calls setApiAuthToken() on login/refresh/logout
+// so api-client.ts automatically includes Bearer token.
 // ============================================================
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase-client';
 import { supabaseAnonKey, apiBaseUrl } from '../lib/config';
+import { setApiAuthToken } from '../lib/api-client';
 import type { AuthUser, Membership, Institution, AuthContextType } from '../../types/auth';
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,6 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const accessTokenRef = useRef<string | null>(null);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   const clearError = useCallback(() => setError(null), []);
+
+  // Agent 4 P3: sync token to api-client whenever accessToken changes
+  useEffect(() => {
+    setApiAuthToken(accessToken);
+  }, [accessToken]);
 
   const selectInstitution = useCallback((instId: string) => {
     const membership = memberships.find((m) => m.institution_id === instId);
@@ -67,8 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED' && session?.access_token) { setAccessToken(session.access_token); }
-      else if (event === 'SIGNED_OUT') { setUser(null); setAccessToken(null); setMemberships([]); setCurrentMembership(null); setCurrentInstitution(null); }
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        setAccessToken(session.access_token);
+      }
+      else if (event === 'SIGNED_OUT') {
+        setUser(null); setAccessToken(null); setMemberships([]);
+        setCurrentMembership(null); setCurrentInstitution(null);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -107,7 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token) { await fetch(`${apiBaseUrl}/auth/signout`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(() => {}); }
       await supabase.auth.signOut();
     } catch {} finally {
-      setUser(null); setAccessToken(null); setMemberships([]); setCurrentMembership(null); setCurrentInstitution(null); setError(null);
+      setUser(null); setAccessToken(null); setMemberships([]);
+      setCurrentMembership(null); setCurrentInstitution(null); setError(null);
     }
   }, []);
 
