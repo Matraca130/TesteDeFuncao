@@ -1,27 +1,19 @@
-// ════════════════════════════════════════════════════════════
-// Axon — Singleton Supabase Client
+// ============================================================
+// COMPATIBILITY SHIM — DO NOT add logic here
+// ============================================================
 //
-// ALL frontend code MUST import from here instead of calling
-// createClient() directly. This prevents the
-// "Multiple GoTrueClient instances" warning.
+// FIX: This file previously created its OWN Supabase client
+// using createClient() with Symbol.for, causing a SECOND
+// GoTrueClient instance when lib/supabase-client.ts was also
+// imported (e.g. by App.tsx).
 //
-// Symbol.for guarantees the same symbol across Vite HMR reloads.
-// ════════════════════════════════════════════════════════════
+// Now it just re-exports the singleton from lib/supabase-client.ts.
+// All existing imports like:
+//   import { supabase } from '../services/supabaseClient'
+// will use the SAME singleton instance.
+//
+// In a future cleanup, update all imports to point directly
+// to '../lib/supabase-client' and delete this file.
+// ============================================================
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
-
-const SUPA_KEY = Symbol.for('axon-supabase');
-
-function getSupabaseClient(): SupabaseClient {
-  const g = globalThis as Record<symbol, unknown>;
-  if (!g[SUPA_KEY]) {
-    g[SUPA_KEY] = createClient(
-      `https://${projectId}.supabase.co`,
-      publicAnonKey
-    );
-  }
-  return g[SUPA_KEY] as SupabaseClient;
-}
-
-export const supabase = getSupabaseClient();
+export { supabase } from '../lib/supabase-client';

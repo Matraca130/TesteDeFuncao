@@ -1,24 +1,26 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { publicAnonKey } from '/utils/supabase/info';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabase-client';
+import { supabaseAnonKey, apiBaseUrl } from '../lib/config';
 
 // ════════════════════════════════════════════════════════════
 // AUTH CONTEXT — Supabase Auth integration for Axon v4.4
 //
 // Provides: login, signup, logout, session restore
-// Auth header is auto-set after login for all API calls.
-// Uses singleton Supabase client from supabaseClient.ts
-// to prevent "Multiple GoTrueClient instances" warning.
+// Uses singleton Supabase client from lib/supabase-client.ts
 //
-// NOTE: apiFetch was removed in Step 5a — all consumers
-// now use useApi() from api-provider.tsx instead.
+// FIX: Removed hardcoded API_BASE URL:
+//   BEFORE: 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d'
+//   AFTER:  apiBaseUrl from config.ts (works on Figma Make + Vercel)
 //
-// Backend: https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d
+// FIX: Import supabase from lib/supabase-client (not services/)
+//   to ensure the same singleton is used everywhere.
+//
+// FIX: Import supabaseAnonKey from config.ts (not /utils/supabase/info)
+//   for single source of truth.
+//
+// FIX: Added onAuthStateChange listener for TOKEN_REFRESHED
+//   to keep accessToken in sync when Supabase auto-refreshes.
 // ════════════════════════════════════════════════════════════
-
-// HARDCODED — the backend lives on project xdnciktarvxyhkrokbng.
-// DO NOT use projectId from /utils/supabase/info for this URL.
-const API_BASE = 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d';
 
 export interface AuthUser {
   id: string;
@@ -31,11 +33,11 @@ export interface AuthUser {
 }
 
 export interface Membership {
-  id: string;                    // UUID
-  user_id: string;               // FK a User.id
-  institution_id: string;        // FK a Institution.id
-  role: 'institution_admin' | 'professor' | 'student'; // D8: per-institution role
-  joined_at: string;             // ISO 8601
+  id: string;
+  user_id: string;
+  institution_id: string;
+  role: 'institution_admin' | 'professor' | 'student';
+  joined_at: string;
 }
 
 interface AuthContextType {
@@ -84,12 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
 
         if (sessionErr || !session?.access_token) {
+          console.log('[Auth] No active session found');
           setIsLoading(false);
           return;
         }
 
         // Validate session with our server
-        const res = await fetch(`${API_BASE}/auth/me`, {
+        const res = await fetch(`${apiBaseUrl}/auth/me`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` },
         });
         const data = await res.json();
@@ -110,6 +113,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, []);
 
+  // ── Listen for Supabase auth state changes (token refresh, etc.) ──
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        console.log('[Auth] Token refreshed automatically');
+        setAccessToken(session.access_token);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setAccessToken(null);
+        setMemberships([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // ── Login ──
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setError(null);
@@ -121,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (supaErr) {
+        console.error('[Auth] signInWithPassword error:', supaErr.name, supaErr.message, supaErr.status);
         setError(supaErr.message);
         return false;
       }
@@ -132,9 +152,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Get user data from our server
-      const res = await fetch(`${API_BASE}/auth/signin`, {
+      const res = await fetch(`${apiBaseUrl}/auth/signin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
         body: JSON.stringify({ email, password }),
       });
       const result = await res.json();
@@ -164,9 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(async (email: string, password: string, name: string): Promise<boolean> => {
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/signup`, {
+      const res = await fetch(`${apiBaseUrl}/auth/signup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${publicAnonKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
         body: JSON.stringify({ email, password, name }),
       });
       const result = await res.json();
@@ -199,10 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = accessTokenRef.current;
       if (token) {
-        await fetch(`${API_BASE}/auth/signout`, {
+        await fetch(`${apiBaseUrl}/auth/signout`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
-        });
+        }).catch(() => {});
       }
       await supabase.auth.signOut();
     } catch (err: unknown) {

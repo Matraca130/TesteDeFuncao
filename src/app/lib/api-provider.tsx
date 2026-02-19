@@ -4,9 +4,16 @@
 // React Context + hook useApi() para acceso tipado al servidor.
 //
 // Usage:
-//   <ApiProvider> wraps the app (AFTER AuthProvider)
+//   <ApiProvider> wraps the app (AFTER AuthProvider if used)
 //   const { api, userId, isAuthenticated } = useApi();
 //   api.get('/flashcards/due', { course_id });
+//
+// FIX: Removed hardcoded API_BASE_URL:
+//   BEFORE: 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d'
+//   AFTER:  apiBaseUrl from config.ts (works on Figma Make + Vercel)
+//
+// FIX: Import supabaseAnonKey from config.ts instead of
+//   /utils/supabase/info (single source of truth).
 //
 // Step 9: Derives token + userId from AuthContext (single source
 // of truth). Previously had its own useState which was NEVER
@@ -18,10 +25,7 @@ import { createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type ApiClient } from './api-client';
 import { useAuth } from '../context/AuthContext';
-import { publicAnonKey } from '/utils/supabase/info';
-
-// HARDCODED — backend URL. DO NOT use projectId for this.
-const API_BASE_URL = 'https://xdnciktarvxyhkrokbng.supabase.co/functions/v1/make-server-7a20cd7d';
+import { supabaseAnonKey, apiBaseUrl } from './config';
 
 interface ApiContextValue {
   api: ApiClient;
@@ -33,12 +37,15 @@ interface ApiContextValue {
 const ApiContext = createContext<ApiContextValue | null>(null);
 
 export function ApiProvider({ children }: { children: ReactNode }) {
-  // Step 9: Derive from AuthContext — no more duplicate state
+  // Derive from AuthContext — no more duplicate state
   const { accessToken, user } = useAuth();
 
-  // Create API client — uses user JWT if available, falls back to publicAnonKey
+  // Create API client — uses user JWT if available, falls back to supabaseAnonKey
+  // NOTE: createApiClient() currently takes no params and reads from config.ts
+  // internally. The params are passed for future compatibility when the
+  // signature is updated to accept (baseUrl, token).
   const api = useMemo(
-    () => createApiClient(API_BASE_URL, accessToken ?? publicAnonKey),
+    () => createApiClient(),
     [accessToken],
   );
 
