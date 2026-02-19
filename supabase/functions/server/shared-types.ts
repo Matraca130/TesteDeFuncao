@@ -41,7 +41,7 @@ export interface User {
 export interface Institution {
   id: UUID;
   name: string;
-  slug?: string;
+  slug: string;       // REQUIRED — unique URL-safe identifier
   logo_url?: string;
   created_at: ISODate;
   updated_at: ISODate;
@@ -52,6 +52,8 @@ export interface Membership {
   user_id: UUID;
   institution_id: UUID;
   role: MembershipRole;
+  plan_id?: UUID;
+  plan_expires_at?: ISODate;
   created_at: ISODate;
 }
 
@@ -500,6 +502,54 @@ export interface CurriculumDocument {
   semester_count: number;
   updated_at: ISODate;
   updated_by: UUID;
+}
+
+// ────────────────── PLANS & ACCESS ──────────────────
+
+export interface Plan {
+  id: UUID;
+  institution_id: UUID;
+  name: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  is_default: boolean;
+  is_trial: boolean;
+  trial_duration_days?: number;
+  created_at: ISODate;
+  updated_at: ISODate;
+}
+
+export interface PlanAccessRule {
+  id: UUID;
+  plan_id: UUID;
+  scope_type: 'course' | 'semester' | 'section' | 'topic' | 'summary' | 'all';
+  scope_id?: UUID;
+  allows_summary: boolean;
+  allows_flashcards: boolean;
+  allows_quizzes: boolean;
+  allows_videos: boolean;
+  created_at: ISODate;
+}
+
+export interface AdminScope {
+  id: UUID;
+  membership_id: UUID;
+  scope_type: 'course' | 'semester' | 'section' | 'all';
+  scope_id?: UUID;
+  created_at: ISODate;
+}
+
+export interface Video {
+  id: UUID;
+  summary_id: UUID;
+  title: string;
+  url: string;
+  platform: 'youtube' | 'vimeo' | 'other';
+  duration_seconds?: number;
+  order_index: number;
+  created_at: ISODate;
+  created_by: UUID;
 }
 
 // ────────────────── API RESPONSE WRAPPERS ──────────────────
