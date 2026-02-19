@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../lib/api-provider';
 import * as popupApi from '../services/keywordPopupApi';
-import type { KeywordPopupData } from '../services/types';
+import type { KeywordPopupData } from '../../types/keyword';
 
 export function useKeywordPopup(keywordId: string | null) {
   const { api } = useApi();
