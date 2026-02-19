@@ -8,5 +8,10 @@
 //   dashboard/smart-study.tsx — /smart-study/generate
 //   dashboard/study-plans.tsx — CRUD plans + recalculate + tasks
 //   dashboard/index.tsx       — Composes all sub-routers
+//
+// Agent 3 (PROBE) note: Learning-profile placeholder routes
+// should be added as dashboard/learning-profile.tsx and mounted
+// in dashboard/index.tsx. This requires Agent 5 coordination
+// since dashboard/ is their ownership area.
 // ============================================================
 export { default } from "./dashboard/index.tsx";

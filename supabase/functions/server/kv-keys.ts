@@ -5,6 +5,10 @@
 // Generated: 2026-02-18
 //
 // IMPORTANT: "quiz:{id}" is the CORRECT format (not "quiz-q:{id}")
+//
+// ── Agent 3 (PROBE) additions at bottom: ──
+//   quiz-attempt, quiz-bundle, learning-profile,
+//   kw-student-note, kw-prof-note, video-note keys + indices
 // ═════════════════════════════════════════════════════════════════
 
 // ────────────────── PRIMARY KEYS ──────────────────
@@ -124,6 +128,32 @@ export const idxKwModel3d      = (kwId: string, modelId: string) => `idx:kw-mode
 // Section 7: Canvas Blocks index
 export const idxCourseResumoBlocks = (courseId: string, topicId: string) => `idx:course-resumo-blocks:${courseId}:${topicId}`;
 
+// ────────────────── Agent 3 (PROBE): New keys for v4.4 ──────────────────
+
+// Quiz Attempts (IMMUTABLE)
+export const quizAttemptKey = (id: string) => `quiz-attempt:${id}`;
+
+// Quiz Bundles
+export const quizBundleKey = (id: string) => `quiz-bundle:${id}`;
+
+// Learning Profile
+export const learningProfileKey = (studentId: string) => `learning-profile:${studentId}`;
+
+// Keyword Notes
+export const kwStudentNoteKey = (id: string) => `kw-student-note:${id}`;
+export const kwProfNoteKey    = (id: string) => `kw-prof-note:${id}`;
+
+// Video Notes
+export const videoNoteKey = (id: string) => `video-note:${id}`;
+
+// Agent 3: New index keys
+export const idxStudentAttempts = (studentId: string, attemptId: string) => `idx:student-attempts:${studentId}:${attemptId}`;
+export const idxKwAttempts      = (kwId: string, attemptId: string) => `idx:kw-attempts:${kwId}:${attemptId}`;
+export const idxStudentBundles  = (studentId: string, bundleId: string) => `idx:student-bundles:${studentId}:${bundleId}`;
+export const idxKwStudentNotes  = (kwId: string, studentId: string, noteId: string) => `idx:kw-student-notes:${kwId}:${studentId}:${noteId}`;
+export const idxKwProfNotes     = (kwId: string, noteId: string) => `idx:kw-prof-notes:${kwId}:${noteId}`;
+export const idxVideoNotes      = (videoId: string, studentId: string, noteId: string) => `idx:video-notes:${videoId}:${studentId}:${noteId}`;
+
 // ────────────────── PREFIX CONSTANTS (for getByPrefix queries) ──────────────────
 
 export const KV_PREFIXES = {
@@ -176,4 +206,17 @@ export const KV_PREFIXES = {
   IDX_TOPIC_MODEL3D: "idx:topic-model3d:",
   IDX_KW_MODEL3D: "idx:kw-model3d:",
   IDX_COURSE_RESUMO_BLOCKS: "idx:course-resumo-blocks:",
+  // Agent 3 additions
+  QUIZ_ATTEMPT: "quiz-attempt:",
+  QUIZ_BUNDLE: "quiz-bundle:",
+  LEARNING_PROFILE: "learning-profile:",
+  KW_STUDENT_NOTE: "kw-student-note:",
+  KW_PROF_NOTE: "kw-prof-note:",
+  VIDEO_NOTE: "video-note:",
+  IDX_STUDENT_ATTEMPTS: "idx:student-attempts:",
+  IDX_KW_ATTEMPTS: "idx:kw-attempts:",
+  IDX_STUDENT_BUNDLES: "idx:student-bundles:",
+  IDX_KW_STUDENT_NOTES: "idx:kw-student-notes:",
+  IDX_KW_PROF_NOTES: "idx:kw-prof-notes:",
+  IDX_VIDEO_NOTES: "idx:video-notes:",
 } as const;
