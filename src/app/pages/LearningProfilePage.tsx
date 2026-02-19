@@ -1,11 +1,11 @@
-// A7-09 | LearningProfilePage.tsx — Agent 7 (NEXUS) | SIGNAL: AI_UIS_DONE
+// A7-09 | LearningProfilePage.tsx — Agent 7 (NEXUS)
 // Pagina completa do perfil de aprendizagem do aluno
-import { useState, useEffect, useRef } from 'react';
+// Architecture: UI → useLearningProfile → ai-api → Backend
 import { useNavigate } from 'react-router';
 import {
   ArrowLeft, Brain, Sparkles, BookOpen, Target, Clock,
   TrendingUp, Flame, BarChart3, RefreshCw, Star,
-  Lightbulb, Award, Calendar, User, Zap
+  Lightbulb, Award, Calendar, User, Zap, Wifi, WifiOff
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -15,86 +15,15 @@ import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { ProfileSkeleton } from '../components/shared/ErrorBoundary';
+import { useLearningProfile } from '../hooks/useAiFeedback';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, BarChart, Bar, Legend
 } from 'recharts';
 
-// ── Mock Data (Section 14) ──
-const MOCK_LEARNING_PROFILE = {
-  student_id: 's-1',
-  generated_at: '2026-02-19T10:30:00Z',
-  cached: false,
-  global_stats: {
-    total_study_hours: 42,
-    total_quizzes_completed: 15,
-    total_flashcards_reviewed: 320,
-    total_keywords_studied: 28,
-    keywords_mastered: 12,
-    keywords_in_progress: 10,
-    keywords_weak: 6,
-    overall_accuracy: 72,
-    current_streak_days: 5,
-    longest_streak_days: 14,
-    study_consistency: 68,
-  },
-  ai_profile: {
-    learning_style: 'Visual-Pratico',
-    strongest_areas: ['Biologia Celular', 'Genetica Basica', 'Anatomia'],
-    weakest_areas: ['Ecologia', 'Evolucao', 'Bioquimica'],
-    study_pattern: 'Estuda mais a noite (19h-22h), prefere sessoes curtas de 30-45 minutos',
-    personality_insight: 'Aluno dedicado e consistente que aprende melhor com exemplos visuais e praticos. Tende a dominar conceitos gradualmente com revisoes regulares. Mostra forte persistencia ao enfrentar topicos dificeis.',
-  },
-  ai_recommendations: {
-    immediate_actions: ['Revisar Meiose (prioridade alta)', 'Completar 5 flashcards de Ecologia', 'Fazer quiz de revisao de Genetica'],
-    weekly_goals: ['Dominar 3 keywords novas', 'Manter racha de estudo', 'Completar 2 quizzes completos'],
-    long_term_strategy: 'Foque em construir uma base solida em Ecologia nas proximas 2 semanas. Depois, avance para Evolucao. Mantenha revisoes diarias de 30 min para consolidar o que ja aprendeu. Considere usar mapas mentais para conectar os diferentes topicos de biologia.',
-    recommended_study_time: '45 min/dia, 5 dias/semana',
-    focus_keywords: ['Meiose', 'Ecossistema', 'Selecao Natural', 'Ciclo de Krebs', 'Fosforilacao'],
-  },
-  progress_timeline: [
-    { week: 'Sem 3', keywords_mastered: 1, accuracy: 55, hours_studied: 3 },
-    { week: 'Sem 4', keywords_mastered: 2, accuracy: 58, hours_studied: 4 },
-    { week: 'Sem 5', keywords_mastered: 2, accuracy: 60, hours_studied: 5 },
-    { week: 'Sem 6', keywords_mastered: 3, accuracy: 65, hours_studied: 7 },
-    { week: 'Sem 7', keywords_mastered: 4, accuracy: 72, hours_studied: 8 },
-    { week: 'Sem 8', keywords_mastered: 5, accuracy: 75, hours_studied: 9 },
-  ],
-  motivation: {
-    message: 'Voce ja estudou 42 horas e dominou 12 keywords — isso e impressionante! Seu progresso semanal mostra uma melhoria constante. Continue com essa dedicacao!',
-    achievement_highlight: 'Conseguiu uma racha de 5 dias consecutivos de estudo!',
-    next_milestone: 'Faltam apenas 3 keywords para dominar Biologia Celular completamente!',
-  },
-};
-
 export function LearningProfilePage() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<typeof MOCK_LEARNING_PROFILE | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const loadProfile = (force = false) => {
-    if (force) setRegenerating(true);
-    else setLoading(true);
-
-    // Limpa qualquer timer pendente antes de iniciar um novo
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      setData({ ...MOCK_LEARNING_PROFILE, cached: !force });
-      setLoading(false);
-      setRegenerating(false);
-      timerRef.current = null;
-    }, force ? 2000 : 1500);
-  };
-
-  useEffect(() => {
-    loadProfile();
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+  const { data, loading, isMock, regenerating, regenerate } = useLearningProfile();
 
   if (loading || !data) {
     return (
@@ -103,7 +32,7 @@ export function LearningProfilePage() {
           <div className="flex items-center gap-3 mb-6">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             <p className="text-indigo-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Gerando seu perfil de aprendizagem...
+              Gerando seu perfil de aprendizagem com AI...
             </p>
           </div>
           <ProfileSkeleton />
@@ -120,10 +49,21 @@ export function LearningProfilePage() {
         <div className="max-w-5xl mx-auto p-4 md:p-6 pb-20 space-y-6">
 
           {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
             </Button>
+            <div className="flex items-center gap-2">
+              {isMock ? (
+                <Badge variant="outline" className="text-orange-500 border-orange-300">
+                  <WifiOff className="w-3 h-3 mr-1" /> Mock
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-green-600 border-green-300">
+                  <Wifi className="w-3 h-3 mr-1" /> AI Live
+                </Badge>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -155,7 +95,7 @@ export function LearningProfilePage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadProfile(true)}
+              onClick={regenerate}
               disabled={regenerating}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${regenerating ? 'animate-spin' : ''}`} />

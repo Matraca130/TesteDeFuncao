@@ -1,10 +1,11 @@
 // A7-08 | SummaryDiagnostic.tsx — Agent 7 (NEXUS)
 // UI diagnostico de summary completo
-import { useState, useEffect } from 'react';
+// Architecture: UI → useSummaryDiagnostic → ai-api → Backend
 import { useParams, useNavigate } from 'react-router';
 import {
   ArrowLeft, Brain, Sparkles, BookOpen, Target,
-  TrendingUp, Layers, Clock, Play, AlertCircle
+  TrendingUp, Layers, Clock, Play, AlertCircle,
+  Wifi, WifiOff, RotateCcw
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -14,6 +15,7 @@ import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FeedbackSkeleton } from '../components/shared/ErrorBoundary';
+import { useSummaryDiagnostic } from '../hooks/useAiFeedback';
 
 // ── BKT Color Helper ──
 function getBktColor(pKnow: number) {
@@ -22,43 +24,6 @@ function getBktColor(pKnow: number) {
   if (pKnow < 0.75) return { color: '#eab308', label: 'Quase domina', tw: 'bg-yellow-500', textTw: 'text-yellow-700', borderTw: 'border-yellow-300', bgTw: 'bg-yellow-50' };
   return { color: '#22c55e', label: 'Domina', tw: 'bg-green-500', textTw: 'text-green-700', borderTw: 'border-green-300', bgTw: 'bg-green-50' };
 }
-
-// ── Mock Data (Section 14) ──
-const MOCK_SUMMARY_DIAGNOSTIC = {
-  summary_id: 'sum-1',
-  summary_title: 'Biologia Celular',
-  overall_mastery: 62,
-  bkt_level: 'yellow' as const,
-  keywords_breakdown: [
-    { keyword_id: 'kw-1', term: 'Mitocondria', p_know: 0.85, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-2', term: 'Ribossomo', p_know: 0.65, bkt_color: '#eab308', status: 'em_progresso' as const },
-    { keyword_id: 'kw-3', term: 'DNA Polimerase', p_know: 0.45, bkt_color: '#f97316', status: 'em_progresso' as const },
-    { keyword_id: 'kw-4', term: 'Meiose', p_know: 0.15, bkt_color: '#ef4444', status: 'precisa_atencao' as const },
-    { keyword_id: 'kw-5', term: 'Complexo de Golgi', p_know: 0.78, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-6', term: 'Reticulo Endoplasmatico', p_know: 0.55, bkt_color: '#eab308', status: 'em_progresso' as const },
-    { keyword_id: 'kw-7', term: 'Membrana Plasmatica', p_know: 0.90, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-8', term: 'Lisossomo', p_know: 0.30, bkt_color: '#f97316', status: 'em_progresso' as const },
-  ],
-  quiz_performance: { total_attempts: 8, average_accuracy: 68, best_topic: 'Mitocondria', worst_topic: 'Meiose' },
-  flashcard_performance: { total_reviews: 120, retention_rate: 75, mastered_count: 15 },
-  ai_analysis: {
-    overall_assessment: 'Voce tem uma base solida em biologia celular, especialmente em organelas como mitocondria e complexo de Golgi. Porem, conceitos de divisao celular (meiose) precisam de mais atencao. Sua taxa de retencao de flashcards (75%) e boa, mas pode melhorar com sessoes mais frequentes.',
-    key_strengths: ['Organelas celulares (mitocondria, Golgi, membrana)', 'Vocabulario tecnico', 'Processos metabolicos basicos'],
-    gaps: ['Divisao celular (meiose vs mitose)', 'Replicacao de DNA detalhada', 'Funcao dos lisossomos', 'Aplicacao pratica de conceitos'],
-    recommended_actions: [
-      'Revisar meiose com videos explicativos',
-      'Fazer 10 questoes focadas sobre divisao celular',
-      'Criar flashcards proprios sobre DNA polimerase',
-      'Revisar funcoes do lisossomo em contexto de digestao celular'
-    ],
-    estimated_time_to_mastery: 'Aproximadamente 8 horas mais de estudo focado',
-  },
-  study_plan_suggestion: {
-    priority_keywords: ['Meiose', 'Lisossomo', 'DNA Polimerase'],
-    recommended_order: ['Meiose', 'Lisossomo', 'DNA Polimerase', 'Reticulo Endoplasmatico', 'Ribossomo'],
-    daily_goal_minutes: 30,
-  },
-};
 
 const STATUS_LABELS: Record<string, string> = {
   dominado: 'Dominado',
@@ -70,16 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function SummaryDiagnostic() {
   const { summaryId } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<typeof MOCK_SUMMARY_DIAGNOSTIC | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setData(MOCK_SUMMARY_DIAGNOSTIC);
-      setLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [summaryId]);
+  const { data, loading, isMock, refetch } = useSummaryDiagnostic(summaryId);
 
   if (loading || !data) {
     return (
@@ -88,7 +44,7 @@ export function SummaryDiagnostic() {
           <div className="flex items-center gap-3 mb-6">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             <p className="text-indigo-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Gerando diagnostico completo...
+              Gerando diagnostico completo com AI...
             </p>
           </div>
           <FeedbackSkeleton />
@@ -105,10 +61,24 @@ export function SummaryDiagnostic() {
         <div className="max-w-5xl mx-auto p-4 md:p-6 pb-20 space-y-6">
 
           {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
             </Button>
+            <div className="flex items-center gap-2">
+              {isMock ? (
+                <Badge variant="outline" className="text-orange-500 border-orange-300">
+                  <WifiOff className="w-3 h-3 mr-1" /> Mock
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-green-600 border-green-300">
+                  <Wifi className="w-3 h-3 mr-1" /> AI Live
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" onClick={refetch}>
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -124,11 +94,9 @@ export function SummaryDiagnostic() {
               <Badge className={`${overallBkt.bgTw} ${overallBkt.textTw} ${overallBkt.borderTw} border`}>
                 {overallBkt.label}
               </Badge>
-              <div className="flex items-center gap-2">
-                <span className="text-3xl" style={{ fontFamily: 'Georgia, serif', color: overallBkt.color }}>
-                  {data.overall_mastery}%
-                </span>
-              </div>
+              <span className="text-3xl" style={{ fontFamily: 'Georgia, serif', color: overallBkt.color }}>
+                {data.overall_mastery}%
+              </span>
             </div>
           </div>
 
@@ -368,7 +336,7 @@ export function SummaryDiagnostic() {
                     <span key={i} className="flex items-center">
                       <Badge variant="outline" className="bg-white">{kw}</Badge>
                       {i < data.study_plan_suggestion.recommended_order.length - 1 && (
-                        <span className="text-gray-400 mx-1">→</span>
+                        <span className="text-gray-400 mx-1">{'\u2192'}</span>
                       )}
                     </span>
                   ))}
