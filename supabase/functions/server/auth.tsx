@@ -1,5 +1,5 @@
 // ============================================================
-// Axon — Auth Routes (Dev 6 + Dev 1 fixes)
+// Axon — Auth Routes (Dev 6 + Dev 1 fixes + Dev 2 RBAC)
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
@@ -12,6 +12,7 @@ import {
   KV_PREFIXES,
 } from "./kv-keys.ts";
 import { getSupabaseAdmin } from "./crud-factory.tsx";
+import { requireAuth } from "./middleware-rbac.ts";
 
 const auth = new Hono();
 
@@ -20,7 +21,10 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Helper: extract userId from Authorization header */
+/** Helper: extract userId from Authorization header
+ *  NOTE: Kept exported for backward compatibility — other files may use it.
+ *  GET /auth/me now uses requireAuth() middleware instead.
+ */
 export async function getUserIdFromToken(
   authHeader: string | undefined
 ): Promise<{ userId: string } | { error: string }> {
@@ -230,19 +234,13 @@ auth.post("/auth/signin", async (c) => {
 });
 
 // ────────────────────────────────────────────────────────────────
-// GET /auth/me — Restore session from token
+// GET /auth/me — Restore session from token (uses requireAuth middleware)
 // ────────────────────────────────────────────────────────────────
-auth.get("/auth/me", async (c) => {
+auth.get("/auth/me", requireAuth(), async (c) => {
   try {
-    const result = await getUserIdFromToken(c.req.header("Authorization"));
-    if ("error" in result) {
-      return c.json(
-        { success: false, error: { code: "AUTH_ERROR", message: result.error } },
-        401
-      );
-    }
+    const userId = c.get("userId"); // ← puesto por requireAuth()
 
-    const user = await kv.get(userKey(result.userId));
+    const user = await kv.get(userKey(userId));
     if (!user) {
       return c.json(
         { success: false, error: { code: "NOT_FOUND", message: "User not found in KV store" } },
@@ -254,16 +252,16 @@ auth.get("/auth/me", async (c) => {
     let memberships: unknown[] = [];
     try {
       const instIds = await kv.getByPrefix(
-        KV_PREFIXES.IDX_USER_INSTS + result.userId + ":"
+        KV_PREFIXES.IDX_USER_INSTS + userId + ":"
       );
       if (instIds.length > 0) {
         memberships = (await kv.mget(
-          instIds.map((instId: string) => memberKey(instId, result.userId))
+          instIds.map((instId: string) => memberKey(instId, userId))
         )).filter(Boolean);
       }
     } catch (_e) {}
 
-    console.log(`[Auth] /me restored session for user ${result.userId}`);
+    console.log(`[Auth] /me restored session for user ${userId}`);
     return c.json({ success: true, data: { user, memberships } });
   } catch (err: unknown) {
     const msg = errMsg(err);
