@@ -1,9 +1,10 @@
 // ============================================================
 // Axon v4.4 — RequireAuth Guard
 // Redirects unauthenticated users to landing page
+// FIX: useNavigate + useEffect (React Router v7 compatible)
 // ============================================================
-import { type ReactNode } from 'react';
-import { Navigate } from 'react-router';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
@@ -12,7 +13,18 @@ interface Props {
 }
 
 export function RequireAuth({ children }: Props) {
+  const navigate = useNavigate();
+  const hasNavigated = useRef(false);
   const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isLoading || hasNavigated.current) return;
+    if (!isAuthenticated) {
+      console.log('[Router] RequireAuth: not authenticated, redirecting to /');
+      hasNavigated.current = true;
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   if (isLoading) {
     return (
@@ -29,8 +41,8 @@ export function RequireAuth({ children }: Props) {
   }
 
   if (!isAuthenticated) {
-    console.log('[Router] RequireAuth: not authenticated, redirecting to /');
-    return <Navigate to="/" replace />;
+    // Will redirect via useEffect, show nothing briefly
+    return null;
   }
 
   return <>{children}</>;
