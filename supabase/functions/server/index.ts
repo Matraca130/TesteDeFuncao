@@ -21,6 +21,7 @@ import plans from "./routes-plans-v2.tsx";
 import adminScopes from "./routes-admin-scopes-v2.tsx";
 import subscriptions from "./routes-subscriptions.tsx";
 import accessRules from "./routes-access-rules.tsx";
+import adminStudents from "./routes-admin-students.tsx";
 
 // ── Content & student routes (KV-based — unchanged)
 import content from "./routes-content.tsx";
@@ -67,7 +68,7 @@ app.get(`${PREFIX}/health`, (c) => {
     sql_routes: [
       "institutions", "members", "plans", "platform-plans",
       "institution-plans", "admin-scopes", "subscriptions",
-      "access-rules", "check-access",
+      "access-rules", "check-access", "admin-students",
     ],
     kv_routes: [
       "auth", "content", "canvas", "dashboard", "flashcards",
@@ -84,6 +85,7 @@ app.route(PREFIX, plans);
 app.route(PREFIX, adminScopes);
 app.route(PREFIX, subscriptions);
 app.route(PREFIX, accessRules);
+app.route(PREFIX, adminStudents);
 
 // ── Mount auth ───────────────────────────────────────────
 app.route(PREFIX, auth);
