@@ -13,7 +13,7 @@ import {
   updateVideoNote as apiUpdateVideoNote,
   softDeleteVideoNote,
   restoreVideoNote as apiRestoreVideoNote,
-} from '../lib/api-client';
+} from '../lib/api-sacred';
 import type { VideoNote as A4VideoNote } from '../lib/types';
 import { formatTimestamp } from '../utils/media-helpers';
 

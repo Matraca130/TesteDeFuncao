@@ -11,7 +11,7 @@ import {
   createFlashcard as apiCreateFlashcard,
   updateFlashcard as apiUpdateFlashcard,
   deleteFlashcard as apiDeleteFlashcard,
-} from '../lib/api-client';
+} from '../lib/api-flashcards';
 import type { FlashcardCard } from '../lib/types';
 
 // — Type Adapter: Agent 4 FlashcardCard → Agent 6 Flashcard —

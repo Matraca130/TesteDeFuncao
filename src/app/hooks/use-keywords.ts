@@ -12,8 +12,10 @@ import {
   createKeyword as apiCreateKeyword,
   updateKeyword as apiUpdateKeyword,
   deleteKeyword as apiDeleteKeyword,
+} from '../lib/api-content';
+import {
   getKeywordsBySummary,
-} from '../lib/api-client';
+} from '../lib/api-flashcards';
 import type { Keyword as A4Keyword } from '../lib/types';
 import type { KeywordSummaryLink } from '../lib/types-extended';
 

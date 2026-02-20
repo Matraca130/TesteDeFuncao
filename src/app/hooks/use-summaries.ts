@@ -6,7 +6,7 @@
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
 import type { Summary } from '../data/mock-data';
-import { fetchContentHierarchy } from '../lib/api-client';
+import { fetchContentHierarchy } from '../lib/api-content';
 
 // — Type Adapter: Agent 4 Summary → Agent 6 Summary —
 // A4: { id, topic_id, content_markdown, status, ... } — NO title

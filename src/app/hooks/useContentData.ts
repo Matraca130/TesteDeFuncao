@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchContentHierarchy } from '../lib/api-client';
+import { fetchContentHierarchy } from '../lib/api-content';
 import type {
   Course,
   Semester,

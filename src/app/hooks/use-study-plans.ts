@@ -15,7 +15,7 @@ import {
   deleteStudyPlan as apiDeletePlan,
   getStudyGoals,
   updateStudyGoal,
-} from '../lib/api-client';
+} from '../lib/api-study-plans';
 import type { StudyPlan as A4Plan, StudyGoal } from '../lib/types-extended';
 
 const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context

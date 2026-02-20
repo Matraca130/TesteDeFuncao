@@ -12,7 +12,7 @@ import type { SmartStudyItem } from '../data/mock-data';
 import {
   getSmartRecommendations,
   dismissRecommendation,
-} from '../lib/api-client';
+} from '../lib/api-smart-study';
 import type { SmartStudyRecommendation } from '../lib/types-extended';
 
 const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context

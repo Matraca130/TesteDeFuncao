@@ -5,7 +5,7 @@
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
 import type { DailyActivity } from '../data/mock-data';
-import { getDailyActivity as apiGetDailyActivity } from '../lib/api-client';
+import { getDailyActivity as apiGetDailyActivity } from '../lib/api-student';
 
 const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
 

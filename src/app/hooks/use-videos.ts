@@ -13,7 +13,7 @@ import {
   createVideo as apiCreateVideo,
   updateVideo as apiUpdateVideo,
   deleteVideo as apiDeleteVideo,
-} from '../lib/api-client';
+} from '../lib/api-media';
 import type { Video as A4Video } from '../lib/types';
 
 // ── Type Adapter: Agent 4 Video → Agent 6 Video ──

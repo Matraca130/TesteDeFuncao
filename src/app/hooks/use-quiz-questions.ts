@@ -11,7 +11,7 @@ import {
   createQuizQuestion as apiCreateQuestion,
   updateQuizQuestion as apiUpdateQuestion,
   deleteQuizQuestion as apiDeleteQuestion,
-} from '../lib/api-client';
+} from '../lib/api-quiz-content';
 import type { QuizQuestion as A4QuizQuestion } from '../lib/types-extended';
 
 // — Type Adapter: Agent 4 QuizQuestion → Agent 6 QuizQuestion —
