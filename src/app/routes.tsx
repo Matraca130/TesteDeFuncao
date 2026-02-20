@@ -4,7 +4,8 @@
 // BEFORE: All routes were unprotected under AppNavigation.
 //         LandingPage, login pages, and guards existed as dead code.
 //
-// NOW:    LandingPage is the entry point at /.
+// NOW:    SmartStudyPage is the entry point at /.
+//         LandingPage (role lobby) moved to /welcome.
 //         Auth pages are connected as public routes.
 //         App routes (admin, professor, study) keep their paths
 //         and are rendered with AppNavigation layout.
@@ -83,8 +84,11 @@ export const router = createBrowserRouter([
   // PUBLIC ROUTES — Full-screen, no sidebar, no auth required
   // ============================================================
 
-  // Landing page — FIRST thing user sees
-  { path: '/', Component: LandingPage },
+  // Landing page — SmartStudyPage (área del alumno) como primera vista
+  { path: '/', Component: SmartStudyPage },
+
+  // Role lobby (antigua landing) — accesible en /welcome
+  { path: '/welcome', Component: LandingPage },
 
   // Auth: login pages (each wraps itself with RequireGuest)
   { path: '/admin/login', Component: AdminLoginPage },
