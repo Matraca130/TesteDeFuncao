@@ -1,6 +1,7 @@
 // ============================================================
 // Axon v4.4 — PostLoginRouter
-// Redirects authenticated users to the correct dashboard by role
+// Redirects authenticated users to the correct dashboard by role.
+// UPDATED: checks user.is_super_admin FIRST → /owner (no memberships needed)
 // ============================================================
 import { useEffect } from 'react';
 import { Navigate } from 'react-router';
@@ -9,16 +10,18 @@ import { getRouteForRole } from '../../../types/auth';
 import { Loader2 } from 'lucide-react';
 
 export function PostLoginRouter() {
-  const { isAuthenticated, isLoading, memberships, currentMembership, selectInstitution } =
+  const { user, isAuthenticated, isLoading, memberships, currentMembership, selectInstitution } =
     useAuth();
 
-  // Auto-select if exactly 1 membership and none selected
+  // ── PLATFORM OWNER: no membership needed ──
+  // Skip auto-select for owners; they go to /owner directly.
   useEffect(() => {
+    if (user?.is_super_admin) return;
     if (memberships.length === 1 && !currentMembership) {
       console.log('[Router] PostLoginRouter: auto-selecting single membership');
       selectInstitution(memberships[0].institution_id);
     }
-  }, [memberships, currentMembership, selectInstitution]);
+  }, [memberships, currentMembership, selectInstitution, user]);
 
   // Still loading
   if (isLoading) {
@@ -36,6 +39,14 @@ export function PostLoginRouter() {
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
   }
+
+  // ── PLATFORM OWNER → /owner (no memberships required) ──
+  if (user?.is_super_admin) {
+    console.log('[Router] PostLoginRouter: is_super_admin=true, redirecting to /owner');
+    return <Navigate to="/owner" replace />;
+  }
+
+  // ── REGULAR USERS: membership-based routing ──
 
   // 0 memberships -> no institution
   if (memberships.length === 0) {

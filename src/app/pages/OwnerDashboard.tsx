@@ -1,7 +1,12 @@
 // ============================================================
 // Axon v4.4 — Owner Dashboard
-// Shows all institutions owned by the logged-in user.
+// Shows ALL institutions on the platform for the owner.
 // This is the OWNER level — separate from institution admin.
+//
+// UPDATED: Owner is a PLATFORM role (is_super_admin), NOT a membership role.
+// Data flow:
+//   1. GET /institutions → all institutions (owner sees everything)
+//   2. GET /institutions/:id/dashboard-stats → stats per institution
 // ============================================================
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
@@ -22,9 +27,9 @@ import {
   Crown,
   RefreshCw,
 } from 'lucide-react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
-
-const apiBaseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-34549f59`;
+import { apiBaseUrl } from '../lib/config';
+import { authHeaders } from '../lib/api-core';
+import { headingStyle, bodyStyle } from '../lib/design-tokens';
 
 interface InstitutionStats {
   institutionName: string;
@@ -47,26 +52,36 @@ interface InstitutionCard {
 
 export function OwnerDashboard() {
   const navigate = useNavigate();
-  const { user, accessToken, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const {
+    user,
+    accessToken,
+    isAuthenticated,
+    isLoading: authLoading,
+    logout,
+  } = useAuth();
   const [institutions, setInstitutions] = useState<InstitutionCard[]>([]);
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
 
   // ── Owner is a PLATFORM role (is_super_admin), NOT a membership role ──
   // We fetch ALL institutions from the API instead of filtering memberships.
 
-  const fetchStats = useCallback(async (instId: string, token: string): Promise<InstitutionStats | null> => {
-    try {
-      const res = await fetch(`${apiBaseUrl}/institutions/${instId}/dashboard-stats`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) return data.data;
-      return null;
-    } catch (err) {
-      console.error(`[OwnerDashboard] Stats fetch error for ${instId}:`, err);
-      return null;
-    }
-  }, []);
+  const fetchStats = useCallback(
+    async (instId: string): Promise<InstitutionStats | null> => {
+      try {
+        const res = await fetch(
+          `${apiBaseUrl}/institutions/${instId}/dashboard-stats`,
+          { headers: authHeaders() }
+        );
+        const data = await res.json();
+        if (data.success) return data.data;
+        return null;
+      } catch (err) {
+        console.error(`[OwnerDashboard] Stats fetch error for ${instId}:`, err);
+        return null;
+      }
+    },
+    []
+  );
 
   const loadInstitutions = useCallback(async () => {
     if (!accessToken) {
@@ -79,7 +94,7 @@ export function OwnerDashboard() {
     try {
       // Fetch ALL institutions from the platform (owner sees everything)
       const res = await fetch(`${apiBaseUrl}/institutions`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
+        headers: authHeaders(),
       });
       const data = await res.json();
 
@@ -103,7 +118,7 @@ export function OwnerDashboard() {
 
       // Fetch stats for each institution in parallel
       const statsPromises = cards.map(async (card) => {
-        const stats = await fetchStats(card.id, accessToken);
+        const stats = await fetchStats(card.id);
         return { id: card.id, stats };
       });
 
@@ -132,19 +147,18 @@ export function OwnerDashboard() {
     }
   }, [isAuthenticated, authLoading]);
 
-  // Redirect if not authenticated or not an owner
+  // Redirect if not authenticated
   if (!authLoading && !isAuthenticated) {
     navigate('/', { replace: true });
     return null;
   }
 
+  // Redirect if not a platform owner
   if (!authLoading && isAuthenticated && !user?.is_super_admin) {
-    // Not a platform owner — go back to post-login router
     navigate('/go', { replace: true });
     return null;
   }
 
-  // Loading auth
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f2ea]">
@@ -176,10 +190,12 @@ export function OwnerDashboard() {
           <div className="flex items-center gap-3">
             <AxonLogo size="md" />
             <div>
-              <h1 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+              <h1 className="text-lg font-bold text-gray-900" style={headingStyle}>
                 Axon
               </h1>
-              <p className="text-[11px] text-gray-400">Area del Dueno</p>
+              <p className="text-[11px] text-gray-400" style={bodyStyle}>
+                Area del Dueno
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -187,7 +203,7 @@ export function OwnerDashboard() {
               <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
                 <Crown size={14} className="text-violet-600" />
               </div>
-              <span>{user?.name || user?.email}</span>
+              <span style={bodyStyle}>{user?.name || user?.email}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-500">
               <LogOut size={16} />
@@ -201,10 +217,10 @@ export function OwnerDashboard() {
       <main className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+          <h2 className="text-2xl font-bold text-gray-900" style={headingStyle}>
             Bienvenido, {user?.name || 'Dueno'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <p className="text-sm text-gray-500 mt-1" style={bodyStyle}>
             Gestiona tus instituciones desde aqui. Cada institucion que creas aparece automaticamente.
           </p>
         </div>
@@ -213,7 +229,7 @@ export function OwnerDashboard() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+            <h3 className="text-lg font-semibold text-gray-900" style={headingStyle}>
               Tus Instituciones
             </h3>
             {!loadingInstitutions && (
@@ -268,11 +284,12 @@ export function OwnerDashboard() {
               <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
                 <Building2 size={28} className="text-violet-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2" style={headingStyle}>
                 Aun no tienes instituciones
               </h3>
-              <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
-                Crea tu primera institucion para empezar a invitar profesores, alumnos y gestionar planes de estudio.
+              <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto" style={bodyStyle}>
+                Crea tu primera institucion para empezar a invitar profesores,
+                alumnos y gestionar planes de estudio.
               </p>
               <Button
                 onClick={handleCreateNew}
@@ -302,17 +319,18 @@ export function OwnerDashboard() {
                         <Building2 size={18} className="text-violet-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                        <h4 className="font-semibold text-gray-900" style={headingStyle}>
                           {inst.name}
                         </h4>
                         {inst.slug && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            /i/{inst.slug}
-                          </p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">/i/{inst.slug}</p>
                         )}
                       </div>
                     </div>
-                    <ArrowRight size={16} className="text-gray-300 group-hover:text-violet-500 transition-colors mt-2" />
+                    <ArrowRight
+                      size={16}
+                      className="text-gray-300 group-hover:text-violet-500 transition-colors mt-2"
+                    />
                   </div>
 
                   {/* Stats */}
