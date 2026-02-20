@@ -1,32 +1,13 @@
 // ============================================================
 // Axon v4.4 — Server Entry Point (COMPLETE)
-// Mounts ALL 14 route modules + inline seed endpoint.
+// Mounts ALL route modules including admin (plans, scopes, members).
 // Prefix: /server (MUST match the deployed function name)
-// Deploy: 2026-02-19T12:00Z
+// Deploy: 2026-02-20T12:00Z
 //
 // IMPORTANT: When deploying via `supabase functions deploy server`,
 // the function name is 'server'. Supabase includes the function name
 // in the path, so Hono receives /server/<route>. PREFIX must equal
 // the function name for routes to match.
-//
-// Route modules (110+ endpoints total):
-//   auth         — signup, signin, me, signout (4)
-//   institutions — by-id, by-slug (2)
-//   content      — institutions, courses, semesters, sections,
-//                   topics, summaries, chunks, keywords,
-//                   subtopics, connections, batch-status (~35)
-//   canvas       — resumo-blocks CRUD, curriculum CRUD (5)
-//   dashboard    — stats, daily-activity, progress, smart-study,
-//                   study-plans, finalize-stats (16)
-//   flashcards   — CRUD + /due (6)
-//   quiz         — CRUD + /evaluate (6)
-//   reading      — reading-state, annotations, topics/:id/full (7)
-//   reviews      — CRUD + BKT update (varies)
-//   sessions     — CRUD (varies)
-//   model3d      — upload, CRUD, thumbnail (7)
-//   ai           — generate, approve, drafts, chat, keyword-popup (5)
-//   kwNotes      — student notes CRUD, prof notes CRUD+visibility (13) [SCRIBE]
-//   videoNotes   — timestamped video notes CRUD (6) [SCRIBE]
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -49,6 +30,11 @@ import ai from "./ai-routes.tsx";
 import kwNotes from "./routes-kw-notes.tsx";        // Agent 2 — SCRIBE
 import videoNotes from "./routes-video-notes.tsx";  // Agent 2 — SCRIBE
 
+// Admin route modules (were missing from mounts!)
+import plans from "./routes-plans.tsx";              // Agent 1 — ATLAS
+import adminScopes from "./routes-admin-scopes.tsx"; // Agent 1 — ATLAS
+import members from "./routes-members.tsx";           // Agent 1 — ATLAS
+
 // KV key functions (for inline seed)
 import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
 import { createNewCard } from "./fsrs-engine.ts";
@@ -63,13 +49,13 @@ app.use(
   cors({
     origin: "*",
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
   }),
 );
 
-// ── Health check ─────────────────────────────────────────────
+// ── Health check ─────────────────────────────────────────
 app.get(`${PREFIX}/health`, (c) => {
   return c.json({
     status: "ok",
@@ -77,14 +63,15 @@ app.get(`${PREFIX}/health`, (c) => {
     prefix: PREFIX,
     function_name: "server",
     routes: [
-      "auth", "institutions", "content", "canvas", "dashboard", "flashcards",
+      "auth", "institutions", "members", "plans", "admin-scopes",
+      "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
       "model3d", "ai", "kwNotes", "videoNotes", "seed",
     ],
   });
 });
 
-// ── Mount all route modules ──────────────────────────────────
+// ── Mount all route modules ──────────────────────────────
 app.route(PREFIX, auth);
 app.route(PREFIX, institutions);
 app.route(PREFIX, content);
@@ -99,6 +86,11 @@ app.route(PREFIX, model3d);
 app.route(PREFIX, ai);
 app.route(PREFIX, kwNotes);      // Agent 2 — SCRIBE
 app.route(PREFIX, videoNotes);   // Agent 2 — SCRIBE
+
+// Admin modules (NEW — were missing from mounts)
+app.route(PREFIX, plans);         // Agent 1 — ATLAS (plans CRUD)
+app.route(PREFIX, adminScopes);   // Agent 1 — ATLAS (admin scopes CRUD)
+app.route(PREFIX, members);       // Agent 1 — ATLAS (member management)
 
 // ── Inline seed (FSRS flashcards — complements seed.tsx) ─────
 app.post(`${PREFIX}/seed`, async (c) => {
