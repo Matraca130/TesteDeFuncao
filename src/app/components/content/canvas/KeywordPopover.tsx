@@ -9,7 +9,9 @@
 //
 // P3: Refactored StudentNotesSection to use useStudentNotes hook
 // P4: Extracted all 3 sections to independent components
+// P4-fix: Restored KeywordPopoverProvider (pre-existing missing export)
 // ============================================================
+import { createContext, useContext } from 'react';
 import { X, StickyNote, BarChart3, Layers, HelpCircle } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Card, CardHeader, CardTitle } from '../../ui/card';
@@ -21,6 +23,24 @@ import { Separator } from '../../ui/separator';
 import { StudentNotesTab } from './StudentNotesTab';
 import { ProfessorNotesTab } from './ProfessorNotesTab';
 import { DiagnosticoTab } from './DiagnosticoTab';
+
+// ── KeywordPopoverProvider (consumed by Canvas/Study views) ───
+// Added by Agent 6 — PRISM — P4-fix: restoring missing export
+// TODO: Implement full keyword-click context when Canvas agent delivers
+const KeywordPopoverContext = createContext<null>(null);
+
+/**
+ * Context provider for keyword popover interactions.
+ * Wraps content areas so child keyword chips can trigger the popover.
+ * Currently a pass-through; full context TBD with Canvas agent.
+ */
+export function KeywordPopoverProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <KeywordPopoverContext.Provider value={null}>
+      {children}
+    </KeywordPopoverContext.Provider>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────
 interface KeywordPopoverProps {
