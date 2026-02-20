@@ -7,6 +7,7 @@
 // Data flow:
 //   1. GET /institutions → all institutions (owner sees everything)
 //   2. GET /institutions/:id/dashboard-stats → stats per institution
+//   3. Platform summary calculated from aggregated stats
 // ============================================================
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
@@ -26,6 +27,7 @@ import {
   Loader2,
   Crown,
   RefreshCw,
+  BookOpen,
 } from 'lucide-react';
 import { apiBaseUrl } from '../lib/config';
 import { authHeaders } from '../lib/api-core';
@@ -50,6 +52,14 @@ interface InstitutionCard {
   loading: boolean;
 }
 
+interface PlatformSummary {
+  totalInstitutions: number;
+  totalMembers: number;
+  totalStudents: number;
+  totalPlans: number;
+  totalProfessors: number;
+}
+
 export function OwnerDashboard() {
   const navigate = useNavigate();
   const {
@@ -61,6 +71,13 @@ export function OwnerDashboard() {
   } = useAuth();
   const [institutions, setInstitutions] = useState<InstitutionCard[]>([]);
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
+  const [platformSummary, setPlatformSummary] = useState<PlatformSummary>({
+    totalInstitutions: 0,
+    totalMembers: 0,
+    totalStudents: 0,
+    totalPlans: 0,
+    totalProfessors: 0,
+  });
 
   // ── Owner is a PLATFORM role (is_super_admin), NOT a membership role ──
   // We fetch ALL institutions from the API instead of filtering memberships.
@@ -124,8 +141,8 @@ export function OwnerDashboard() {
 
       const results = await Promise.all(statsPromises);
 
-      setInstitutions((prev) =>
-        prev.map((card) => {
+      setInstitutions((prev) => {
+        const updated = prev.map((card) => {
           const result = results.find((r) => r.id === card.id);
           return {
             ...card,
@@ -133,8 +150,28 @@ export function OwnerDashboard() {
             stats: result?.stats || null,
             loading: false,
           };
-        })
-      );
+        });
+
+        // Calculate platform summary from all institution stats
+        const summary: PlatformSummary = {
+          totalInstitutions: updated.length,
+          totalMembers: 0,
+          totalStudents: 0,
+          totalPlans: 0,
+          totalProfessors: 0,
+        };
+        for (const card of updated) {
+          if (card.stats) {
+            summary.totalMembers += card.stats.totalMembers;
+            summary.totalStudents += card.stats.activeStudents;
+            summary.totalPlans += card.stats.totalPlans;
+            summary.totalProfessors += card.stats.membersByRole?.['professor'] || 0;
+          }
+        }
+        setPlatformSummary(summary);
+
+        return updated;
+      });
     } catch (err) {
       console.error('[OwnerDashboard] loadInstitutions error:', err);
       setLoadingInstitutions(false);
@@ -216,14 +253,55 @@ export function OwnerDashboard() {
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
         {/* Welcome */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900" style={headingStyle}>
             Bienvenido, {user?.name || 'Dueno'}
           </h2>
           <p className="text-sm text-gray-500 mt-1" style={bodyStyle}>
-            Gestiona tus instituciones desde aqui. Cada institucion que creas aparece automaticamente.
+            Resumen general de tu plataforma educativa.
           </p>
         </div>
+
+        {/* ── Platform Summary Cards ── */}
+        {!loadingInstitutions && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
+            <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-white rounded-2xl">
+              <CardContent className="p-4 text-center">
+                <Building2 size={18} className="text-violet-500 mx-auto mb-1.5" />
+                <p className="text-2xl font-bold text-gray-900">{platformSummary.totalInstitutions}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Instituciones</p>
+              </CardContent>
+            </Card>
+            <Card className="border-teal-200 bg-gradient-to-br from-teal-50 to-white rounded-2xl">
+              <CardContent className="p-4 text-center">
+                <Users size={18} className="text-teal-500 mx-auto mb-1.5" />
+                <p className="text-2xl font-bold text-gray-900">{platformSummary.totalMembers}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Miembros Total</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white rounded-2xl">
+              <CardContent className="p-4 text-center">
+                <GraduationCap size={18} className="text-amber-500 mx-auto mb-1.5" />
+                <p className="text-2xl font-bold text-gray-900">{platformSummary.totalStudents}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Alumnos Activos</p>
+              </CardContent>
+            </Card>
+            <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-white rounded-2xl">
+              <CardContent className="p-4 text-center">
+                <BookOpen size={18} className="text-indigo-500 mx-auto mb-1.5" />
+                <p className="text-2xl font-bold text-gray-900">{platformSummary.totalProfessors}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Profesores</p>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-white rounded-2xl col-span-2 sm:col-span-1">
+              <CardContent className="p-4 text-center">
+                <CreditCard size={18} className="text-emerald-500 mx-auto mb-1.5" />
+                <p className="text-2xl font-bold text-gray-900">{platformSummary.totalPlans}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Planes Activos</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Institutions Section */}
         <div className="flex items-center justify-between mb-4">
