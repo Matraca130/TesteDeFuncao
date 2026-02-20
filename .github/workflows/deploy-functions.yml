@@ -1,15 +1,10 @@
 # ============================================================
 # Axon — Auto-deploy Supabase Edge Functions
 #
-# Two-phase pipeline:
-#   1. validate — checks that all imports resolve correctly
-#   2. deploy   — only runs if validate passes
-#
-# Required secrets:
-#   - SUPABASE_ACCESS_TOKEN
-#   - SUPABASE_PROJECT_ID
-# Optional secrets:
-#   - SUPABASE_ANON_KEY (enables health check)
+# Three-phase pipeline:
+#   1. validate-imports  — missing exports → BOOT_ERROR prevention
+#   2. validate-patterns — prefix, imports, monolith, auth, leaks
+#   3. deploy            — only runs if BOTH validations pass
 # ============================================================
 name: Deploy Edge Functions
 
@@ -19,52 +14,55 @@ on:
     paths:
       - 'supabase/functions/server/**'
       - 'supabase/config.toml'
-      - '.github/scripts/validate-imports.mjs'
+      - '.github/scripts/**'
+      - 'src/**'
   workflow_dispatch:
 
 jobs:
-  # ══════════════════════════════════════════════════
-  # Phase 1: Validate imports BEFORE deploying
-  # ══════════════════════════════════════════════════
-  validate:
+  # ════════════════════════════════════════════════════
+  # Phase 1: Validate server imports
+  # ════════════════════════════════════════════════════
+  validate-imports:
     name: Validate Server Imports
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - run: node .github/scripts/validate-imports.mjs
 
-      - name: Run import validator
-        run: node .github/scripts/validate-imports.mjs
+  # ════════════════════════════════════════════════════
+  # Phase 2: Validate code patterns
+  # ════════════════════════════════════════════════════
+  validate-patterns:
+    name: Validate Code Patterns
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node .github/scripts/validate-patterns.mjs
 
-  # ══════════════════════════════════════════════════
-  # Phase 2: Deploy (only if validation passes)
-  # ══════════════════════════════════════════════════
+  # ════════════════════════════════════════════════════
+  # Phase 3: Deploy (only if BOTH validations pass)
+  # ════════════════════════════════════════════════════
   deploy:
     name: Deploy to Supabase
-    needs: validate
+    needs: [validate-imports, validate-patterns]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
         with:
           version: latest
-
-      - name: Deploy Edge Function
-        run: supabase functions deploy server --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
-
+      - run: supabase functions deploy server --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
       - name: Verify deployment
         continue-on-error: true
         run: |
