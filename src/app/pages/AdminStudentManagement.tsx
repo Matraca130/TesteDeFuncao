@@ -8,33 +8,32 @@
 //   - View student detail (modal)
 //
 // Route: /admin/students (inside AdminShell)
+// FIX: Uses real institution from AuthContext (not hardcoded inst-001)
 // ============================================================
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
 import {
   GraduationCap,
   Search,
   UserPlus,
-  MoreVertical,
   ToggleLeft,
   ToggleRight,
   Eye,
   Mail,
   Users,
-  TrendingUp,
   UserX,
   CalendarPlus,
   X,
   Loader2,
   RefreshCw,
-  Filter,
+  AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { headingStyle, bodyStyle } from '../lib/design-tokens';
-import { CURRENT_INST_ID } from '../lib/admin-constants';
 import {
   listStudents,
   getStudentStats,
@@ -48,6 +47,10 @@ import {
 import { toast } from 'sonner';
 
 export function AdminStudentManagement() {
+  // Get real institution from AuthContext
+  const { currentInstitution, currentMembership } = useAuth();
+  const institutionId = currentInstitution?.id || currentMembership?.institution_id || '';
+
   // State
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
@@ -64,15 +67,16 @@ export function AdminStudentManagement() {
 
   // Fetch students + stats
   const fetchData = useCallback(async () => {
+    if (!institutionId) return;
     setLoading(true);
     try {
       const [studentList, studentStats] = await Promise.all([
         listStudents({
-          institution_id: CURRENT_INST_ID,
+          institution_id: institutionId,
           search: search || undefined,
           is_active: filterActive || undefined,
         }),
-        getStudentStats(CURRENT_INST_ID),
+        getStudentStats(institutionId),
       ]);
       setStudents(studentList);
       setStats(studentStats);
@@ -82,7 +86,7 @@ export function AdminStudentManagement() {
     } finally {
       setLoading(false);
     }
-  }, [search, filterActive]);
+  }, [institutionId, search, filterActive]);
 
   useEffect(() => {
     fetchData();
@@ -92,7 +96,7 @@ export function AdminStudentManagement() {
   const handleViewDetail = async (userId: string) => {
     setDetailLoading(true);
     try {
-      const detail = await getStudentDetail(userId, CURRENT_INST_ID);
+      const detail = await getStudentDetail(userId, institutionId);
       setSelectedStudent(detail);
     } catch (err) {
       toast.error('Error al cargar detalle del estudiante');
@@ -105,7 +109,7 @@ export function AdminStudentManagement() {
   const handleToggleStatus = async (student: StudentListItem) => {
     setActionLoading(student.user_id);
     try {
-      await toggleStudentStatus(student.user_id, CURRENT_INST_ID, !student.is_active);
+      await toggleStudentStatus(student.user_id, institutionId, !student.is_active);
       toast.success(
         student.is_active
           ? `${student.name || student.email} desactivado`
@@ -127,7 +131,7 @@ export function AdminStudentManagement() {
     }
     setInviteLoading(true);
     try {
-      await inviteStudent(CURRENT_INST_ID, inviteEmail.trim(), inviteName.trim() || undefined);
+      await inviteStudent(institutionId, inviteEmail.trim(), inviteName.trim() || undefined);
       toast.success(`Estudiante ${inviteEmail} invitado correctamente`);
       setShowInviteDialog(false);
       setInviteEmail('');
@@ -140,18 +144,18 @@ export function AdminStudentManagement() {
     }
   };
 
-  // Format date
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString('es', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
+  // No institution selected
+  if (!institutionId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 px-4">
+        <AlertCircle className="size-12 text-amber-400 mb-4" />
+        <h2 style={headingStyle} className="text-zinc-900 mb-2">Sin institucion seleccionada</h2>
+        <p className="text-zinc-500 text-sm text-center max-w-md" style={bodyStyle}>
+          No se ha detectado una institucion activa. Regresa a la pagina de seleccion de institucion o inicia sesion nuevamente.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -162,7 +166,7 @@ export function AdminStudentManagement() {
             Gestion de Estudiantes
           </h1>
           <p className="mt-1 text-zinc-500" style={bodyStyle}>
-            Administra los alumnos de tu institucion.
+            Administra los alumnos de {currentInstitution?.name || 'tu institucion'}.
           </p>
         </div>
         <div className="flex gap-2">
@@ -378,7 +382,7 @@ export function AdminStudentManagement() {
         </CardContent>
       </Card>
 
-      {/* ═══ Invite Student Dialog ═══ */}
+      {/* Invite Student Dialog */}
       {showInviteDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
@@ -440,7 +444,7 @@ export function AdminStudentManagement() {
         </div>
       )}
 
-      {/* ═══ Student Detail Modal ═══ */}
+      {/* Student Detail Modal */}
       {(selectedStudent || detailLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto">
@@ -599,7 +603,7 @@ export function AdminStudentManagement() {
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────
+// ── Sub-components ──────────────────────────────────────────────
 
 function StatsCard({
   title,
