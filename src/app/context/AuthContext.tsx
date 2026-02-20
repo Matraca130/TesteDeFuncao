@@ -7,7 +7,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase-client';
 import { supabaseAnonKey, apiBaseUrl } from '../lib/config';
-import { setApiAuthToken } from '../lib/api-client';
+import { setApiAuthToken } from '../lib/api-core';
 import type { AuthUser, Membership, Institution, AuthContextType } from '../../types/auth';
 
 const AuthContext = createContext<AuthContextType>({
