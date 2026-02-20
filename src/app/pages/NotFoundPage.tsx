@@ -1,4 +1,5 @@
 // NotFoundPage.tsx — Agent 7 (NEXUS)
+// P5/A7-10: Migrated inline fontFamily → font-heading / font-body
 import { useNavigate } from 'react-router';
 import { Home, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -11,13 +12,13 @@ export function NotFoundPage() {
     <div className="min-h-screen bg-[#f5f2ea] flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardContent className="flex flex-col items-center text-center gap-4 py-10">
-          <p className="text-6xl text-gray-300" style={{ fontFamily: 'Georgia, serif' }}>
+          <p className="text-6xl text-gray-300 font-heading">
             404
           </p>
-          <h1 className="text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+          <h1 className="text-gray-900 font-heading">
             Pagina nao encontrada
           </h1>
-          <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <p className="text-gray-500 font-body">
             A pagina que voce procura nao existe ou foi movida.
           </p>
           <div className="flex gap-3 mt-2">
