@@ -31,5 +31,27 @@ jobs:
       - name: Link project
         run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
 
+      - name: Repair legacy migration history
+        run: |
+          supabase migration repair --status reverted 20260218033859
+          supabase migration repair --status reverted 20260218052453
+          supabase migration repair --status reverted 20260218053936
+          supabase migration repair --status reverted 20260218065944
+          supabase migration repair --status reverted 20260218091332
+          supabase migration repair --status reverted 20260218155305
+          supabase migration repair --status reverted 20260218182925
+          supabase migration repair --status reverted 20260218184749
+          supabase migration repair --status reverted 20260218224750
+          supabase migration repair --status reverted 20260219043127
+          supabase migration repair --status reverted 20260219043339
+          supabase migration repair --status reverted 20260219050547
+          supabase migration repair --status reverted 20260219051500
+          supabase migration repair --status reverted 20260219063909
+          supabase migration repair --status reverted 20260219074126
+          supabase migration repair --status reverted 20260219143511
+          supabase migration repair --status reverted 20260219230745
+          supabase migration repair --status reverted 20260220003248
+          supabase migration repair --status reverted 20260220044544
+
       - name: Push migrations
         run: supabase db push
