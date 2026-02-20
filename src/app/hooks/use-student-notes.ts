@@ -18,6 +18,8 @@ import type { KwStudentNote } from '../lib/types';
 
 // ── Type Adapter: Agent 4 KwStudentNote → Agent 6 StudentNote ──
 // Agent 4: { content } | Agent 6: { note }
+// FIX P0: Mock store returns `note`, real API returns `content`.
+//         Use fallback chain so both shapes work without crash.
 const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
 
 function toA6StudentNote(a4: KwStudentNote): StudentNote {
@@ -25,9 +27,9 @@ function toA6StudentNote(a4: KwStudentNote): StudentNote {
     id: a4.id,
     student_id: a4.student_id,
     keyword_id: a4.keyword_id,
-    note: a4.content,
+    note: a4.content ?? (a4 as any).note ?? '',
     created_at: a4.created_at,
-    deleted_at: a4.deleted_at,
+    deleted_at: a4.deleted_at ?? null,
   };
 }
 
