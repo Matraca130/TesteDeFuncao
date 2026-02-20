@@ -12,7 +12,7 @@ export interface Course { id: string; institution_id: string; name: string; desc
 export interface Semester { id: string; course_id: string; name: string; order_index: number; }
 export interface Section { id: string; semester_id: string; name: string; image_url: string | null; order_index: number; }
 export interface Topic { id: string; section_id: string; name: string; order_index: number; created_at: string; }
-export interface Summary { id: string; topic_id: string; course_id: string; institution_id?: string; content_markdown: string; status: ContentStatus; created_by: string; created_at: string; updated_at: string; version?: number; }
+export interface Summary { id: string; topic_id: string; course_id: string; institution_id?: string; title?: string; content_markdown: string; status: ContentStatus; created_by: string; created_at: string; updated_at: string; version?: number; }
 export interface SummaryChunk { id: string; summary_id: string; chunk_text: string; chunk_index: number; token_count?: number; }
 export interface Keyword { id: string; institution_id: string; term: string; definition: string | null; priority: Priority; status: ContentStatus; source?: ContentSource; created_by: string; created_at: string; updated_at: string; subtopics?: SubTopic[]; connections?: KeywordConnection[]; }
 export interface SubTopic { id: string; keyword_id: string; title: string; description: string | null; order_index?: number; status?: ContentStatus; source?: ContentSource; created_by?: string; created_at?: string; }

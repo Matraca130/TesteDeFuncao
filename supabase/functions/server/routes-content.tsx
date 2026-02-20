@@ -217,7 +217,8 @@ r.post("/topics/:topicId/summaries", async (c) => {
     const id = uid(); const now = ts();
     const summary = {
       id, topic_id: topicId, course_id: body.course_id || "",
-      institution_id: body.institution_id, content_markdown: body.content_markdown || "",
+      institution_id: body.institution_id, title: body.title ?? null,
+      content_markdown: body.content_markdown || "",
       status: body.status || "draft", created_by: body.created_by || "demo-user",
       created_at: now, updated_at: now, version: 1,
     };

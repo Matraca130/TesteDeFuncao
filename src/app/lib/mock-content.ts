@@ -20,8 +20,8 @@ export const MOCK_TOPICS: Topic[] = [
   { id: 'topic-cranial', section_id: 'sec-nervoso', name: 'Nervos Cranianos', order_index: 0, created_at: '2025-01-20T10:00:00Z' },
 ];
 export const MOCK_SUMMARIES: Summary[] = [
-  { id: 'sum-femur-1', topic_id: 'topic-femur', course_id: 'course-anatomy', institution_id: 'inst-001', content_markdown: '# Femur\n\nO femur e o osso mais longo...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z', updated_at: '2025-02-10T10:00:00Z', version: 2 },
-  { id: 'sum-cranial-1', topic_id: 'topic-cranial', course_id: 'course-anatomy', institution_id: 'inst-001', content_markdown: '# Nervos Cranianos\n\nOs 12 pares de nervos...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z', updated_at: '2025-02-15T10:00:00Z', version: 1 },
+  { id: 'sum-femur-1', topic_id: 'topic-femur', course_id: 'course-anatomy', institution_id: 'inst-001', title: 'Anatomia do Femur', content_markdown: '# Femur\n\nO femur e o osso mais longo...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z', updated_at: '2025-02-10T10:00:00Z', version: 2 },
+  { id: 'sum-cranial-1', topic_id: 'topic-cranial', course_id: 'course-anatomy', institution_id: 'inst-001', title: 'Nervos Cranianos \u2014 Visao Geral', content_markdown: '# Nervos Cranianos\n\nOs 12 pares de nervos...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z', updated_at: '2025-02-15T10:00:00Z', version: 1 },
 ];
 export const MOCK_KEYWORDS: Keyword[] = [
   { id: 'kw-femur', institution_id: 'inst-001', term: 'Femur', definition: 'Osso mais longo do corpo humano.', priority: 2, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-01-15T10:00:00Z', updated_at: '2025-01-15T10:00:00Z' },

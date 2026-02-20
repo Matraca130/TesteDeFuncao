@@ -3,6 +3,8 @@
 // Mounts Agent 4 domain routes (~100 endpoints) + Agent 7 AI routes (5 endpoints)
 // PREFIX must match the Figma Make environment deployment
 // ============================================================
+// Axon v4.4 — Hono Server: Main entrypoint
+// ~100 endpoints across 8 route modules, backed by KV store
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
@@ -57,6 +59,20 @@ app.route(PREFIX, smartStudyRoutes);
 
 // ── Agent 7: AI Feedback routes (A7-01 to A7-05) ──
 app.route(PREFIX, aiFeedback);
+// Health check endpoint
+app.get("/make-server-6e4db60a/health", (c) => {
+  return c.json({ status: "ok", version: "4.4-p4", routes: "~100" });
+});
+
+// Mount domain route groups under the server prefix
+app.route("/make-server-6e4db60a", studentRoutes);
+app.route("/make-server-6e4db60a", sacredRoutes);
+app.route("/make-server-6e4db60a", contentRoutes);
+app.route("/make-server-6e4db60a", miscRoutes);
+app.route("/make-server-6e4db60a", flashcardRoutes);
+app.route("/make-server-6e4db60a", quizContentRoutes);
+app.route("/make-server-6e4db60a", studyPlanRoutes);
+app.route("/make-server-6e4db60a", smartStudyRoutes);
 
 // ── Seed: Full database seed (student + content + sacred + misc + P3) ──
 app.post(`${PREFIX}/seed-all`, async (c) => {

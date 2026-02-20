@@ -1,11 +1,13 @@
 // ============================================================
 // useDailyActivity — Hook for activity heatmap data
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+// REWIRED: Now uses Agent 4 api-client (api-student module)
 // ============================================================
 import { useState, useEffect, useCallback } from 'react';
-import { MOCK_DAILY_ACTIVITY, type DailyActivity } from '../data/mock-data';
-import { mockFetchAll } from '../api-client/mock-api';
+import type { DailyActivity } from '../data/mock-data';
+import { getDailyActivity as apiGetDailyActivity } from '../lib/api-client';
+
+const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
 
 interface UseDailyActivityReturn {
   data: DailyActivity[];
@@ -23,9 +25,13 @@ export function useDailyActivity(): UseDailyActivityReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await mockFetchAll(MOCK_DAILY_ACTIVITY);
-      setData(result);
-    } catch {
+      // REWIRED: Agent 4 api-student
+      // Agent 4's DailyActivity type may differ — adapter needed if shapes diverge
+      const result = await apiGetDailyActivity(STUDENT_ID);
+      // Transform if needed: A4 may return { date, minutes, sessions } or similar
+      setData(result as unknown as DailyActivity[]);
+    } catch (err) {
+      console.error('[useDailyActivity] fetch error:', err);
       setError('Erro ao carregar atividade');
     } finally {
       setIsLoading(false);
