@@ -1,15 +1,15 @@
 # ============================================================
 # Axon — Auto-deploy Supabase Edge Functions
 #
-# Triggers on push to main when server files change,
-# or manually via workflow_dispatch.
+# Two-phase pipeline:
+#   1. validate — checks that all imports resolve correctly
+#   2. deploy   — only runs if validate passes
 #
 # Required secrets:
-#   - SUPABASE_ACCESS_TOKEN  (from https://supabase.com/dashboard/account/tokens)
-#   - SUPABASE_PROJECT_ID    (your 20-char project ref)
-#
+#   - SUPABASE_ACCESS_TOKEN
+#   - SUPABASE_PROJECT_ID
 # Optional secrets:
-#   - SUPABASE_ANON_KEY      (enables post-deploy health check)
+#   - SUPABASE_ANON_KEY (enables health check)
 # ============================================================
 name: Deploy Edge Functions
 
@@ -19,11 +19,35 @@ on:
     paths:
       - 'supabase/functions/server/**'
       - 'supabase/config.toml'
-  workflow_dispatch: # Manual trigger from GitHub UI
+      - '.github/scripts/validate-imports.mjs'
+  workflow_dispatch:
 
 jobs:
+  # ══════════════════════════════════════════════════
+  # Phase 1: Validate imports BEFORE deploying
+  # ══════════════════════════════════════════════════
+  validate:
+    name: Validate Server Imports
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run import validator
+        run: node .github/scripts/validate-imports.mjs
+
+  # ══════════════════════════════════════════════════
+  # Phase 2: Deploy (only if validation passes)
+  # ══════════════════════════════════════════════════
   deploy:
     name: Deploy to Supabase
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -38,15 +62,16 @@ jobs:
         with:
           version: latest
 
-      - run: supabase functions deploy server --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
+      - name: Deploy Edge Function
+        run: supabase functions deploy server --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
+
       - name: Verify deployment
-        
         continue-on-error: true
         run: |
           echo "Waiting 5s for cold start..."
           sleep 5
           RESPONSE=$(curl -sf \
-           "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/server/health" \
+            "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/server/health" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" 2>&1) && \
           echo "Health check passed: $RESPONSE" || \
           echo "Health check failed or skipped (non-blocking)"
