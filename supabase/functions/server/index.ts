@@ -1,22 +1,28 @@
 // ============================================================
-// Axon v4.4 — Server Entry Point (COMPLETE)
-// Mounts ALL route modules including admin (plans, scopes, members).
-// Prefix: /server (MUST match the deployed function name)
-// Deploy: 2026-02-20T12:00Z
+// Axon v4.4 — Server Entry Point (SQL Migration Phase 1)
+// Admin routes now use SQL queries against relational tables.
+// Non-admin routes remain KV-based (unchanged).
 //
-// IMPORTANT: When deploying via `supabase functions deploy server`,
-// the function name is 'server'. Supabase includes the function name
-// in the path, so Hono receives /server/<route>. PREFIX must equal
-// the function name for routes to match.
+// Prefix: /server (MUST match the deployed function name)
+// Deploy: supabase functions deploy server
 // ============================================================
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
 
-// Route modules
-import auth from "./auth.tsx";
-import institutions from "./routes-institutions.tsx";
+// ── Auth routes (now uses SQL for memberships)
+import auth from "./routes-auth.tsx";
+
+// ── Admin routes (SQL-based v2)
+import institutions from "./routes-institutions-v2.tsx";
+import members from "./routes-members-v2.tsx";
+import plans from "./routes-plans-v2.tsx";
+import adminScopes from "./routes-admin-scopes-v2.tsx";
+import subscriptions from "./routes-subscriptions.tsx";
+import accessRules from "./routes-access-rules.tsx";
+
+// ── Content & student routes (KV-based — unchanged)
 import content from "./routes-content.tsx";
 import canvas from "./routes-canvas.tsx";
 import dashboard from "./routes-dashboard.tsx";
@@ -27,15 +33,10 @@ import reviews from "./routes-reviews.tsx";
 import sessions from "./routes-sessions.tsx";
 import model3d from "./routes-model3d.tsx";
 import ai from "./ai-routes.tsx";
-import kwNotes from "./routes-kw-notes.tsx";        // Agent 2 — SCRIBE
-import videoNotes from "./routes-video-notes.tsx";  // Agent 2 — SCRIBE
+import kwNotes from "./routes-kw-notes.tsx";
+import videoNotes from "./routes-video-notes.tsx";
 
-// Admin route modules (were missing from mounts!)
-import plans from "./routes-plans.tsx";              // Agent 1 — ATLAS
-import adminScopes from "./routes-admin-scopes.tsx"; // Agent 1 — ATLAS
-import members from "./routes-members.tsx";           // Agent 1 — ATLAS
-
-// KV key functions (for inline seed)
+// ── KV key functions (for inline seed)
 import { fcKey, fsrsKey, kwKey, idxKwFc, idxDue, idxStudentFsrs } from "./kv-keys.ts";
 import { createNewCard } from "./fsrs-engine.ts";
 
@@ -48,7 +49,7 @@ app.use(
   "/*",
   cors({
     origin: "*",
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Institution-Id"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -62,18 +63,32 @@ app.get(`${PREFIX}/health`, (c) => {
     version: "4.4",
     prefix: PREFIX,
     function_name: "server",
-    routes: [
-      "auth", "institutions", "members", "plans", "admin-scopes",
-      "content", "canvas", "dashboard", "flashcards",
+    migration_status: "phase1_sql",
+    sql_routes: [
+      "institutions", "members", "plans", "platform-plans",
+      "institution-plans", "admin-scopes", "subscriptions",
+      "access-rules", "check-access",
+    ],
+    kv_routes: [
+      "auth", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
       "model3d", "ai", "kwNotes", "videoNotes", "seed",
     ],
   });
 });
 
-// ── Mount all route modules ──────────────────────────────
-app.route(PREFIX, auth);
+// ── Mount admin routes (SQL-based v2) ────────────────────
 app.route(PREFIX, institutions);
+app.route(PREFIX, members);
+app.route(PREFIX, plans);
+app.route(PREFIX, adminScopes);
+app.route(PREFIX, subscriptions);
+app.route(PREFIX, accessRules);
+
+// ── Mount auth ───────────────────────────────────────────
+app.route(PREFIX, auth);
+
+// ── Mount content & student routes (KV-based) ────────────
 app.route(PREFIX, content);
 app.route(PREFIX, canvas);
 app.route(PREFIX, dashboard);
@@ -84,15 +99,10 @@ app.route(PREFIX, reviews);
 app.route(PREFIX, sessions);
 app.route(PREFIX, model3d);
 app.route(PREFIX, ai);
-app.route(PREFIX, kwNotes);      // Agent 2 — SCRIBE
-app.route(PREFIX, videoNotes);   // Agent 2 — SCRIBE
+app.route(PREFIX, kwNotes);
+app.route(PREFIX, videoNotes);
 
-// Admin modules (NEW — were missing from mounts)
-app.route(PREFIX, plans);         // Agent 1 — ATLAS (plans CRUD)
-app.route(PREFIX, adminScopes);   // Agent 1 — ATLAS (admin scopes CRUD)
-app.route(PREFIX, members);       // Agent 1 — ATLAS (member management)
-
-// ── Inline seed (FSRS flashcards — complements seed.tsx) ─────
+// ── Inline seed (FSRS flashcards) ────────────────────────
 app.post(`${PREFIX}/seed`, async (c) => {
   try {
     const studentId = c.req.query("student_id") || "dev-user-001";
