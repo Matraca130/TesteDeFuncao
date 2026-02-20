@@ -1,99 +1,167 @@
 // ============================================================
-// Axon v4.4 — Admin Login/Signup Page
-// Supports both login and signup with institution creation
+// Axon v4.4 — Admin Login Page (Owner + Admin shared login)
+// After login, PostLoginRouter redirects by role:
+//   owner → /owner (OwnerDashboard)
+//   admin → /admin (AdminShell)
 // ============================================================
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useAuth } from '../context/AuthContext';
-import { RequireGuest } from '../components/guards/RequireGuest';
+import { useAuth, getRouteForRole } from '../context/AuthContext';
 import { AxonLogo } from '../components/AxonLogo';
-import { apiBaseUrl, supabaseAnonKey } from '../lib/config';
-import { Loader2, ArrowLeft, ShieldCheck, Building2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
+import { Loader2, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
-function AdminAuthForm() {
-  const { login, signup, error, clearError, isLoading } = useAuth();
+export function AdminLoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { user, login, signup, isLoading, error, clearError, isAuthenticated, memberships, selectInstitution, currentMembership } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [institutionName, setInstitutionName] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const switchMode = () => { setMode(mode === 'login' ? 'signup' : 'login'); clearError(); };
+  const [isSignup, setIsSignup] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // If already authenticated, redirect
+  // ── PLATFORM OWNER: redirect to /owner (no memberships needed) ──
+  if (isAuthenticated && user?.is_super_admin) {
+    navigate('/owner', { replace: true });
+    return null;
+  }
+  // ── REGULAR USERS: redirect by membership role ──
+  if (isAuthenticated && memberships.length > 0) {
+    // Auto-select first membership if none selected
+    if (!currentMembership && memberships.length === 1) {
+      selectInstitution(memberships[0].institution_id);
+    }
+    if (currentMembership) {
+      const target = getRouteForRole(currentMembership.role);
+      navigate(target, { replace: true });
+      return null;
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); clearError();
-    if (!email || !password) { toast.error('Preencha email e senha'); return; }
-    if (mode === 'signup') {
-      if (!name) { toast.error('Preencha seu nome'); return; }
-      if (!institutionName) { toast.error('Preencha o nome da instituicao'); return; }
-      if (password.length < 6) { toast.error('Senha deve ter pelo menos 6 caracteres'); return; }
+    e.preventDefault();
+    clearError();
+
+    let success: boolean;
+    if (isSignup) {
+      success = await signup(email, password, name);
+    } else {
+      success = await login(email, password);
     }
-    setSubmitting(true);
-    try {
-      if (mode === 'login') {
-        const success = await login(email, password);
-        if (success) { toast.success('Login realizado!'); navigate('/go'); }
-      } else {
-        const success = await signup(email, password, name);
-        if (!success) { setSubmitting(false); return; }
-        try {
-          const slug = institutionName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
-          const { supabase } = await import('../lib/supabase-client');
-          const { data: { session } } = await supabase.auth.getSession();
-          const token = session?.access_token;
-          if (token) {
-            const res = await fetch(`${apiBaseUrl}/institutions`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({ name: institutionName, slug: slug || `inst-${Date.now()}` }),
-            });
-            const result = await res.json();
-            if (result.success) { toast.success('Conta e instituicao criadas!'); }
-            else { toast.success('Conta criada! (Instituicao pode ser configurada depois)'); }
-          } else { toast.success('Conta criada!'); }
-        } catch (err) { toast.success('Conta criada! Configure sua instituicao no painel.'); }
-        navigate('/go');
-      }
-    } finally { setSubmitting(false); }
+
+    if (success) {
+      // Navigate to post-login router which handles role-based redirect
+      navigate('/go', { replace: true });
+    }
   };
 
-  const busy = isLoading || submitting;
   return (
-    <div className="min-h-screen bg-[#f5f2ea] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm mb-6"><button onClick={() => navigate('/')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"><ArrowLeft size={16} /> Voltar ao inicio</button></div>
+    <div className="min-h-screen bg-[#f5f2ea] flex flex-col items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-sm">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-8 transition-colors"
+        >
+          <ArrowLeft size={16} />
+          Volver al inicio
+        </button>
+
+        {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
           <AxonLogo size="lg" />
-          <div className="text-center"><h1 className="text-2xl font-bold text-gray-900">Axon Admin</h1>
-            <div className="flex items-center gap-1.5 justify-center mt-1"><ShieldCheck size={14} className="text-indigo-500" />
-              <p className="text-sm text-gray-500">{mode === 'login' ? 'Entrar na sua conta' : 'Criar conta de administrador'}</p>
-            </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+              {isSignup ? 'Crear Cuenta' : 'Iniciar Sesion'}
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">
+              {isSignup ? 'Registrate como dueno o administrador' : 'Entra como dueno o administrador'}
+            </p>
           </div>
         </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
-          {mode === 'signup' && (<>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Seu nome</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome completo" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" disabled={busy} required /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1.5"><span className="flex items-center gap-1.5"><Building2 size={13} className="text-indigo-400" /> Nome da instituicao</span></label>
-              <input type="text" value={institutionName} onChange={(e) => setInstitutionName(e.target.value)} placeholder="Ex: Faculdade de Medicina ABC" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" disabled={busy} required />
-              <p className="text-[10px] text-gray-400 mt-1">Voce sera o owner desta instituicao</p></div>
-          </>)}
-          <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@exemplo.com" className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" disabled={busy} autoComplete="email" required /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1.5">Senha</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" minLength={6} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" disabled={busy} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required /></div>
-          {error && <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">{error}</div>}
-          <button type="submit" disabled={busy} className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
-            {busy ? <><Loader2 size={16} className="animate-spin" /> {mode === 'login' ? 'Entrando...' : 'Criando...'}</> : mode === 'login' ? 'Entrar' : 'Criar Conta e Instituicao'}
-          </button>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isSignup && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">Nombre completo</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Tu nombre"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); clearError(); }}
+              placeholder="tu@email.com"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Contrasena</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); clearError(); }}
+                placeholder="Tu contrasena"
+                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <p className="text-xs text-red-600">{error}</p>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-teal-500 hover:bg-teal-600 text-white rounded-xl py-2.5"
+          >
+            {isLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : isSignup ? (
+              'Crear Cuenta'
+            ) : (
+              'Iniciar Sesion'
+            )}
+          </Button>
         </form>
-        <p className="text-center text-sm text-gray-500 mt-5">
-          {mode === 'login' ? (<>Primeira vez? <button onClick={switchMode} className="text-indigo-600 font-semibold hover:underline">Criar conta</button></>) : (<>Ja tem conta? <button onClick={switchMode} className="text-indigo-600 font-semibold hover:underline">Entrar</button></>)}
-        </p>
+
+        {/* Toggle Login/Signup */}
+        <div className="text-center mt-6">
+          <button
+            onClick={() => { setIsSignup(!isSignup); clearError(); }}
+            className="text-xs text-gray-500 hover:text-teal-600 transition-colors"
+          >
+            {isSignup ? 'Ya tienes cuenta? Iniciar sesion' : 'No tienes cuenta? Registrate'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
-
-export function AdminLoginPage() { return <RequireGuest><AdminAuthForm /></RequireGuest>; }

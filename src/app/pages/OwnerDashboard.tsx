@@ -2,11 +2,6 @@
 // Axon v4.4 — Owner Dashboard
 // Shows all institutions owned by the logged-in user.
 // This is the OWNER level — separate from institution admin.
-//
-// Data flow:
-//   1. AuthContext.memberships.filter(role === 'owner') → institution IDs
-//   2. GET /institutions/:id/dashboard-stats → stats per institution
-//   3. Cards auto-update when institutions are created
 // ============================================================
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
@@ -27,11 +22,9 @@ import {
   Crown,
   RefreshCw,
 } from 'lucide-react';
-import { apiBaseUrl } from '../lib/config';
-import { authHeaders } from '../lib/api-core';
-import { headingStyle, bodyStyle } from '../lib/design-tokens';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-import type { Membership, Institution } from '../../types/auth';
+const apiBaseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-34549f59`;
 
 interface InstitutionStats {
   institutionName: string;
@@ -54,77 +47,84 @@ interface InstitutionCard {
 
 export function OwnerDashboard() {
   const navigate = useNavigate();
-  const {
-    user,
-    accessToken,
-    memberships,
-    isAuthenticated,
-    isLoading: authLoading,
-    logout,
-    selectInstitution,
-  } = useAuth();
+  const { user, accessToken, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const [institutions, setInstitutions] = useState<InstitutionCard[]>([]);
   const [loadingInstitutions, setLoadingInstitutions] = useState(true);
 
-  // Get institutions where user is owner
-  const ownerMemberships = memberships.filter((m: Membership) => m.role === 'owner');
+  // ── Owner is a PLATFORM role (is_super_admin), NOT a membership role ──
+  // We fetch ALL institutions from the API instead of filtering memberships.
 
-  const fetchStats = useCallback(
-    async (instId: string): Promise<InstitutionStats | null> => {
-      try {
-        const res = await fetch(
-          `${apiBaseUrl}/institutions/${instId}/dashboard-stats`,
-          { headers: authHeaders() }
-        );
-        const data = await res.json();
-        if (data.success) return data.data;
-        return null;
-      } catch (err) {
-        console.error(`[OwnerDashboard] Stats fetch error for ${instId}:`, err);
-        return null;
-      }
-    },
-    []
-  );
+  const fetchStats = useCallback(async (instId: string, token: string): Promise<InstitutionStats | null> => {
+    try {
+      const res = await fetch(`${apiBaseUrl}/institutions/${instId}/dashboard-stats`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) return data.data;
+      return null;
+    } catch (err) {
+      console.error(`[OwnerDashboard] Stats fetch error for ${instId}:`, err);
+      return null;
+    }
+  }, []);
 
   const loadInstitutions = useCallback(async () => {
-    if (!accessToken || ownerMemberships.length === 0) {
+    if (!accessToken) {
       setLoadingInstitutions(false);
       return;
     }
 
-    // Initialize cards from memberships
-    const cards: InstitutionCard[] = ownerMemberships.map((m: Membership) => ({
-      id: m.institution_id,
-      name: (m as any).institution?.name || m.institution_id,
-      slug: (m as any).institution?.slug || '',
-      logo_url: (m as any).institution?.logo_url,
-      stats: null,
-      loading: true,
-    }));
-    setInstitutions(cards);
-    setLoadingInstitutions(false);
+    setLoadingInstitutions(true);
 
-    // Fetch stats for each institution in parallel
-    const statsPromises = cards.map(async (card) => {
-      const stats = await fetchStats(card.id);
-      return { id: card.id, stats };
-    });
+    try {
+      // Fetch ALL institutions from the platform (owner sees everything)
+      const res = await fetch(`${apiBaseUrl}/institutions`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
 
-    const results = await Promise.all(statsPromises);
+      if (!data.success || !Array.isArray(data.data)) {
+        console.error('[OwnerDashboard] Failed to fetch institutions:', data.error?.message);
+        setLoadingInstitutions(false);
+        return;
+      }
 
-    setInstitutions((prev) =>
-      prev.map((card) => {
-        const result = results.find((r) => r.id === card.id);
-        return {
-          ...card,
-          name: result?.stats?.institutionName || card.name,
-          stats: result?.stats || null,
-          loading: false,
-        };
-      })
-    );
-  }, [accessToken, ownerMemberships.length, fetchStats]);
+      // Initialize cards from API response
+      const cards: InstitutionCard[] = data.data.map((inst: any) => ({
+        id: inst.id,
+        name: inst.name || inst.id,
+        slug: inst.slug || '',
+        logo_url: inst.logo_url,
+        stats: null,
+        loading: true,
+      }));
+      setInstitutions(cards);
+      setLoadingInstitutions(false);
+
+      // Fetch stats for each institution in parallel
+      const statsPromises = cards.map(async (card) => {
+        const stats = await fetchStats(card.id, accessToken);
+        return { id: card.id, stats };
+      });
+
+      const results = await Promise.all(statsPromises);
+
+      setInstitutions((prev) =>
+        prev.map((card) => {
+          const result = results.find((r) => r.id === card.id);
+          return {
+            ...card,
+            name: result?.stats?.institutionName || card.name,
+            stats: result?.stats || null,
+            loading: false,
+          };
+        })
+      );
+    } catch (err) {
+      console.error('[OwnerDashboard] loadInstitutions error:', err);
+      setLoadingInstitutions(false);
+    }
+  }, [accessToken, fetchStats]);
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
@@ -132,12 +132,19 @@ export function OwnerDashboard() {
     }
   }, [isAuthenticated, authLoading]);
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated or not an owner
   if (!authLoading && !isAuthenticated) {
     navigate('/', { replace: true });
     return null;
   }
 
+  if (!authLoading && isAuthenticated && !user?.is_super_admin) {
+    // Not a platform owner — go back to post-login router
+    navigate('/go', { replace: true });
+    return null;
+  }
+
+  // Loading auth
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f5f2ea]">
@@ -147,8 +154,9 @@ export function OwnerDashboard() {
   }
 
   const handleManageInstitution = (instId: string) => {
-    selectInstitution(instId);
-    navigate('/admin');
+    // Owner navigates to admin shell with instId in URL
+    // (owner doesn't need a membership to manage)
+    navigate(`/admin?instId=${instId}`);
   };
 
   const handleCreateNew = () => {
@@ -168,12 +176,10 @@ export function OwnerDashboard() {
           <div className="flex items-center gap-3">
             <AxonLogo size="md" />
             <div>
-              <h1 className="text-lg font-bold text-gray-900" style={headingStyle}>
+              <h1 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
                 Axon
               </h1>
-              <p className="text-[11px] text-gray-400" style={bodyStyle}>
-                Area del Dueno
-              </p>
+              <p className="text-[11px] text-gray-400">Area del Dueno</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -181,7 +187,7 @@ export function OwnerDashboard() {
               <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
                 <Crown size={14} className="text-violet-600" />
               </div>
-              <span style={bodyStyle}>{user?.name || user?.email}</span>
+              <span>{user?.name || user?.email}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-500">
               <LogOut size={16} />
@@ -195,10 +201,10 @@ export function OwnerDashboard() {
       <main className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900" style={headingStyle}>
+          <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
             Bienvenido, {user?.name || 'Dueno'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1" style={bodyStyle}>
+          <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: 'Inter, sans-serif' }}>
             Gestiona tus instituciones desde aqui. Cada institucion que creas aparece automaticamente.
           </p>
         </div>
@@ -207,7 +213,7 @@ export function OwnerDashboard() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900" style={headingStyle}>
+            <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
               Tus Instituciones
             </h3>
             {!loadingInstitutions && (
@@ -262,12 +268,11 @@ export function OwnerDashboard() {
               <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
                 <Building2 size={28} className="text-violet-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2" style={headingStyle}>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
                 Aun no tienes instituciones
               </h3>
-              <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto" style={bodyStyle}>
-                Crea tu primera institucion para empezar a invitar profesores,
-                alumnos y gestionar planes de estudio.
+              <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+                Crea tu primera institucion para empezar a invitar profesores, alumnos y gestionar planes de estudio.
               </p>
               <Button
                 onClick={handleCreateNew}
@@ -297,18 +302,17 @@ export function OwnerDashboard() {
                         <Building2 size={18} className="text-violet-600" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900" style={headingStyle}>
+                        <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
                           {inst.name}
                         </h4>
                         {inst.slug && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">/i/{inst.slug}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            /i/{inst.slug}
+                          </p>
                         )}
                       </div>
                     </div>
-                    <ArrowRight
-                      size={16}
-                      className="text-gray-300 group-hover:text-violet-500 transition-colors mt-2"
-                    />
+                    <ArrowRight size={16} className="text-gray-300 group-hover:text-violet-500 transition-colors mt-2" />
                   </div>
 
                   {/* Stats */}
