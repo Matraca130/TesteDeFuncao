@@ -237,7 +237,6 @@ export async function getVideos(summaryId?: string): Promise<any[]> {
 export async function createVideo(dataOrSummaryId: any, maybeData?: any): Promise<any> {
   let videoData: any;
   if (typeof dataOrSummaryId === 'string' && maybeData) {
-    // Agent 4 call pattern: createVideo(summaryId, { title, url, duration_ms, order_index })
     videoData = {
       title: maybeData.title,
       url: maybeData.url,
@@ -247,7 +246,6 @@ export async function createVideo(dataOrSummaryId: any, maybeData?: any): Promis
       order: maybeData.order_index ?? maybeData.order ?? 0,
     };
   } else {
-    // Agent 6 call pattern: createVideo({ title, url, ... })
     videoData = dataOrSummaryId;
   }
   if (USE_MOCKS) {
@@ -265,14 +263,11 @@ export async function updateVideo(idOrSummaryId: string, dataOrId: any, maybeDat
   let id: string;
   let data: any;
   if (typeof dataOrId === 'string' && maybeData) {
-    // Agent 4 call pattern: updateVideo(summaryId, id, data)
     id = dataOrId;
     data = maybeData;
-    // Adapt A4 fields if present
     if (data.duration_ms !== undefined) data.duration_seconds = Math.round(data.duration_ms / 1000);
     if (data.order_index !== undefined) data.order = data.order_index;
   } else {
-    // Agent 6 call pattern: updateVideo(id, data)
     id = idOrSummaryId;
     data = dataOrId;
   }
@@ -358,8 +353,6 @@ export async function getVideoNotes(videoId: string): Promise<VideoNote[]> {
   return (await res.json()).data;
 }
 
-// Polymorphic: createVideoNote(videoId, noteText, timestampSeconds)
-//           OR createVideoNote(videoId, studentId, noteText, timestampMs)
 export async function createVideoNote(
   videoId: string,
   noteTextOrStudentId: string,
@@ -370,11 +363,9 @@ export async function createVideoNote(
   let timestampSeconds: number | null;
 
   if (maybeTimestampMs !== undefined) {
-    // Agent 4 pattern: (videoId, studentId, noteText, timestampMs)
     noteText = timestampSecondsOrNoteText as string;
     timestampSeconds = maybeTimestampMs != null ? Math.round(maybeTimestampMs / 1000) : null;
   } else {
-    // Agent 6 pattern: (videoId, noteText, timestampSeconds)
     noteText = noteTextOrStudentId;
     timestampSeconds = timestampSecondsOrNoteText as number | null;
   }
@@ -454,7 +445,6 @@ export async function getStudyPlans(_studentId?: string): Promise<any[]> {
   return (await res.json()).data;
 }
 
-// Polymorphic: createStudyPlan(A6data) OR createStudyPlan(A4data)
 export async function createStudyPlan(data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
@@ -531,8 +521,6 @@ export const deleteFlashcard = softDeleteFlashcard;
 export async function getKeywordsBySummary(summaryId: string): Promise<KeywordSummaryLink[]> {
   if (USE_MOCKS) {
     await delay();
-    // In mock mode, keywords have summary_id directly
-    // Return KeywordSummaryLink-shaped objects
     return store.keywords
       .filter(kw => kw.summary_id === summaryId && !kw.deleted_at)
       .map(kw => ({
@@ -561,7 +549,6 @@ export async function getQuizQuestionsBySummary(summaryId: string): Promise<any[
 export const deleteQuizQuestion = softDeleteQuizQuestion;
 
 // ── Video shims (use-videos.ts) ──────────────────────────────
-// deleteVideo(summaryId, id) — Agent 4 pattern
 export async function deleteVideo(_summaryId: string, id: string): Promise<void> {
   return softDeleteVideo(id);
 }
@@ -573,11 +560,10 @@ export async function fetchContentHierarchy(): Promise<{
 }> {
   if (USE_MOCKS) {
     await delay();
-    // Derive topics from summaries
     const topicMap = new Map<string, string>();
     store.summaries.forEach(s => {
       if (!topicMap.has(s.topic_id)) {
-        topicMap.set(s.topic_id, s.title); // use summary title as topic name fallback
+        topicMap.set(s.topic_id, s.title);
       }
     });
     const topics = Array.from(topicMap.entries()).map(([id, name]) => ({ id, name }));
@@ -597,8 +583,6 @@ export async function fetchContentHierarchy(): Promise<{
 export async function getStudyGoals(planId: string): Promise<StudyGoal[]> {
   if (USE_MOCKS) {
     await delay();
-    // In mock mode, study plans have items[], not separate goals.
-    // Convert items to StudyGoal shape.
     const plan = store.studyPlans.find(p => p.id === planId);
     if (!plan) return [];
     return plan.items.map((item: StudyPlanItem) => ({
@@ -621,7 +605,6 @@ export async function getStudyGoals(planId: string): Promise<StudyGoal[]> {
 export async function updateStudyGoal(goalId: string, data: Partial<StudyGoal>): Promise<void> {
   if (USE_MOCKS) {
     await delay();
-    // Update the corresponding study plan item
     for (const plan of store.studyPlans) {
       const itemIdx = plan.items.findIndex((i: StudyPlanItem) => i.id === goalId);
       if (itemIdx !== -1) {
@@ -630,7 +613,6 @@ export async function updateStudyGoal(goalId: string, data: Partial<StudyGoal>):
         } else if (data.status === 'in-progress' || data.status === 'pending') {
           plan.items[itemIdx] = { ...plan.items[itemIdx], completed: false };
         }
-        // Recalculate progress
         const completed = plan.items.filter((i: StudyPlanItem) => i.completed).length;
         plan.progress = plan.items.length > 0 ? Math.round((completed / plan.items.length) * 100) : 0;
         return;
@@ -645,7 +627,6 @@ export async function updateStudyGoal(goalId: string, data: Partial<StudyGoal>):
 export async function getSmartRecommendations(_studentId: string, _limit?: number): Promise<SmartStudyRecommendation[]> {
   if (USE_MOCKS) {
     await delay();
-    // Convert SmartStudyItem → SmartStudyRecommendation
     return store.smartStudy.map((item, i) => ({
       id: `rec-${item.keyword_id}`,
       student_id: _studentId,
@@ -667,7 +648,6 @@ export async function getSmartRecommendations(_studentId: string, _limit?: numbe
 export async function dismissRecommendation(recId: string): Promise<void> {
   if (USE_MOCKS) {
     await delay();
-    // Remove from smart study items
     const kwId = recId.replace('rec-', '');
     store.smartStudy = store.smartStudy.filter(s => s.keyword_id !== kwId);
     return;
@@ -696,7 +676,6 @@ export async function createKwStudentNote(kwId: string, _studentId: string, cont
       created_at: now().split('T')[0],
       deleted_at: null,
     };
-    // Also set .content for A4 compat
     const a4Note = { ...n, content };
     store.studentNotes.push(n);
     return a4Note;
@@ -724,7 +703,6 @@ export const restoreKwStudentNote = restoreStudentNote;
 export async function getVideoNotesByVideo(videoId: string, _studentId: string): Promise<any[]> {
   if (USE_MOCKS) {
     await delay();
-    // Return with .content and .timestamp_ms for A4 compat
     return store.videoNotes
       .filter(n => n.video_id === videoId)
       .map(n => ({
@@ -736,3 +714,9 @@ export async function getVideoNotesByVideo(videoId: string, _studentId: string):
   const res = await fetch(`${API_BASE_URL}/videos/${videoId}/notes?student_id=${_studentId}`, { headers: authHeaders() });
   return (await res.json()).data;
 }
+
+// ══════════════════════════════════════════════════════════════
+// COMMIT 3: Bridge re-exports from api-client-extensions.ts
+// TECH-DEBT(Phase4): Remove after hooks import directly from api-*.ts
+// ══════════════════════════════════════════════════════════════
+export * from './api-client-extensions';
