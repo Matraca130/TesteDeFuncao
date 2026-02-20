@@ -1,4 +1,5 @@
 // ErrorBoundary + Skeleton Presets — Agent 7 (NEXUS)
+// P5/A7-10: Migrated inline fontFamily → font-heading / font-body
 import React from 'react';
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -45,10 +46,10 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
                 <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
-              <h2 className="text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+              <h2 className="text-gray-900 font-heading">
                 Algo deu errado
               </h2>
-              <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>
+              <p className="text-gray-500 font-body">
                 {this.state.error?.message || 'Ocorreu um erro inesperado.'}
               </p>
               <div className="flex gap-3 mt-2">
