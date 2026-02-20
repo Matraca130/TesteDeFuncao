@@ -67,37 +67,71 @@ function getKvPrefixProperties(filePath) {
   const content = readFileSync(filePath, 'utf-8');
   const props = new Set();
 
-  // Find the KV_PREFIXES object and extract property names
+  // Find the KV_PREFIXES object and extract property names.
+  // Supports both `} as const` and `} as const satisfies ...` endings.
   const objMatch = content.match(
-    /export\s+const\s+KV_PREFIXES\s*=\s*\{([^]*?)\}\s*as\s+const/s
+    /export\s+const\s+KV_PREFIXES\s*=\s*\{([\s\S]*?)\}\s*(?:as\s+const|satisfies)/
   );
-  if (!objMatch) return props;
+  if (!objMatch) {
+    // Fallback: try without `as const` (plain object)
+    const fallback = content.match(
+      /export\s+const\s+KV_PREFIXES\s*(?::\s*Record<[^>]+>)?\s*=\s*\{([\s\S]*?)\}/
+    );
+    if (!fallback) return props;
+    extractProps(fallback[1], props);
+    return props;
+  }
 
-  const body = objMatch[1];
+  extractProps(objMatch[1], props);
+  return props;
+}
+
+function extractProps(body, props) {
+  // Match property names: ALL_CAPS identifiers followed by :
   const propRe = /^\s*([A-Z_][A-Z0-9_]*)\s*:/gm;
   let m;
   while ((m = propRe.exec(body)) !== null) {
     props.add(m[1]);
   }
-  return props;
 }
 
-/** Extract imported names from a file that come from a specific target */
+/**
+ * Extract imported names from file content that come from a specific target.
+ *
+ * CRITICAL: Does NOT use the `s` (dotAll) flag. This prevents `.` from
+ * matching newlines, which would cause the regex to span across multiple
+ * import statements (e.g., matching `Hono` from line N with `kv-keys.ts`
+ * from line N+1).
+ *
+ * Multi-line imports still work because:
+ *   - `[^}]` matches newlines (character classes always do)
+ *   - `\s` matches newlines (character classes always do)
+ *   - Only `.` in the path portion is affected, and import paths are
+ *     always single-line.
+ */
 function getImportsFrom(content, targetBaseName) {
   const names = [];
 
   // Strip extension for matching
-  const escaped = targetBaseName
-    .replace(/\.[^.]+$/, '')
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const bare = targetBaseName.replace(/\.[^.]+$/, '');
+  const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+  // Match: import { ... } from "<relative-path>/<target>"
+  // Path part uses [^'"\n]* to prevent crossing quotes or newlines.
+  // NO `s` flag — `.` must not match newlines.
   const importRe = new RegExp(
-    `import\\s*(?:type\\s*)?\\{([^}]+)\\}\\s*from\\s*['"](?:\\.?\\.?\\/)*(?:.*?\\/)?${escaped}(?:\\.\\w+)?['"]`,
-    'gs'
+    `import\\s*(?:type\\s*)?\\{([^}]+)\\}\\s*from\\s*['"](\\.{1,2}\\/[^'"\\n]*/)?${escaped}(?:\\.\\w+)?['"]`,
+    'g'
   );
 
   let m;
   while ((m = importRe.exec(content)) !== null) {
+    // Skip external modules (npm:, jsr:, http:, https:, node:)
+    const fullMatch = m[0];
+    if (/from\s*['"](?:npm:|jsr:|https?:|node:)/.test(fullMatch)) {
+      continue;
+    }
+
     const block = m[1];
     for (const part of block.split(',')) {
       const trimmed = part.trim();
@@ -118,7 +152,7 @@ function getKvPrefixUsage(content) {
   while ((m = re.exec(content)) !== null) {
     props.push(m[1]);
   }
-  return props;
+  return [...new Set(props)]; // deduplicate
 }
 
 // ── Main ────────────────────────────────────────────────
