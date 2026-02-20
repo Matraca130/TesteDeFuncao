@@ -1,4 +1,7 @@
 // Axon v4.4 — API Core: Config, Auth, Helpers, Mock Store
+// FIX P2: Uses apiBaseUrl from config.ts for correct Supabase URL resolution
+// (was '/api' before, causing 404 in production when mocks disabled)
+import { apiBaseUrl } from './config';
 import {
   MOCK_PLANS, MOCK_PLAN_RULES, MOCK_VIDEOS, MOCK_ADMIN_SCOPES,
   MOCK_KW_STUDENT_NOTES, MOCK_KW_PROF_NOTES, MOCK_VIDEO_NOTES,
@@ -18,7 +21,13 @@ import type {
 } from './types';
 
 export const USE_MOCKS: boolean = typeof import.meta !== 'undefined' && import.meta.env?.VITE_USE_MOCKS === 'false' ? false : true;
-export const API_BASE_URL: string = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL as string) || '/api';
+
+// FIX P2: Use config.ts apiBaseUrl (handles Figma Make vs Production)
+// Explicit VITE_API_BASE_URL still wins if set, for manual override.
+export const API_BASE_URL: string =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL as string)
+  || apiBaseUrl
+  || '/api';
 
 let _authToken: string | null = null;
 export function setApiAuthToken(token: string | null): void { _authToken = token; }
