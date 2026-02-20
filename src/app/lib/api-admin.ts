@@ -1,0 +1,5 @@
+import type { AdminScope } from './types';
+import { USE_MOCKS, API_BASE_URL, authHeaders, store, mockId, delay, now } from './api-core';
+
+export async function getAdminScopes(instId: string): Promise<AdminScope[]> { if (USE_MOCKS) { await delay(); return store.adminScopes.filter(s => s.institution_id === instId); } return (await (await fetch(`${API_BASE_URL}/institutions/${instId}/scopes`, { headers: authHeaders() })).json()).data; }
+export async function createAdminScope(instId: string, scope: Partial<AdminScope>): Promise<AdminScope> { if (USE_MOCKS) { await delay(); const n: AdminScope = { id: mockId('scope'), institution_id: instId, user_id: scope.user_id || '', scope_type: scope.scope_type || 'course', scope_id: scope.scope_id, role: scope.role || 'professor', created_at: now() }; store.adminScopes.push(n); return n; } return (await (await fetch(`${API_BASE_URL}/institutions/${instId}/scopes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(scope) })).json()).data; }

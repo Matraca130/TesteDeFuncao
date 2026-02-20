@@ -1,0 +1,10 @@
+// Axon v4.4 — Types: Student domain
+export interface StudentProfile { id: string; user_id: string; name: string; email: string; avatar_url: string | null; institution_id: string; plan_id: string | null; created_at: string; updated_at: string; }
+export interface StudentStats { totalStudyMinutes: number; totalSessions: number; totalCardsReviewed: number; totalQuizzesCompleted: number; currentStreak: number; longestStreak: number; averageDailyMinutes: number; lastStudyDate: string; weeklyActivity: number[]; }
+export interface DailyActivity { date: string; studyMinutes: number; sessionsCount: number; cardsReviewed: number; retentionPercent?: number; }
+export interface CourseProgress { courseId: string; courseName: string; masteryPercent: number; lessonsCompleted: number; lessonsTotal: number; flashcardsMastered: number; flashcardsTotal: number; quizAverageScore: number; lastAccessedAt: string; }
+export interface StudySession { id: string; student_id: string; course_id: string; topic_id?: string; started_at: string; ended_at: string; duration_minutes: number; activity_type: 'reading' | 'flashcard' | 'quiz' | 'mixed'; }
+export interface FlashcardReview { id: string; student_id: string; card_id: string; course_id: string; rating: number; reviewed_at: string; }
+export interface StudySummary { id: string; student_id: string; course_id: string; topic_id: string; course_name: string; topic_title: string; content: string; annotations: StudySummaryAnnotation[]; keyword_mastery: Record<string, string>; keyword_notes: Record<string, string[]>; edit_time_minutes: number; tags: string[]; bookmarked: boolean; created_at: string; updated_at: string; }
+export interface StudySummaryAnnotation { id: string; type: string; selected_text: string; note: string; color: string; bot_reply?: string; timestamp: string; }
+export interface SummaryReadingState { summary_id: string; student_id: string; progress_percent: number; last_position: number; time_spent_seconds: number; completed: boolean; last_read_at: string; }
