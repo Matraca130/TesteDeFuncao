@@ -187,7 +187,7 @@ export async function saveSummaryReadingState(
   return (await res.json()).data;
 }
 
-// ── Seed Demo Data ────────────────────────────────────────────
+// ── Seed All Demo Data ────────────────────────────────────────
 export async function seedDemoData(): Promise<void> {
   if (USE_MOCKS) {
     await delay(300);
@@ -197,5 +197,12 @@ export async function seedDemoData(): Promise<void> {
     console.log('[api-student] Demo data seeded (mock mode)');
     return;
   }
-  await fetch(`${API_BASE_URL}/seed`, { method: 'POST', headers: authHeaders() });
+  // Calls /seed-all which seeds student + content + SACRED + misc + P3 entities
+  const res = await fetch(`${API_BASE_URL}/seed-all`, { method: 'POST', headers: authHeaders() });
+  const json = await res.json();
+  if (!json.success) {
+    console.error('[seedDemoData] Seed failed:', json.error);
+    throw new Error(json.error?.message || 'Seed failed');
+  }
+  console.log(`[seedDemoData] Seeded ${json.data?.total ?? '?'} KV keys`);
 }
