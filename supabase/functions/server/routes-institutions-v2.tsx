@@ -4,7 +4,7 @@
 // Uses: institutions, memberships, profiles, institution_plans tables
 //
 // Routes:
-//   GET    /institutions                         — list all
+//   GET    /institutions                         — list (super_admin=all, user=own)
 //   GET    /institutions/by-slug/:slug           — get by slug
 //   GET    /institutions/check-slug/:slug        — check slug availability
 //   GET    /institutions/:instId                 — get by id
@@ -18,17 +18,61 @@ import { db, ok, err, notFoundErr, validationErr, unauthorizedErr, getAuthUserId
 
 const institutions = new Hono();
 
-// ── GET /institutions ───────────────────────────────────
-institutions.get("/institutions", async (c) => {
+// ── Helper: check if user is platform super_admin ──
+async function isSuperAdmin(userId: string): Promise<boolean> {
   try {
-    const { data, error } = await db()
-      .from("institutions")
-      .select("*, owner:profiles!institutions_owner_id_fkey(id, email, full_name, avatar_url)")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
+    const { data: profile } = await db()
+      .from("profiles")
+      .select("platform_role")
+      .eq("id", userId)
+      .maybeSingle();
+    return profile?.platform_role === "platform_admin";
+  } catch {
+    return false;
+  }
+}
 
-    if (error) throw error;
-    return c.json(ok(data || []));
+// ── GET /institutions ───────────────────────────────────────
+institutions.get("/institutions", async (c) => {
+  const userId = await getAuthUserId(c);
+  if (!userId) return c.json(unauthorizedErr(), 401);
+
+  try {
+    const superAdmin = await isSuperAdmin(userId);
+
+    if (superAdmin) {
+      // Super admin (platform owner) sees ALL active institutions
+      const { data, error } = await db()
+        .from("institutions")
+        .select("*, owner:profiles!institutions_owner_id_fkey(id, email, full_name, avatar_url)")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return c.json(ok(data || []));
+    } else {
+      // Regular user sees only institutions where they have a membership
+      const { data: memberInsts, error: memErr } = await db()
+        .from("memberships")
+        .select("institution_id")
+        .eq("user_id", userId)
+        .eq("is_active", true);
+
+      if (memErr) throw memErr;
+
+      const instIds = (memberInsts || []).map((m: any) => m.institution_id);
+      if (instIds.length === 0) return c.json(ok([]));
+
+      const { data, error } = await db()
+        .from("institutions")
+        .select("*, owner:profiles!institutions_owner_id_fkey(id, email, full_name, avatar_url)")
+        .in("id", instIds)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return c.json(ok(data || []));
+    }
   } catch (e: any) {
     console.log("[Institutions] GET list error:", e?.message);
     return c.json(err(`Failed to list institutions: ${e?.message}`), 500);
@@ -110,6 +154,21 @@ institutions.get("/institutions/:instId/dashboard-stats", async (c) => {
   try {
     const instId = c.req.param("instId");
 
+    // Allow access for super_admin OR members of the institution
+    const superAdmin = await isSuperAdmin(userId);
+    if (!superAdmin) {
+      const { data: membership } = await db()
+        .from("memberships")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("institution_id", instId)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!membership) {
+        return c.json(err("Not a member of this institution", "FORBIDDEN"), 403);
+      }
+    }
+
     const { data: institution, error: instErr } = await db()
       .from("institutions")
       .select("id, name")
@@ -170,7 +229,7 @@ institutions.get("/institutions/:instId/dashboard-stats", async (c) => {
   }
 });
 
-// ── POST /institutions ──────────────────────────────────
+// ── POST /institutions ──────────────────────────────────────
 institutions.post("/institutions", async (c) => {
   const user = await getAuthUser(c);
   if (!user) return c.json(unauthorizedErr(), 401);
@@ -240,16 +299,20 @@ institutions.put("/institutions/:instId", async (c) => {
   try {
     const instId = c.req.param("instId");
 
-    const { data: membership } = await db()
-      .from("memberships")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("institution_id", instId)
-      .eq("is_active", true)
-      .maybeSingle();
+    // Allow super_admin or owner/admin of institution
+    const superAdmin = await isSuperAdmin(userId);
+    if (!superAdmin) {
+      const { data: membership } = await db()
+        .from("memberships")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("institution_id", instId)
+        .eq("is_active", true)
+        .maybeSingle();
 
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
-      return c.json(err("Only owner or admin can update the institution", "FORBIDDEN"), 403);
+      if (!membership || !["owner", "admin"].includes(membership.role)) {
+        return c.json(err("Only owner or admin can update the institution", "FORBIDDEN"), 403);
+      }
     }
 
     const body = await c.req.json();
@@ -301,15 +364,19 @@ institutions.delete("/institutions/:instId", async (c) => {
   try {
     const instId = c.req.param("instId");
 
-    const { data: membership } = await db()
-      .from("memberships")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("institution_id", instId)
-      .maybeSingle();
+    // Allow super_admin or owner of institution
+    const superAdmin = await isSuperAdmin(userId);
+    if (!superAdmin) {
+      const { data: membership } = await db()
+        .from("memberships")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("institution_id", instId)
+        .maybeSingle();
 
-    if (!membership || membership.role !== "owner") {
-      return c.json(err("Only the owner can delete an institution", "FORBIDDEN"), 403);
+      if (!membership || membership.role !== "owner") {
+        return c.json(err("Only the owner can delete an institution", "FORBIDDEN"), 403);
+      }
     }
 
     const { data, error } = await db()
