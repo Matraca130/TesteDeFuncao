@@ -88,9 +88,10 @@ export const canAccessAdmin = (role: MembershipRole): boolean =>
 
 // Maps role to the first real page after login.
 // These must match actual routes in routes.tsx.
+// UPDATED: owner → /owner (OwnerDashboard), admin → /admin (AdminShell)
 export const getRouteForRole = (role: MembershipRole): string => {
   switch (role) {
-    case 'owner':     return '/admin';
+    case 'owner':     return '/owner';
     case 'admin':     return '/admin';
     case 'professor': return '/professor/keywords';
     case 'student':   return '/study/smart-study';

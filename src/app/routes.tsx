@@ -1,13 +1,9 @@
 // ============================================================
 // Axon v4.4 — Route Configuration (UNIFIED + AUTH WIRED)
 //
-// BEFORE: All routes were unprotected under AppNavigation.
-//         LandingPage, login pages, and guards existed as dead code.
-//
-// NOW:    LandingPage is the entry point at /.
-//         Auth pages are connected as public routes.
-//         App routes (admin, professor, study) keep their paths
-//         and are rendered with AppNavigation layout.
+// UPDATED: Owner and Admin are now SEPARATE areas:
+//   /owner  → OwnerDashboard (sees all their institutions)
+//   /admin  → AdminShell (manages one specific institution)
 //
 // Route specificity (React Router v7):
 //   /admin/login     → AdminLoginPage     (static, higher priority)
@@ -27,6 +23,9 @@ import { StudentSignupPage } from './pages/StudentSignupPage';
 import { InstitutionPublicPage } from './pages/InstitutionPublicPage';
 import { SelectInstitutionPage } from './pages/SelectInstitutionPage';
 import { NoInstitutionPage } from './pages/NoInstitutionPage';
+
+// ── Owner area (full-screen, no sidebar) ──
+import { OwnerDashboard } from './pages/OwnerDashboard';
 
 // ── Auth routing ──
 import { PostLoginRouter } from './components/guards/PostLoginRouter';
@@ -93,7 +92,11 @@ export const router = createBrowserRouter([
   { path: '/i/:slug/login', Component: StudentLoginPage },
   { path: '/i/:slug/signup', Component: StudentSignupPage },
 
-  // Post-login router — redirects by role to /admin, /professor, /study
+  // Post-login router — redirects by role:
+  //   owner → /owner
+  //   admin → /admin
+  //   professor → /professor
+  //   student → /study
   { path: '/go', Component: PostLoginRouter },
 
   // Auth: institution selection (wraps itself with RequireAuth)
@@ -101,10 +104,15 @@ export const router = createBrowserRouter([
   { path: '/no-institution', Component: NoInstitutionPage },
 
   // ============================================================
+  // OWNER AREA — Full-screen, no sidebar
+  // Shows all institutions owned by the user.
+  // Separate from /admin which manages ONE institution.
+  // ============================================================
+  { path: '/owner', Component: OwnerDashboard },
+
+  // ============================================================
   // APP ROUTES — With AppNavigation sidebar layout
   // These paths match what getRouteForRole() returns.
-  // React Router specificity ensures /admin/login (static) matches
-  // BEFORE /admin (layout) — no conflict.
   // ============================================================
 
   // Dashboard (generic home after login)
@@ -116,7 +124,8 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin routes — getRouteForRole('owner'|'admin') → '/admin'
+  // Admin routes — getRouteForRole('admin') → '/admin'
+  // Owner can also arrive here after selecting an institution from /owner
   {
     path: '/admin',
     Component: AppNavigation,
