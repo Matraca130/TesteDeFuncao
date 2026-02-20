@@ -17,6 +17,18 @@ export const quizAttemptKey  = (id: string) => `quiz-attempt:${id}`;
 export const quizBundleKey   = (id: string) => `quiz-bundle:${id}`;
 export const learningProfileKey = (studentId: string) => `learning-profile:${studentId}`;
 
+// ── Sessions & Reviews ────────────────────────────────────────
+export const sessionKey  = (id: string) => `session:${id}`;
+export const reviewKey   = (id: string) => `review:${id}`;
+
+// ── Reading & Annotations ─────────────────────────────────────
+export const readingKey    = (studentId: string, summaryId: string) => `reading:${studentId}:${summaryId}`;
+export const annotationKey = (id: string) => `annotation:${id}`;
+
+// ── Content hierarchy (used by routes-reading full payload) ───
+export const topicKey    = (id: string) => `topic:${id}`;
+export const subtopicKey = (id: string) => `subtopic:${id}`;
+
 // ── ATLAS P1: Plans, PlanRules, AdminScopes ───────────────────
 export const pricingPlanKey  = (id: string) => `pricing-plan:${id}`;
 export const planRuleKey     = (id: string) => `plan-rule:${id}`;
@@ -39,6 +51,21 @@ export const idxKwFc         = (kwId: string, fcId: string) => `idx:kw-fc:${kwId
 export const idxSummaryFc    = (sumId: string, fcId: string) => `idx:summary-fc:${sumId}:${fcId}`;
 export const idxDue          = (studentId: string, cardId: string, date: string) => `idx:due:${studentId}:${cardId}:${date}`;
 export const idxStudentFsrs  = (studentId: string, cardId: string) => `idx:student-fsrs:${studentId}:${cardId}`;
+
+// Session indices
+export const idxStudentSessions = (studentId: string, courseId: string, sessionId: string) => `idx:student-sessions:${studentId}:${courseId}:${sessionId}`;
+export const idxSessionReviews  = (sessionId: string, reviewId: string) => `idx:session-reviews:${sessionId}:${reviewId}`;
+
+// BKT indices
+export const idxStudentBkt   = (studentId: string, subtopicId: string) => `idx:student-bkt:${studentId}:${subtopicId}`;
+export const idxStudentKwBkt = (studentId: string, keywordId: string, subtopicId: string) => `idx:student-kw-bkt:${studentId}:${keywordId}:${subtopicId}`;
+
+// Reading indices
+export const idxStudentReading     = (studentId: string, summaryId: string) => `idx:student-reading:${studentId}:${summaryId}`;
+export const idxStudentAnnotations = (studentId: string, summaryId: string, annotationId: string) => `idx:student-annotations:${studentId}:${summaryId}:${annotationId}`;
+
+// Content hierarchy indices
+export const idxTopicSummaries = (topicId: string, summaryId: string) => `idx:topic-summaries:${topicId}:${summaryId}`;
 
 // Plan indices
 export const idxInstPricingPlans = (instId: string, planId: string) => `idx:inst-pricing-plans:${instId}:${planId}`;
@@ -65,6 +92,20 @@ export const KV_PREFIXES = {
   IDX_STUDENT_ATTEMPTS: "idx:student-attempts:",
   IDX_STUDENT_FSRS: "idx:student-fsrs:",
   IDX_STUDENT_BKT: "idx:student-bkt:",
+  IDX_STUDENT_KW_BKT: "idx:student-kw-bkt:",
+  // Sessions
+  IDX_STUDENT_SESSIONS: "idx:student-sessions:",
+  IDX_SESSION_REVIEWS: "idx:session-reviews:",
+  // Reading
+  IDX_STUDENT_READING: "idx:student-reading:",
+  IDX_STUDENT_ANNOTATIONS: "idx:student-annotations:",
+  // Content hierarchy
+  IDX_TOPIC_SUMMARIES: "idx:topic-summaries:",
+  IDX_SUMMARY_KW: "idx:summary-kw:",
+  IDX_KW_SUBTOPICS: "idx:kw-subtopics:",
+  IDX_KW_FC: "idx:kw-fc:",
+  IDX_KW_QUIZ: "idx:kw-quiz:",
+  IDX_KW_ATTEMPTS: "idx:kw-attempts:",
   // Plans
   PRICING_PLANS: "pricing-plan:",
   PLAN_RULES: "plan-rule:",
