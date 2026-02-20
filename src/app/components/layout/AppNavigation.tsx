@@ -2,12 +2,13 @@
 // AppNavigation — Layout shell with sidebar for Axon v4.4
 // ============================================================
 import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import {
   Home, Key, Layers, HelpCircle, Play, Rocket,
   Brain, Target, Calendar, BarChart3,
-  ChevronLeft, Menu, GraduationCap, BookOpen
+  ChevronLeft, Menu, GraduationCap, BookOpen, LogOut
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { Badge } from '../ui/badge';
@@ -35,10 +36,17 @@ const STUDENT_NAV: NavItem[] = [
 
 export function AppNavigation() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isProfessor = location.pathname.startsWith('/professor');
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/', { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-[#f9fafb]" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -148,6 +156,24 @@ export function AppNavigation() {
             </Link>
           </div>
         </ScrollArea>
+
+        {/* User + Logout */}
+        <div className="p-3 border-t border-white/10">
+          {!collapsed && user && (
+            <p className="text-white/50 text-xs truncate px-2 mb-2">
+              {user.name || user.email}
+            </p>
+          )}
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-white/5 transition-colors
+              ${collapsed ? 'justify-center' : ''}
+            `}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span style={{ fontSize: '0.875rem' }}>Sair</span>}
+          </button>
+        </div>
 
         {/* Collapse button */}
         <div className="p-3 hidden lg:block">

@@ -25,7 +25,9 @@ import {
   Menu,
   X,
   GraduationCap,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -50,6 +52,12 @@ export function AdminShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/', { replace: true });
+  };
 
   const isActive = (path: string) => {
     if (path === '/admin') {
@@ -123,7 +131,13 @@ export function AdminShell() {
 
         {/* Footer */}
         <div className="border-t border-zinc-200 px-4 py-3">
-          <p className="text-xs text-zinc-400">Axon v4.4 — Phase P2 (Mocks)</p>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-xs text-zinc-400 hover:text-red-500 transition-colors w-full"
+          >
+            <LogOut className="size-3.5" />
+            Sair
+          </button>
         </div>
       </aside>
 
@@ -141,9 +155,19 @@ export function AdminShell() {
           </Button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
+            {user && (
+              <span className="text-sm text-zinc-600 hidden sm:inline">
+                {user.name || user.email}
+              </span>
+            )}
             <div className="size-8 rounded-full bg-teal-100 flex items-center justify-center">
-              <span className="text-xs text-teal-700">CM</span>
+              <span className="text-xs text-teal-700">
+                {(user?.name || user?.email || 'U').substring(0, 2).toUpperCase()}
+              </span>
             </div>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-zinc-400 hover:text-red-500">
+              <LogOut className="size-4" />
+            </Button>
           </div>
         </header>
 
