@@ -1,10 +1,12 @@
 // A7-08 | SummaryDiagnostic.tsx — Agent 7 (NEXUS)
 // UI diagnostico de summary completo
-import { useState, useEffect } from 'react';
+// Architecture: UI → useSummaryDiagnostic → ai-api → Backend
+// P5/A7-10: Migrated inline fontFamily → font-heading / font-body
 import { useParams, useNavigate } from 'react-router';
 import {
   ArrowLeft, Brain, Sparkles, BookOpen, Target,
-  TrendingUp, Layers, Clock, Play, AlertCircle
+  TrendingUp, Layers, Clock, Play, AlertCircle,
+  Wifi, WifiOff, RotateCcw
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -14,6 +16,7 @@ import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FeedbackSkeleton } from '../components/shared/ErrorBoundary';
+import { useSummaryDiagnostic } from '../hooks/useAiFeedback';
 
 // ── BKT Color Helper ──
 function getBktColor(pKnow: number) {
@@ -22,43 +25,6 @@ function getBktColor(pKnow: number) {
   if (pKnow < 0.75) return { color: '#eab308', label: 'Quase domina', tw: 'bg-yellow-500', textTw: 'text-yellow-700', borderTw: 'border-yellow-300', bgTw: 'bg-yellow-50' };
   return { color: '#22c55e', label: 'Domina', tw: 'bg-green-500', textTw: 'text-green-700', borderTw: 'border-green-300', bgTw: 'bg-green-50' };
 }
-
-// ── Mock Data (Section 14) ──
-const MOCK_SUMMARY_DIAGNOSTIC = {
-  summary_id: 'sum-1',
-  summary_title: 'Biologia Celular',
-  overall_mastery: 62,
-  bkt_level: 'yellow' as const,
-  keywords_breakdown: [
-    { keyword_id: 'kw-1', term: 'Mitocondria', p_know: 0.85, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-2', term: 'Ribossomo', p_know: 0.65, bkt_color: '#eab308', status: 'em_progresso' as const },
-    { keyword_id: 'kw-3', term: 'DNA Polimerase', p_know: 0.45, bkt_color: '#f97316', status: 'em_progresso' as const },
-    { keyword_id: 'kw-4', term: 'Meiose', p_know: 0.15, bkt_color: '#ef4444', status: 'precisa_atencao' as const },
-    { keyword_id: 'kw-5', term: 'Complexo de Golgi', p_know: 0.78, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-6', term: 'Reticulo Endoplasmatico', p_know: 0.55, bkt_color: '#eab308', status: 'em_progresso' as const },
-    { keyword_id: 'kw-7', term: 'Membrana Plasmatica', p_know: 0.90, bkt_color: '#22c55e', status: 'dominado' as const },
-    { keyword_id: 'kw-8', term: 'Lisossomo', p_know: 0.30, bkt_color: '#f97316', status: 'em_progresso' as const },
-  ],
-  quiz_performance: { total_attempts: 8, average_accuracy: 68, best_topic: 'Mitocondria', worst_topic: 'Meiose' },
-  flashcard_performance: { total_reviews: 120, retention_rate: 75, mastered_count: 15 },
-  ai_analysis: {
-    overall_assessment: 'Voce tem uma base solida em biologia celular, especialmente em organelas como mitocondria e complexo de Golgi. Porem, conceitos de divisao celular (meiose) precisam de mais atencao. Sua taxa de retencao de flashcards (75%) e boa, mas pode melhorar com sessoes mais frequentes.',
-    key_strengths: ['Organelas celulares (mitocondria, Golgi, membrana)', 'Vocabulario tecnico', 'Processos metabolicos basicos'],
-    gaps: ['Divisao celular (meiose vs mitose)', 'Replicacao de DNA detalhada', 'Funcao dos lisossomos', 'Aplicacao pratica de conceitos'],
-    recommended_actions: [
-      'Revisar meiose com videos explicativos',
-      'Fazer 10 questoes focadas sobre divisao celular',
-      'Criar flashcards proprios sobre DNA polimerase',
-      'Revisar funcoes do lisossomo em contexto de digestao celular'
-    ],
-    estimated_time_to_mastery: 'Aproximadamente 8 horas mais de estudo focado',
-  },
-  study_plan_suggestion: {
-    priority_keywords: ['Meiose', 'Lisossomo', 'DNA Polimerase'],
-    recommended_order: ['Meiose', 'Lisossomo', 'DNA Polimerase', 'Reticulo Endoplasmatico', 'Ribossomo'],
-    daily_goal_minutes: 30,
-  },
-};
 
 const STATUS_LABELS: Record<string, string> = {
   dominado: 'Dominado',
@@ -70,16 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function SummaryDiagnostic() {
   const { summaryId } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<typeof MOCK_SUMMARY_DIAGNOSTIC | null>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setData(MOCK_SUMMARY_DIAGNOSTIC);
-      setLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [summaryId]);
+  const { data, loading, isMock, refetch } = useSummaryDiagnostic(summaryId);
 
   if (loading || !data) {
     return (
@@ -87,8 +44,8 @@ export function SummaryDiagnostic() {
         <div className="max-w-5xl mx-auto p-4 md:p-6">
           <div className="flex items-center gap-3 mb-6">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
-            <p className="text-indigo-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Gerando diagnostico completo...
+            <p className="text-indigo-600 font-body">
+              Gerando diagnostico completo com AI...
             </p>
           </div>
           <FeedbackSkeleton />
@@ -105,18 +62,32 @@ export function SummaryDiagnostic() {
         <div className="max-w-5xl mx-auto p-4 md:p-6 pb-20 space-y-6">
 
           {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
             </Button>
+            <div className="flex items-center gap-2">
+              {isMock ? (
+                <Badge variant="outline" className="text-orange-500 border-orange-300">
+                  <WifiOff className="w-3 h-3 mr-1" /> Mock
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-green-600 border-green-300">
+                  <Wifi className="w-3 h-3 mr-1" /> AI Live
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" onClick={refetch}>
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+              <h1 className="text-gray-900 font-heading">
                 {data.summary_title}
               </h1>
-              <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>
+              <p className="text-gray-500 font-body">
                 Diagnostico completo de dominio
               </p>
             </div>
@@ -124,11 +95,9 @@ export function SummaryDiagnostic() {
               <Badge className={`${overallBkt.bgTw} ${overallBkt.textTw} ${overallBkt.borderTw} border`}>
                 {overallBkt.label}
               </Badge>
-              <div className="flex items-center gap-2">
-                <span className="text-3xl" style={{ fontFamily: 'Georgia, serif', color: overallBkt.color }}>
-                  {data.overall_mastery}%
-                </span>
-              </div>
+              <span className="text-3xl font-heading" style={{ color: overallBkt.color }}>
+                {data.overall_mastery}%
+              </span>
             </div>
           </div>
 
@@ -144,11 +113,11 @@ export function SummaryDiagnostic() {
           {/* Keywords Breakdown Grid */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2" style={{ fontFamily: 'Georgia, serif' }}>
+              <CardTitle className="flex items-center gap-2 font-heading">
                 <BookOpen className="w-5 h-5 text-teal-500" />
                 Keywords — Dominio Individual
               </CardTitle>
-              <CardDescription style={{ fontFamily: 'Inter, sans-serif' }}>
+              <CardDescription className="font-body">
                 Nivel de dominio de cada keyword deste resumo
               </CardDescription>
             </CardHeader>
@@ -162,7 +131,7 @@ export function SummaryDiagnostic() {
                       className="rounded-lg border p-3 bg-white hover:shadow-sm transition-shadow cursor-pointer"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-900" style={{ fontFamily: 'Inter, sans-serif' }}>
+                        <span className="text-gray-900 font-body">
                           {kw.term}
                         </span>
                         <Badge variant="outline" className={`${bkt.bgTw} ${bkt.textTw} ${bkt.borderTw}`}>
@@ -200,25 +169,25 @@ export function SummaryDiagnostic() {
                 <CardContent className="py-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div className="text-center">
-                      <p className="text-2xl text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-2xl text-gray-900 font-heading">
                         {data.quiz_performance.total_attempts}
                       </p>
-                      <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Tentativas</p>
+                      <p className="text-gray-500 font-body">Tentativas</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-2xl text-gray-900 font-heading">
                         {data.quiz_performance.average_accuracy}%
                       </p>
-                      <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Acuracia Media</p>
+                      <p className="text-gray-500 font-body">Acuracia Media</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-green-600" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      <p className="text-green-600 font-body">
                         <Target className="w-4 h-4 inline mr-1" />
                         Melhor: {data.quiz_performance.best_topic}
                       </p>
                     </div>
                     <div className="text-center">
-                      <p className="text-red-500" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      <p className="text-red-500 font-body">
                         <AlertCircle className="w-4 h-4 inline mr-1" />
                         Pior: {data.quiz_performance.worst_topic}
                       </p>
@@ -235,24 +204,24 @@ export function SummaryDiagnostic() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
                       <Layers className="w-6 h-6 text-teal-500 mx-auto mb-2" />
-                      <p className="text-2xl text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-2xl text-gray-900 font-heading">
                         {data.flashcard_performance.total_reviews}
                       </p>
-                      <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Revisoes Totais</p>
+                      <p className="text-gray-500 font-body">Revisoes Totais</p>
                     </div>
                     <div className="text-center">
                       <TrendingUp className="w-6 h-6 text-indigo-500 mx-auto mb-2" />
-                      <p className="text-2xl text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-2xl text-gray-900 font-heading">
                         {data.flashcard_performance.retention_rate}%
                       </p>
-                      <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Taxa de Retencao</p>
+                      <p className="text-gray-500 font-body">Taxa de Retencao</p>
                     </div>
                     <div className="text-center">
                       <Target className="w-6 h-6 text-green-500 mx-auto mb-2" />
-                      <p className="text-2xl text-green-600" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-2xl text-green-600 font-heading">
                         {data.flashcard_performance.mastered_count}
                       </p>
-                      <p className="text-gray-500" style={{ fontFamily: 'Inter, sans-serif' }}>Dominados</p>
+                      <p className="text-gray-500 font-body">Dominados</p>
                     </div>
                   </div>
                 </CardContent>
@@ -265,7 +234,7 @@ export function SummaryDiagnostic() {
                   <CardContent className="py-5">
                     <div className="flex items-start gap-3">
                       <Brain className="w-6 h-6 text-indigo-500 shrink-0 mt-0.5" />
-                      <p className="text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      <p className="text-gray-700 font-body">
                         {data.ai_analysis.overall_assessment}
                       </p>
                     </div>
@@ -275,14 +244,14 @@ export function SummaryDiagnostic() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="border-green-200 bg-green-50/30">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-green-700" style={{ fontFamily: 'Georgia, serif' }}>
+                      <CardTitle className="text-green-700 font-heading">
                         Fortalezas
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-1">
                         {data.ai_analysis.key_strengths.map((s, i) => (
-                          <li key={i} className="flex items-start gap-2 text-green-800" style={{ fontFamily: 'Inter, sans-serif' }}>
+                          <li key={i} className="flex items-start gap-2 text-green-800 font-body">
                             <span className="text-green-500">+</span> {s}
                           </li>
                         ))}
@@ -291,14 +260,14 @@ export function SummaryDiagnostic() {
                   </Card>
                   <Card className="border-orange-200 bg-orange-50/30">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-orange-700" style={{ fontFamily: 'Georgia, serif' }}>
+                      <CardTitle className="text-orange-700 font-heading">
                         Lacunas
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-1">
                         {data.ai_analysis.gaps.map((g, i) => (
-                          <li key={i} className="flex items-start gap-2 text-orange-800" style={{ fontFamily: 'Inter, sans-serif' }}>
+                          <li key={i} className="flex items-start gap-2 text-orange-800 font-body">
                             <span className="text-orange-500">!</span> {g}
                           </li>
                         ))}
@@ -309,7 +278,7 @@ export function SummaryDiagnostic() {
 
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2 text-indigo-700" style={{ fontFamily: 'Georgia, serif' }}>
+                    <CardTitle className="flex items-center gap-2 text-indigo-700 font-heading">
                       <Sparkles className="w-5 h-5" />
                       Acoes Recomendadas
                     </CardTitle>
@@ -318,17 +287,17 @@ export function SummaryDiagnostic() {
                     <div className="space-y-2">
                       {data.ai_analysis.recommended_actions.map((a, i) => (
                         <div key={i} className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center shrink-0" style={{ fontSize: '12px' }}>
+                          <div className="w-6 h-6 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center shrink-0 text-xs">
                             {i + 1}
                           </div>
-                          <span className="text-gray-700" style={{ fontFamily: 'Inter, sans-serif' }}>{a}</span>
+                          <span className="text-gray-700 font-body">{a}</span>
                         </div>
                       ))}
                     </div>
                     <Separator className="my-4" />
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600" style={{ fontFamily: 'Inter, sans-serif' }}>
+                      <span className="text-gray-600 font-body">
                         {data.ai_analysis.estimated_time_to_mastery}
                       </span>
                     </div>
@@ -341,14 +310,14 @@ export function SummaryDiagnostic() {
           {/* Study Plan Suggestion */}
           <Card className="border-teal-200 bg-teal-50/30">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>
+              <CardTitle className="flex items-center gap-2 text-teal-700 font-heading">
                 <BookOpen className="w-5 h-5" />
                 Plano de Estudo Sugerido
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-gray-600 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <p className="text-gray-600 mb-2 font-body">
                   Keywords prioritarias:
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -360,7 +329,7 @@ export function SummaryDiagnostic() {
                 </div>
               </div>
               <div>
-                <p className="text-gray-600 mb-2" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <p className="text-gray-600 mb-2 font-body">
                   Ordem recomendada de estudo:
                 </p>
                 <div className="flex flex-wrap items-center gap-1">
@@ -368,7 +337,7 @@ export function SummaryDiagnostic() {
                     <span key={i} className="flex items-center">
                       <Badge variant="outline" className="bg-white">{kw}</Badge>
                       {i < data.study_plan_suggestion.recommended_order.length - 1 && (
-                        <span className="text-gray-400 mx-1">→</span>
+                        <span className="text-gray-400 mx-1">{'\u2192'}</span>
                       )}
                     </span>
                   ))}
@@ -376,7 +345,7 @@ export function SummaryDiagnostic() {
               </div>
               <div className="flex items-center gap-2 text-teal-700">
                 <Clock className="w-4 h-4" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>
+                <span className="font-body">
                   Meta diaria: {data.study_plan_suggestion.daily_goal_minutes} minutos
                 </span>
               </div>

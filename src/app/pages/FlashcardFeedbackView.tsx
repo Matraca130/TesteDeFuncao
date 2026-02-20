@@ -1,10 +1,12 @@
 // A7-07 | FlashcardFeedbackView.tsx — Agent 7 (NEXUS)
 // UI post-flashcard feedback with AI insights
-import { useState, useEffect } from 'react';
+// Architecture: UI → useFlashcardFeedback → ai-api → Backend
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowLeft, Layers, Brain, Sparkles, Flame, TrendingUp,
-  AlertTriangle, Lightbulb, Calendar, BarChart3, Play, Timer
+  AlertTriangle, Lightbulb, Calendar, BarChart3, Play, Timer,
+  Wifi, WifiOff, RotateCcw
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -13,35 +15,7 @@ import { Progress } from '../components/ui/progress';
 import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { FeedbackSkeleton } from '../components/shared/ErrorBoundary';
-
-// ── Mock Data (Section 14) ──
-const MOCK_FLASHCARD_FEEDBACK = {
-  period: { from: '2026-02-12', to: '2026-02-19', days: 7 },
-  stats: {
-    cards_reviewed: 45,
-    cards_mastered: 12,
-    cards_struggling: 5,
-    retention_rate: 78,
-    average_interval_days: 4.2,
-    streak_days: 5,
-  },
-  struggling_cards: [
-    { flashcard_id: 'fc-1', front: 'O que e a cadeia de transporte de eletrons?', times_failed: 4, ai_tip: 'Pense na cadeia como uma "escada" de energia — cada passo libera um pouco de energia para produzir ATP. Imagine os eletrons descendo uma escada, liberando energia em cada degrau.' },
-    { flashcard_id: 'fc-2', front: 'Diferencie celula procariota de eucariota', times_failed: 3, ai_tip: 'Lembre: PRO = ANTES do nucleo (sem membrana nuclear). EU = VERDADEIRO nucleo (com membrana). Pro-cariota = "antes do nucleo". Eu-cariota = "nucleo verdadeiro".' },
-    { flashcard_id: 'fc-3', front: 'Qual a funcao do complexo de Golgi?', times_failed: 3, ai_tip: 'Pense no Golgi como os "Correios" da celula: ele recebe, empacota e envia proteinas para seus destinos corretos.' },
-    { flashcard_id: 'fc-4', front: 'O que e a fosforilacao oxidativa?', times_failed: 3, ai_tip: 'E o processo final da respiracao celular, onde a energia dos eletrons e usada para "bombear" H+ e produzir ATP. Acontece na membrana interna da mitocondria.' },
-    { flashcard_id: 'fc-5', front: 'Descreva o ciclo de Krebs resumidamente', times_failed: 2, ai_tip: 'O ciclo de Krebs e como uma "fabrica circular" que quebra o acetil-CoA e gera CO2, NADH, FADH2 e ATP. Acontece na matriz mitocondrial.' },
-  ],
-  strengths: ['Boa retencao de vocabulario basico', 'Consistencia nas revisoes diarias', 'Melhoria progressiva na taxa de acerto'],
-  improvements: ['Aumentar tempo de estudo em 10 min/dia', 'Focar nos cards que falhou 3+ vezes', 'Revisar conceitos de bioquimica'],
-  ai_study_tips: [
-    'Use a tecnica de "elaborative interrogation": pergunte "por que?" para cada conceito',
-    'Crie imagens mentais para associar conceitos abstratos a situacoes concretas',
-    'Revise os cards dificeis logo de manha, quando a memoria esta mais fresca',
-    'Tente explicar cada conceito em voz alta como se estivesse ensinando alguem',
-  ],
-  next_session_recommendation: 'Amanha, foque em revisar os 5 cards com dificuldade e adicione 3 novos cards sobre divisao celular. Sessao recomendada: 25 minutos.',
-};
+import { useFlashcardFeedback } from '../hooks/useAiFeedback';
 
 const PERIOD_OPTIONS = [
   { value: 7, label: 'Ultimos 7 dias' },
@@ -51,18 +25,8 @@ const PERIOD_OPTIONS = [
 
 export function FlashcardFeedbackView() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<typeof MOCK_FLASHCARD_FEEDBACK | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(7);
-
-  useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setData(MOCK_FLASHCARD_FEEDBACK);
-      setLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [selectedPeriod]);
+  const { data, loading, isMock, refetch } = useFlashcardFeedback(selectedPeriod);
 
   if (loading || !data) {
     return (
@@ -71,7 +35,7 @@ export function FlashcardFeedbackView() {
           <div className="flex items-center gap-3 mb-6">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             <p className="text-indigo-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Analisando suas revisoes...
+              Analisando suas revisoes com AI...
             </p>
           </div>
           <FeedbackSkeleton />
@@ -88,10 +52,24 @@ export function FlashcardFeedbackView() {
         <div className="max-w-4xl mx-auto p-4 md:p-6 pb-20 space-y-6">
 
           {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
             </Button>
+            <div className="flex items-center gap-2">
+              {isMock ? (
+                <Badge variant="outline" className="text-orange-500 border-orange-300">
+                  <WifiOff className="w-3 h-3 mr-1" /> Mock
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-green-600 border-green-300">
+                  <Wifi className="w-3 h-3 mr-1" /> AI Live
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" onClick={refetch}>
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

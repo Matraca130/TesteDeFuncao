@@ -1,11 +1,11 @@
 // A7-06 | QuizFeedbackView.tsx — Agent 7 (NEXUS)
 // UI post-quiz feedback with AI insights
-import { useState, useEffect } from 'react';
+// Architecture: UI → useQuizFeedback → ai-api → Backend
 import { useParams, useNavigate } from 'react-router';
 import {
   CheckCircle, XCircle, AlertTriangle, BookOpen,
   ArrowLeft, RotateCcw, Layers, Brain, Sparkles, Clock,
-  Target, TrendingUp
+  Target, TrendingUp, Wifi, WifiOff
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -17,45 +17,7 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger
 } from '../components/ui/accordion';
 import { FeedbackSkeleton } from '../components/shared/ErrorBoundary';
-
-// ── Mock Data (Section 14) ──
-const MOCK_QUIZ_FEEDBACK = {
-  bundle_id: 'bnd-1',
-  summary: {
-    total_questions: 10,
-    correct: 7,
-    incorrect: 3,
-    accuracy: 70,
-    time_spent_seconds: 720,
-  },
-  strengths: [
-    'Bom dominio dos conceitos basicos de biologia celular',
-    'Excelente compreensao de vocabulario tecnico',
-  ],
-  weaknesses: [
-    'Confusao entre meiose e mitose',
-    'Dificuldade em aplicar conceitos a situacoes novas',
-  ],
-  recommendations: [
-    'Revisar o capitulo sobre divisao celular',
-    'Praticar mais flashcards sobre meiose vs mitose',
-    'Fazer exercicios de aplicacao pratica',
-  ],
-  per_question_feedback: [
-    { question_id: 'qq-1', question_text: 'Qual organela produz ATP?', was_correct: true, student_answer: 'Mitocondria', correct_answer: 'Mitocondria', ai_explanation: 'Correto! A mitocondria e a "usina de energia" da celula, responsavel pela producao de ATP atraves da respiracao celular.' },
-    { question_id: 'qq-2', question_text: 'A meiose produz celulas diploides.', was_correct: false, student_answer: 'Verdadeiro', correct_answer: 'Falso', ai_explanation: 'A meiose produz celulas HAPLOIDES (com metade dos cromossomos). A MITOSE e que produz celulas diploides.' },
-    { question_id: 'qq-3', question_text: 'A enzima responsavel pela replicacao do DNA e a _____.', was_correct: true, student_answer: 'DNA polimerase', correct_answer: 'DNA polimerase', ai_explanation: 'Exato! A DNA polimerase catalisa a sintese de novas fitas de DNA durante a replicacao.' },
-    { question_id: 'qq-4', question_text: 'Qual estrutura celular contem DNA?', was_correct: true, student_answer: 'Nucleo', correct_answer: 'Nucleo', ai_explanation: 'Correto! O nucleo e o principal compartimento onde o DNA esta localizado nas celulas eucarioticas.' },
-    { question_id: 'qq-5', question_text: 'O ribossomo e responsavel pela sintese de _____.', was_correct: true, student_answer: 'Proteinas', correct_answer: 'Proteinas', ai_explanation: 'Perfeito! Os ribossomos sao organelas responsaveis pela traducao do mRNA em proteinas.' },
-    { question_id: 'qq-6', question_text: 'A osmose envolve o transporte de solutos.', was_correct: false, student_answer: 'Verdadeiro', correct_answer: 'Falso', ai_explanation: 'A osmose e o transporte de AGUA (solvente), nao de solutos, atraves de uma membrana semipermeavel.' },
-    { question_id: 'qq-7', question_text: 'Qual organela realiza a fotossintese?', was_correct: true, student_answer: 'Cloroplasto', correct_answer: 'Cloroplasto', ai_explanation: 'Correto! O cloroplasto e a organela vegetal responsavel pela fotossintese.' },
-    { question_id: 'qq-8', question_text: 'O complexo de Golgi esta envolvido em que processo?', was_correct: true, student_answer: 'Modificacao e empacotamento de proteinas', correct_answer: 'Modificacao e empacotamento de proteinas', ai_explanation: 'Exato! O complexo de Golgi modifica, empacota e direciona proteinas e lipideos para seus destinos finais.' },
-    { question_id: 'qq-9', question_text: 'Celulas procarioticas possuem nucleo definido.', was_correct: false, student_answer: 'Verdadeiro', correct_answer: 'Falso', ai_explanation: 'Celulas procarioticas NAO possuem nucleo definido (membrana nuclear). Seu material genetico fica disperso no citoplasma.' },
-    { question_id: 'qq-10', question_text: 'O reticulo endoplasmatico rugoso possui _____ em sua superficie.', was_correct: true, student_answer: 'Ribossomos', correct_answer: 'Ribossomos', ai_explanation: 'Correto! O RER (Reticulo Endoplasmatico Rugoso) recebe esse nome por ter ribossomos aderidos a sua membrana.' },
-  ],
-  study_strategy: 'Foque em revisar os conceitos de divisao celular esta semana. Recomendo 20 minutos diarios de flashcards sobre meiose e mitose, seguidos de 2-3 questoes praticas. Tambem revise os conceitos de transporte celular (osmose vs difusao).',
-  encouragement: 'Voce acertou 70% das questoes, o que mostra um bom progresso! Seus pontos fortes em organelas celulares sao evidentes. Continue assim e foque nas areas de melhoria — voce esta no caminho certo para dominar biologia celular!',
-};
+import { useQuizFeedback } from '../hooks/useAiFeedback';
 
 function formatTime(seconds: number): string {
   if (seconds <= 0) return '0min';
@@ -68,17 +30,7 @@ function formatTime(seconds: number): string {
 export function QuizFeedbackView() {
   const { bundleId } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<typeof MOCK_QUIZ_FEEDBACK | null>(null);
-
-  useEffect(() => {
-    // Simulate API call to POST /ai/quiz-feedback
-    const timer = setTimeout(() => {
-      setData(MOCK_QUIZ_FEEDBACK);
-      setLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [bundleId]);
+  const { data, loading, error, isMock, refetch } = useQuizFeedback(bundleId);
 
   if (loading || !data) {
     return (
@@ -87,7 +39,7 @@ export function QuizFeedbackView() {
           <div className="flex items-center gap-3 mb-6">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             <p className="text-indigo-600" style={{ fontFamily: 'Inter, sans-serif' }}>
-              Analisando seu desempenho...
+              Analisando seu desempenho com AI...
             </p>
           </div>
           <FeedbackSkeleton />
@@ -105,10 +57,24 @@ export function QuizFeedbackView() {
         <div className="max-w-4xl mx-auto p-4 md:p-6 pb-20 space-y-6">
 
           {/* Header */}
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Voltar
             </Button>
+            <div className="flex items-center gap-2">
+              {isMock ? (
+                <Badge variant="outline" className="text-orange-500 border-orange-300">
+                  <WifiOff className="w-3 h-3 mr-1" /> Mock
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-green-600 border-green-300">
+                  <Wifi className="w-3 h-3 mr-1" /> AI Live
+                </Badge>
+              )}
+              <Button variant="ghost" size="sm" onClick={refetch}>
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -306,9 +272,9 @@ export function QuizFeedbackView() {
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar ao Dashboard
             </Button>
-            <Button variant="outline" onClick={() => navigate(`/study/quiz-feedback/${bundleId}`)}>
+            <Button variant="outline" onClick={refetch}>
               <RotateCcw className="w-4 h-4 mr-2" />
-              Tentar Novamente
+              Gerar Novo Feedback
             </Button>
             <Button className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => navigate('/study/flashcard-feedback')}>
               <Layers className="w-4 h-4 mr-2" />

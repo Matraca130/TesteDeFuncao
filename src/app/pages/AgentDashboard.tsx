@@ -1,9 +1,10 @@
 // Agent 7 — NEXUS Dashboard
 // Navigation hub for all AI feedback pages
+// P5/A7-10: Migrated inline fontFamily → font-heading / font-body
 import { useNavigate } from 'react-router';
 import {
   Brain, Layers, BookOpen, User, AlertTriangle,
-  Sparkles, ArrowRight, Shield
+  Sparkles, ArrowRight
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -64,12 +65,12 @@ export function AgentDashboard() {
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 text-indigo-700">
             <Sparkles className="w-4 h-4" />
-            <span style={{ fontFamily: 'Inter, sans-serif' }}>Agent 7 — NEXUS</span>
+            <span className="font-body">Agent 7 — NEXUS</span>
           </div>
-          <h1 className="text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+          <h1 className="text-gray-900 font-heading">
             Axon v4.4 — AI Features
           </h1>
-          <p className="text-gray-500 max-w-lg mx-auto" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <p className="text-gray-500 max-w-lg mx-auto font-body">
             Plataforma educativa com feedback AI personalizado. Explore as paginas de AI feedback,
             diagnostico e perfil de aprendizagem.
           </p>
@@ -80,9 +81,9 @@ export function AgentDashboard() {
             <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-300">
               AI: indigo-500
             </Badge>
-            <Badge variant="outline">
-              <Shield className="w-3 h-3 mr-1" />
-              Mock Data
+            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-300">
+              <Sparkles className="w-3 h-3 mr-1" />
+              AI Live + Mock Fallback
             </Badge>
           </div>
         </div>
@@ -106,16 +107,16 @@ export function AgentDashboard() {
                     </div>
                     <Badge variant="outline" className="text-gray-400">{page.badge}</Badge>
                   </div>
-                  <CardTitle style={{ fontFamily: 'Georgia, serif' }}>
+                  <CardTitle className="font-heading">
                     {page.title}
                   </CardTitle>
-                  <CardDescription style={{ fontFamily: 'Inter, sans-serif' }}>
+                  <CardDescription className="font-body">
                     {page.description}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button variant="ghost" className="w-full justify-between group-hover:bg-gray-50">
-                    <span style={{ fontFamily: 'Inter, sans-serif' }}>Abrir</span>
+                    <span className="font-body">Abrir</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </CardContent>
@@ -127,11 +128,11 @@ export function AgentDashboard() {
         {/* Error Boundary Info */}
         <Card className="border-red-200 bg-red-50/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700" style={{ fontFamily: 'Georgia, serif' }}>
+            <CardTitle className="flex items-center gap-2 text-red-700 font-heading">
               <AlertTriangle className="w-5 h-5" />
               ErrorBoundary + Skeletons (A7-11)
             </CardTitle>
-            <CardDescription style={{ fontFamily: 'Inter, sans-serif' }}>
+            <CardDescription className="font-body">
               Componente ErrorBoundary global e skeleton presets reutilizaveis implementados em 
               <code className="mx-1 px-1 bg-gray-100 rounded">src/app/components/shared/ErrorBoundary.tsx</code>
             </CardDescription>
@@ -150,62 +151,62 @@ export function AgentDashboard() {
         {/* Design System Reference */}
         <Card>
           <CardHeader>
-            <CardTitle style={{ fontFamily: 'Georgia, serif' }}>Design System</CardTitle>
+            <CardTitle className="font-heading">Design System</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-teal-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>Primary (teal)</span>
+                <span className="font-body">Primary (teal)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-indigo-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>AI Insight</span>
+                <span className="font-body">AI Insight</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-green-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>Strength</span>
+                <span className="font-body">Strength</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-orange-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>Weakness</span>
+                <span className="font-body">Weakness</span>
               </div>
             </div>
             <Separator className="my-4" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-red-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>p &lt; 0.25</span>
+                <span className="font-body">p &lt; 0.25</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-orange-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>p 0.25-0.5</span>
+                <span className="font-body">p 0.25-0.5</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-yellow-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>p 0.5-0.75</span>
+                <span className="font-body">p 0.5-0.75</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-green-500" />
-                <span style={{ fontFamily: 'Inter, sans-serif' }}>p &gt; 0.75</span>
+                <span className="font-body">p &gt; 0.75</span>
               </div>
             </div>
             <Separator className="my-4" />
             <div className="flex gap-6">
               <div>
-                <p className="text-gray-500 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Headings</p>
-                <p style={{ fontFamily: 'Georgia, serif' }}>Georgia, serif</p>
+                <p className="text-gray-500 mb-1 font-body">Headings</p>
+                <p className="font-heading">Georgia, serif</p>
               </div>
               <div>
-                <p className="text-gray-500 mb-1" style={{ fontFamily: 'Inter, sans-serif' }}>Body</p>
-                <p style={{ fontFamily: 'Inter, sans-serif' }}>Inter, sans-serif</p>
+                <p className="text-gray-500 mb-1 font-body">Body</p>
+                <p className="font-body">Inter, sans-serif</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Footer */}
-        <div className="text-center text-gray-400 py-4" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <div className="text-center text-gray-400 py-4 font-body">
           Axon v4.4 — Agent 7: NEXUS — AI Features, Polish & Quality Assurance
         </div>
       </div>
