@@ -13,7 +13,7 @@ import {
   updateKwStudentNote as apiUpdateNote,
   softDeleteKwStudentNote,
   restoreKwStudentNote as apiRestoreNote,
-} from '../lib/api-client';
+} from '../lib/api-sacred';
 import type { KwStudentNote } from '../lib/types';
 
 // ── Type Adapter: Agent 4 KwStudentNote → Agent 6 StudentNote ──
