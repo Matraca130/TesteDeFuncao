@@ -38,16 +38,15 @@ jobs:
         with:
           version: latest
 
-      - name: Deploy Edge Functions
-        run: supabase functions deploy make-server-7a20cd7d --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
-
+      - run: supabase functions deploy server --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --no-verify-jwt
       - name: Verify deployment
+        
         continue-on-error: true
         run: |
           echo "Waiting 5s for cold start..."
           sleep 5
           RESPONSE=$(curl -sf \
-            "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/make-server-7a20cd7d/health" \
+           "https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/server/health" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" 2>&1) && \
           echo "Health check passed: $RESPONSE" || \
           echo "Health check failed or skipped (non-blocking)"
