@@ -6,6 +6,9 @@
 // FIX 2026-02-20: Added ALL missing exports that route files
 // import. Missing named exports cause SyntaxError in ES modules
 // → BOOT_ERROR on Supabase Edge Functions.
+//
+// FIX 2026-02-20 #2: Added 10 missing exports used by dashboard/
+// subdirectory (_helpers.ts, study-plans.tsx).
 // ═════════════════════════════════════════════════════════════════
 
 // ── Core entities ──────────────────────────────────────────────
@@ -31,6 +34,9 @@ export const courseKey   = (id: string) => `course:${id}`;
 export const topicKey    = (id: string) => `topic:${id}`;
 export const subtopicKey = (id: string) => `subtopic:${id}`;
 
+// ── Keyword instances (used by dashboard/_helpers.ts) ─────────
+export const kwInstKey   = (id: string) => `kw-inst:${id}`;
+
 // ── Session & review entities (used by routes-sessions, reviews) ──
 export const sessionKey  = (id: string) => `session:${id}`;
 export const reviewKey   = (id: string) => `review:${id}`;
@@ -53,6 +59,10 @@ export const adminScopeKey   = (id: string) => `admin-scope:${id}`;
 
 // ── ATLAS P1: Videos ──────────────────────────────────────────
 export const videoKey        = (id: string) => `video:${id}`;
+
+// ── Student study plans (used by dashboard/study-plans.tsx) ───
+export const planKey         = (id: string) => `plan:${id}`;
+export const planTaskKey     = (id: string) => `plan-task:${id}`;
 
 // ── SCRIBE: Keyword Notes (Student + Professor) ──────────────
 export const kwStudentNoteKey = (id: string) => `kw-student-note:${id}`;
@@ -85,10 +95,13 @@ export const idxStudentBkt   = (userId: string, subtopicId: string) => `idx:stud
 export const idxStudentReading      = (studentId: string, summaryId: string) => `idx:student-reading:${studentId}:${summaryId}`;
 export const idxStudentAnnotations  = (studentId: string, summaryId: string, annotationId: string) => `idx:student-annotations:${studentId}:${summaryId}:${annotationId}`;
 
-// Content hierarchy indices (used by routes-reading)
+// Content hierarchy indices (used by routes-reading, dashboard/_helpers)
 export const idxTopicSummaries   = (topicId: string, summaryId: string) => `idx:topic-summaries:${topicId}:${summaryId}`;
 export const idxSummaryKw        = (summaryId: string, kwId: string) => `idx:summary-kw:${summaryId}:${kwId}`;
 export const idxKwSubtopics      = (kwId: string, subtopicId: string) => `idx:kw-subtopics:${kwId}:${subtopicId}`;
+export const idxCourseSemesters  = (courseId: string, semId: string) => `idx:course-semesters:${courseId}:${semId}`;
+export const idxSemesterSections = (semId: string, secId: string) => `idx:semester-sections:${semId}:${secId}`;
+export const idxSectionTopics    = (secId: string, topicId: string) => `idx:section-topics:${secId}:${topicId}`;
 
 // Canvas indices (used by routes-canvas)
 export const idxCourseResumoBlocks = (courseId: string, topicId: string) => `idx:course-resumo-blocks:${courseId}:${topicId}`;
@@ -103,9 +116,13 @@ export const idxSummaryModel3d   = (summaryId: string, modelId: string) => `idx:
 export const idxTopicModel3d     = (topicId: string, modelId: string) => `idx:topic-model3d:${topicId}:${modelId}`;
 export const idxKwModel3d        = (kwId: string, modelId: string) => `idx:kw-model3d:${kwId}:${modelId}`;
 
-// Plan indices
+// Plan indices (ATLAS pricing plans)
 export const idxInstPricingPlans = (instId: string, planId: string) => `idx:inst-pricing-plans:${instId}:${planId}`;
 export const idxPlanRules        = (planId: string, ruleId: string) => `idx:plan-rules:${planId}:${ruleId}`;
+
+// Student study plan indices (used by dashboard/study-plans.tsx)
+export const idxStudentPlans     = (studentId: string, planId: string) => `idx:student-plans:${studentId}:${planId}`;
+export const idxPlanTasks        = (planId: string, courseId: string, taskId: string) => `idx:plan-tasks:${planId}:${courseId}:${taskId}`;
 
 // AdminScope indices
 export const idxInstAdminScopes  = (instId: string, scopeId: string) => `idx:inst-admin-scopes:${instId}:${scopeId}`;
@@ -150,6 +167,9 @@ export const KV_PREFIXES = {
   IDX_SUMMARY_KW: "idx:summary-kw:",
   IDX_KW_SUBTOPICS: "idx:kw-subtopics:",
   IDX_KW_FC: "idx:kw-fc:",
+  IDX_COURSE_SEMESTERS: "idx:course-semesters:",
+  IDX_SEMESTER_SECTIONS: "idx:semester-sections:",
+  IDX_SECTION_TOPICS: "idx:section-topics:",
 
   // Quiz
   IDX_KW_QUIZ: "idx:kw-quiz:",
@@ -170,11 +190,17 @@ export const KV_PREFIXES = {
   IDX_TOPIC_MODEL3D: "idx:topic-model3d:",
   IDX_KW_MODEL3D: "idx:kw-model3d:",
 
-  // Plans
+  // Pricing Plans (ATLAS)
   PRICING_PLANS: "pricing-plan:",
   PLAN_RULES: "plan-rule:",
   IDX_INST_PRICING_PLANS: "idx:inst-pricing-plans:",
   IDX_PLAN_RULES: "idx:plan-rules:",
+
+  // Student study plans (dashboard)
+  PLANS: "plan:",
+  PLAN_TASKS: "plan-task:",
+  IDX_STUDENT_PLANS: "idx:student-plans:",
+  IDX_PLAN_TASKS: "idx:plan-tasks:",
 
   // Admin
   ADMIN_SCOPES: "admin-scope:",
