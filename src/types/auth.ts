@@ -86,13 +86,15 @@ export const isAdminRole = (role: MembershipRole): boolean =>
 export const canAccessAdmin = (role: MembershipRole): boolean =>
   role === 'owner' || role === 'admin' || role === 'professor';
 
+// Maps role to the first real page after login.
+// These must match actual routes in routes.tsx.
 export const getRouteForRole = (role: MembershipRole): string => {
   switch (role) {
     case 'owner':     return '/admin';
     case 'admin':     return '/admin';
-    case 'professor': return '/professor';
-    case 'student':   return '/study';
-    default:          return '/';
+    case 'professor': return '/professor/keywords';
+    case 'student':   return '/study/smart-study';
+    default:          return '/dashboard';
   }
 };
 
@@ -146,7 +148,6 @@ export type Currency = 'BRL' | 'USD' | 'EUR';
 export type Language = 'pt-BR' | 'es' | 'en';
 
 // ── Extended Institution (for wizard / admin views) ──
-// Extends canonical Institution with fields returned by GET /institutions/:id
 export interface InstitutionFull extends Institution {
   owner_id: string;
   description?: string;
@@ -159,7 +160,6 @@ export interface InstitutionFull extends Institution {
 }
 
 // ── Extended Membership (for admin member management) ──
-// Extends canonical Membership with fields from GET /members endpoint
 export interface MembershipFull extends Membership {
   status: MemberStatus;
   name?: string;
@@ -168,16 +168,6 @@ export interface MembershipFull extends Membership {
 }
 
 // ── Pricing Plan (for plan management UI) ──
-// Extends canonical Plan with admin-specific fields
-//
-// MERGE NOTE: Agent 4's api-client.ts imports "PricingPlan" from ./types
-// but it was NEVER DEFINED in the repo's types.ts (phantom import).
-// THIS is the first actual definition. Agent 4's mock constructor used:
-//   { id, institution_id, name, description, price, currency, is_default,
-//     is_trial, trial_duration_days, max_students, features, created_at, updated_at }
-// Our PricingPlan extends Plan (which has those base fields) + adds
-// duration_days, features, max_students, active, active_students.
-// Agent 4 mock code needs to add: active = true when constructing.
 export interface PricingPlan extends Plan {
   duration_days?: number;
   features: string[];
@@ -187,16 +177,6 @@ export interface PricingPlan extends Plan {
 }
 
 // ── Plan Access Rule ──
-//
-// MERGE NOTE: Agent 4's api-client.ts imports "PlanAccessRule" from ./types
-// but it was NEVER DEFINED (phantom import). Agent 4's mock constructor
-// inferred a simpler shape:
-//   { id, plan_id, resource_type, resource_id, permission, created_at }
-// Our definition uses richer fields aligned with Agent 1's backend:
-//   resource_type → scope_type  (aligns with backend scope model)
-//   resource_id  → scope_id    (aligns with backend scope model)
-//   permission   → content_types[] (array: multiple content types per rule)
-// When merging, update Agent 4's createPlanRule mock to use these field names.
 export interface PlanAccessRule {
   id: string;
   plan_id: string;
@@ -208,16 +188,6 @@ export interface PlanAccessRule {
 }
 
 // ── Admin Scope ──
-//
-// MERGE NOTE: Agent 4's api-client.ts imports "AdminScope" from ./types
-// but it was NEVER DEFINED (phantom import). Agent 4's mock constructor
-// inferred a simpler shape:
-//   { id, institution_id, user_id, scope_type, scope_id, role, created_at }
-// Our definition uses richer fields aligned with Agent 1's backend:
-//   user_id → member_id   (membership-centric, not user-centric)
-//   role    → permissions[] (granular: ['read','write','delete','approve'])
-// Also adds: member_name, member_email, scope_name for display.
-// When merging, update Agent 4's createAdminScope mock to use these fields.
 export interface AdminScope {
   id: string;
   institution_id: string;
