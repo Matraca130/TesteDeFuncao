@@ -1,5 +1,5 @@
-// Axon v4.4 — Full Seed: Content hierarchy + SACRED entities + Plans/Media/Admin/Quiz
-// Called by POST /seed after student data is seeded.
+// Axon v4.4 — Full Seed: Content hierarchy + SACRED entities + Plans/Media/Admin/Quiz + P3 entities
+// Called by POST /seed-all after student data is seeded.
 import * as kv from "./kv_store.tsx";
 import { K } from "./kv-schema.tsx";
 
@@ -40,8 +40,8 @@ export async function seedContentAndSacred(): Promise<number> {
 
   // ── Summaries (content) ────────────────────────────────
   const summaries = [
-    { id: 'sum-femur-1', topic_id: 'topic-femur', course_id: 'course-anatomy', institution_id: 'inst-001', content_markdown: '# Femur\n\nO femur e o osso mais longo...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z', updated_at: '2025-02-10T10:00:00Z', version: 2 },
-    { id: 'sum-cranial-1', topic_id: 'topic-cranial', course_id: 'course-anatomy', institution_id: 'inst-001', content_markdown: '# Nervos Cranianos\n\nOs 12 pares de nervos...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z', updated_at: '2025-02-15T10:00:00Z', version: 1 },
+    { id: 'sum-femur-1', topic_id: 'topic-femur', course_id: 'course-anatomy', institution_id: 'inst-001', title: 'Anatomia do Femur', content_markdown: '# Femur\n\nO femur e o osso mais longo...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z', updated_at: '2025-02-10T10:00:00Z', version: 2 },
+    { id: 'sum-cranial-1', topic_id: 'topic-cranial', course_id: 'course-anatomy', institution_id: 'inst-001', title: 'Nervos Cranianos — Visao Geral', content_markdown: '# Nervos Cranianos\n\nOs 12 pares de nervos...', status: 'published', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z', updated_at: '2025-02-15T10:00:00Z', version: 1 },
   ];
   for (const s of summaries) { keys.push(K.summary(s.id)); values.push(s); }
 
@@ -126,6 +126,58 @@ export async function seedContentAndSacred(): Promise<number> {
   ];
   for (const q of quizAttempts) { keys.push(K.quizAttempt(q.id)); values.push(q); }
 
+  // ══════════════════════════════════════════════════════════
+  // P3 ENTITIES — Flashcards, QuizQuestions, StudyPlans, SmartRecs
+  // ══════════════════════════════════════════════════════════
+
+  // ── FlashcardCards ─────────────────────────────────────
+  const flashcards = [
+    { id: 'fc-001', summary_id: 'sum-femur-1', keyword_id: 'kw-femur', subtopic_id: null, institution_id: 'inst-001', front: 'Qual e o osso mais longo do corpo?', back: 'Femur', image_url: null, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z' },
+    { id: 'fc-002', summary_id: 'sum-femur-1', keyword_id: 'kw-trocanter', subtopic_id: null, institution_id: 'inst-001', front: 'O que e o trocanter?', back: 'Saliencia ossea do femur proximal', image_url: null, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z' },
+    { id: 'fc-003', summary_id: 'sum-cranial-1', keyword_id: 'kw-nervo-vago', subtopic_id: null, institution_id: 'inst-001', front: 'Qual par craniano tem funcao parassimpatica?', back: 'X - Nervo Vago', image_url: null, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z' },
+  ];
+  for (const fc of flashcards) { keys.push(K.flashcard(fc.id)); values.push(fc); }
+
+  // ── KeywordSummaryLinks ────────────────────────────────
+  const kwSummaryLinks = [
+    { id: 'ksl-001', keyword_id: 'kw-femur', summary_id: 'sum-femur-1', created_at: '2025-02-01T10:00:00Z', created_by: 'user-prof-001' },
+    { id: 'ksl-002', keyword_id: 'kw-trocanter', summary_id: 'sum-femur-1', created_at: '2025-02-01T10:00:00Z', created_by: 'user-prof-001' },
+    { id: 'ksl-003', keyword_id: 'kw-nervo-vago', summary_id: 'sum-cranial-1', created_at: '2025-02-01T10:00:00Z', created_by: 'user-prof-001' },
+  ];
+  for (const l of kwSummaryLinks) { keys.push(K.kwSummaryLink(l.id)); values.push(l); }
+
+  // ── QuizQuestions ──────────────────────────────────────
+  const quizQuestions = [
+    { id: 'qq-001', keyword_id: 'kw-femur', summary_id: 'sum-femur-1', institution_id: 'inst-001', question_text: 'Qual e o osso mais longo do corpo humano?', question_type: 'multiple-choice', options: ['Umero', 'Femur', 'Tibia', 'Fibula'], correct_answer: 'Femur', explanation: 'O femur e o maior e mais forte osso do esqueleto.', difficulty: 2, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-01T10:00:00Z', updated_at: '2025-02-01T10:00:00Z' },
+    { id: 'qq-002', keyword_id: 'kw-femur', summary_id: 'sum-femur-1', institution_id: 'inst-001', question_text: 'O trocanter maior do femur serve de insercao para qual musculo?', question_type: 'fill-blank', options: [], correct_answer: 'Gluteo medio', explanation: 'O gluteo medio se insere no trocanter maior.', difficulty: 3, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-02T10:00:00Z', updated_at: '2025-02-02T10:00:00Z' },
+    { id: 'qq-003', keyword_id: 'kw-nervo-vago', summary_id: 'sum-cranial-1', institution_id: 'inst-001', question_text: 'O nervo vago e o ___ par craniano.', question_type: 'fill-blank', options: [], correct_answer: 'X', explanation: 'O nervo vago (CN X) e o decimo par craniano.', difficulty: 1, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-05T10:00:00Z', updated_at: '2025-02-05T10:00:00Z' },
+    { id: 'qq-004', keyword_id: 'kw-nervo-vago', summary_id: null, institution_id: 'inst-001', question_text: 'O nervo vago tem funcao simpatica. Verdadeiro ou falso?', question_type: 'true-false', options: ['Verdadeiro', 'Falso'], correct_answer: 'Falso', explanation: 'O nervo vago tem funcao parassimpatica, nao simpatica.', difficulty: 1, status: 'published', source: 'manual', created_by: 'user-prof-001', created_at: '2025-02-06T10:00:00Z', updated_at: '2025-02-06T10:00:00Z' },
+  ];
+  for (const qq of quizQuestions) { keys.push(K.quizQuestion(qq.id)); values.push(qq); }
+
+  // ── StudyPlans ─────────────────────────────────────────
+  const studyPlans = [
+    { id: 'sp-001', student_id: 'demo-student-001', course_id: 'course-anatomy', name: 'Preparacao para Prova de Anatomia', description: 'Revisar todos os topicos do semestre 1', target_date: '2025-03-15T00:00:00Z', daily_minutes_target: 60, status: 'active', created_at: '2025-02-10T10:00:00Z', updated_at: '2025-02-19T10:00:00Z' },
+  ];
+  for (const sp of studyPlans) { keys.push(K.studyPlan(sp.id)); values.push(sp); }
+
+  // ── StudyGoals ─────────────────────────────────────────
+  const studyGoals = [
+    { id: 'sg-001', plan_id: 'sp-001', topic_id: 'topic-femur', topic_name: 'Femur', target_mastery: 90, current_mastery: 65, status: 'in-progress', due_date: '2025-03-01T00:00:00Z', created_at: '2025-02-10T10:00:00Z', updated_at: '2025-02-19T10:00:00Z' },
+    { id: 'sg-002', plan_id: 'sp-001', topic_id: 'topic-cranial', topic_name: 'Nervos Cranianos', target_mastery: 85, current_mastery: 40, status: 'in-progress', due_date: '2025-03-10T00:00:00Z', created_at: '2025-02-10T10:00:00Z', updated_at: '2025-02-19T10:00:00Z' },
+    { id: 'sg-003', plan_id: 'sp-001', topic_id: 'topic-tibia', topic_name: 'Tibia e Fibula', target_mastery: 80, current_mastery: 0, status: 'pending', due_date: '2025-03-12T00:00:00Z', created_at: '2025-02-10T10:00:00Z', updated_at: '2025-02-10T10:00:00Z' },
+  ];
+  for (const sg of studyGoals) { keys.push(K.studyGoal(sg.id)); values.push(sg); }
+
+  // ── SmartStudyRecommendations ──────────────────────────
+  const smartRecs = [
+    { id: 'ssr-001', student_id: 'demo-student-001', type: 'review-flashcard', resource_id: 'fc-001', resource_name: 'Femur — Osso mais longo', reason: 'Revisao programada (FSRS): intervalo venceu ha 2 dias', priority: 1, estimated_minutes: 5, due_date: '2025-02-17T00:00:00Z', status: 'pending', created_at: '2025-02-19T08:00:00Z' },
+    { id: 'ssr-002', student_id: 'demo-student-001', type: 'study-topic', resource_id: 'topic-tibia', resource_name: 'Tibia e Fibula', reason: 'Topico nao iniciado; parte do plano de estudo ativo', priority: 2, estimated_minutes: 30, due_date: '2025-03-12T00:00:00Z', status: 'pending', created_at: '2025-02-19T08:00:00Z' },
+    { id: 'ssr-003', student_id: 'demo-student-001', type: 'take-quiz', resource_id: 'kw-nervo-vago', resource_name: 'Quiz: Nervo Vago', reason: 'BKT P(know) = 0.45 — abaixo do threshold de maestria', priority: 3, estimated_minutes: 10, due_date: null, status: 'pending', created_at: '2025-02-19T08:00:00Z' },
+    { id: 'ssr-004', student_id: 'demo-student-001', type: 'read-summary', resource_id: 'sum-cranial-1', resource_name: 'Resumo: Nervos Cranianos', reason: 'Leitura 100% mas retencao estimada < 70% (curva de esquecimento)', priority: 4, estimated_minutes: 15, due_date: null, status: 'pending', created_at: '2025-02-19T08:00:00Z' },
+  ];
+  for (const sr of smartRecs) { keys.push(K.smartRec(sr.id)); values.push(sr); }
+
   // ── Batch write ────────────────────────────────────────
   // mset in chunks of 50 to avoid payload limits
   const CHUNK = 50;
@@ -133,6 +185,6 @@ export async function seedContentAndSacred(): Promise<number> {
     await kv.mset(keys.slice(i, i + CHUNK), values.slice(i, i + CHUNK));
   }
 
-  console.log(`[seed-all] Content+SACRED+Misc: ${keys.length} keys written`);
+  console.log(`[seed-all] Content+SACRED+Misc+P3: ${keys.length} keys written`);
   return keys.length;
 }
