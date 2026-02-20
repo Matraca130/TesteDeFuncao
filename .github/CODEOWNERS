@@ -1,0 +1,23 @@
+# ============================================================
+# AXON — Code Ownership & Protected Files
+# ============================================================
+# Files listed here require explicit review from the owner
+# before they can be merged. Enable "Require review from
+# Code Owners" in Settings > Branches > Branch protection
+# rules for this to be enforced.
+# ============================================================
+
+# — Protected server files (NEVER auto-regenerate) ——————
+# These files are the backbone of the Edge Function.
+# Overwriting them (e.g. by Figma Make) causes BOOT_ERROR.
+supabase/functions/server/kv-keys.ts           @Matraca130
+supabase/functions/server/fsrs-engine.ts        @Matraca130
+supabase/functions/server/shared-types.ts       @Matraca130
+supabase/functions/server/kv_store.tsx          @Matraca130
+supabase/functions/server/index.ts              @Matraca130
+supabase/functions/server/db.ts                 @Matraca130
+supabase/functions/server/middleware-rbac.ts     @Matraca130
+supabase/functions/server/_server-helpers.ts     @Matraca130
+
+# — Supabase config ————————————————————————
+supabase/config.toml                            @Matraca130
