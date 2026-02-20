@@ -18,13 +18,16 @@ import { router } from './routes';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import { ApiProvider } from './lib/api-provider';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
 export default function App() {
   return (
     <AppProvider>
       <AuthProvider>
         <ApiProvider>
-          <RouterProvider router={router} />
+          <ErrorBoundary>
+            <RouterProvider router={router} />
+          </ErrorBoundary>
           <Toaster position="top-center" richColors closeButton />
         </ApiProvider>
       </AuthProvider>
