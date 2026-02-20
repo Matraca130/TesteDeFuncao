@@ -2,12 +2,34 @@
 // useStudentNotes — SACRED CRUD hook for keyword student notes
 // Added by Agent 6 — PRISM — P3 Hook Layer
 // SACRED: Soft-delete ONLY. NEVER hard delete KwStudentNote.
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+// REWIRED: Now uses Agent 4 api-client (api-sacred module)
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { MOCK_STUDENT_NOTES, type StudentNote } from '../data/mock-data';
-import { mockFetchAll, mockCreate, mockUpdate, mockSoftDelete, mockRestore } from '../api-client/mock-api';
+import type { StudentNote } from '../data/mock-data';
+import {
+  getKwStudentNotesByKeyword,
+  createKwStudentNote as apiCreateNote,
+  updateKwStudentNote as apiUpdateNote,
+  softDeleteKwStudentNote,
+  restoreKwStudentNote as apiRestoreNote,
+} from '../lib/api-client';
+import type { KwStudentNote } from '../lib/types';
+
+// ── Type Adapter: Agent 4 KwStudentNote → Agent 6 StudentNote ──
+// Agent 4: { content } | Agent 6: { note }
+const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
+
+function toA6StudentNote(a4: KwStudentNote): StudentNote {
+  return {
+    id: a4.id,
+    student_id: a4.student_id,
+    keyword_id: a4.keyword_id,
+    note: a4.content,
+    created_at: a4.created_at,
+    deleted_at: a4.deleted_at,
+  };
+}
 
 interface UseStudentNotesOptions {
   keywordId: string;
@@ -36,9 +58,11 @@ export function useStudentNotes({ keywordId }: UseStudentNotesOptions): UseStude
     setIsLoading(true);
     setError(null);
     try {
-      const data = await mockFetchAll(MOCK_STUDENT_NOTES.filter((n) => n.keyword_id === keywordId));
-      setNotes(data);
-    } catch {
+      // REWIRED: Agent 4 api-sacred
+      const a4Notes = await getKwStudentNotesByKeyword(keywordId, STUDENT_ID);
+      setNotes(a4Notes.map(toA6StudentNote));
+    } catch (err) {
+      console.error('[useStudentNotes] fetch error:', err);
       setError('Erro ao carregar notas');
     } finally {
       setIsLoading(false);
@@ -63,18 +87,12 @@ export function useStudentNotes({ keywordId }: UseStudentNotesOptions): UseStude
     async (noteText: string) => {
       setIsMutating(true);
       try {
-        const newNote: StudentNote = {
-          id: `sn-${Date.now()}`,
-          student_id: 's-1',
-          keyword_id: keywordId,
-          note: noteText.trim(),
-          created_at: new Date().toISOString().split('T')[0],
-          deleted_at: null,
-        };
-        await mockCreate(newNote);
-        setNotes((prev) => [...prev, newNote]);
+        // REWIRED: Agent 4 api-sacred — content = note
+        const a4Note = await apiCreateNote(keywordId, STUDENT_ID, noteText.trim());
+        setNotes((prev) => [...prev, toA6StudentNote(a4Note)]);
         toast.success('Nota salva');
-      } catch {
+      } catch (err) {
+        console.error('[useStudentNotes] create error:', err);
         toast.error('Erro ao salvar nota');
       } finally {
         setIsMutating(false);
@@ -86,12 +104,15 @@ export function useStudentNotes({ keywordId }: UseStudentNotesOptions): UseStude
   const updateNote = useCallback(async (id: string, noteText: string) => {
     setIsMutating(true);
     try {
+      // Optimistic update
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, note: noteText.trim() } : n)));
-      await mockUpdate({ id, note: noteText.trim() });
+      // REWIRED: Agent 4 api-sacred
+      await apiUpdateNote(id, noteText.trim());
       toast.success('Nota atualizada');
-    } catch {
+    } catch (err) {
+      console.error('[useStudentNotes] update error:', err);
       toast.error('Erro ao atualizar nota');
-      await fetchNotes();
+      await fetchNotes(); // rollback
     } finally {
       setIsMutating(false);
     }
@@ -104,9 +125,11 @@ export function useStudentNotes({ keywordId }: UseStudentNotesOptions): UseStude
       setNotes((prev) =>
         prev.map((n) => (n.id === id ? { ...n, deleted_at: new Date().toISOString() } : n))
       );
-      await mockSoftDelete(id);
+      // REWIRED: Agent 4 api-sacred
+      await softDeleteKwStudentNote(id);
       toast.success('Nota eliminada (pode ser restaurada)');
-    } catch {
+    } catch (err) {
+      console.error('[useStudentNotes] softDelete error:', err);
       toast.error('Erro ao eliminar nota');
       await fetchNotes();
     } finally {
@@ -118,9 +141,11 @@ export function useStudentNotes({ keywordId }: UseStudentNotesOptions): UseStude
     setIsMutating(true);
     try {
       setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, deleted_at: null } : n)));
-      await mockRestore(id);
+      // REWIRED: Agent 4 api-sacred
+      await apiRestoreNote(id);
       toast.success('Nota restaurada');
-    } catch {
+    } catch (err) {
+      console.error('[useStudentNotes] restore error:', err);
       toast.error('Erro ao restaurar nota');
       await fetchNotes();
     } finally {

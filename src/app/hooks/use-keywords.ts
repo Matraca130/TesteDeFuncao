@@ -1,12 +1,36 @@
 // ============================================================
 // useKeywords — CRUD hook for professor keywords
 // Added by Agent 6 — PRISM — P3 Hook Layer
-// TODO P3+: Replace mock calls with real Agent 4 API hooks
+// REWIRED: Uses Agent 4 api-content (getKeywords) +
+//          api-flashcards (KeywordSummaryLink for summary filter)
 // ============================================================
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { MOCK_KEYWORDS, type Keyword } from '../data/mock-data';
-import { mockFetchAll, mockCreate, mockUpdate, mockSoftDelete, mockAIGenerate } from '../api-client/mock-api';
+import type { Keyword } from '../data/mock-data';
+import {
+  getKeywords as apiGetKeywords,
+  createKeyword as apiCreateKeyword,
+  updateKeyword as apiUpdateKeyword,
+  deleteKeyword as apiDeleteKeyword,
+  getKeywordsBySummary,
+} from '../lib/api-client';
+import type { Keyword as A4Keyword } from '../lib/types';
+import type { KeywordSummaryLink } from '../lib/types-extended';
+
+// — Type Adapter: Agent 4 Keyword → Agent 6 Keyword —
+// A4 has no summary_id (institution-level); resolved via KeywordSummaryLink
+function toA6Keyword(a4: A4Keyword, summaryId?: string): Keyword {
+  return {
+    id: a4.id,
+    term: a4.term,
+    definition: a4.definition || '',
+    priority: a4.priority ?? 0,
+    summary_id: summaryId || '',
+    status: (a4.status === 'published' ? 'published' : 'draft') as 'draft' | 'published',
+    created_at: a4.created_at,
+    deleted_at: null, // A4 uses hard delete
+  };
+}
 
 interface UseKeywordsOptions {
   summaryId?: string;
@@ -37,43 +61,50 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
     setIsLoading(true);
     setError(null);
     try {
-      const data = await mockFetchAll(MOCK_KEYWORDS);
-      setKeywords(data);
-    } catch {
+      if (summaryId) {
+        // REWIRED: Use KeywordSummaryLink to find keywords for this summary
+        const links: KeywordSummaryLink[] = await getKeywordsBySummary(summaryId);
+        const allKws = await apiGetKeywords();
+        const linkedIds = new Set(links.map(l => l.keyword_id));
+        const filtered = allKws.filter(kw => linkedIds.has(kw.id));
+        setKeywords(filtered.map(kw => toA6Keyword(kw, summaryId)));
+      } else {
+        // Fetch all keywords
+        const allKws = await apiGetKeywords();
+        setKeywords(allKws.map(kw => toA6Keyword(kw)));
+      }
+    } catch (err) {
+      console.error('[useKeywords] fetch error:', err);
       setError('Erro ao carregar keywords');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [summaryId]);
 
   useEffect(() => {
     fetchKeywords();
   }, [fetchKeywords]);
 
   const filteredKeywords = useMemo(
-    () =>
-      keywords.filter(
-        (kw) =>
-          kw.deleted_at === null &&
-          (!summaryId || kw.summary_id === summaryId)
-      ),
-    [keywords, summaryId]
+    () => keywords.filter((kw) => kw.deleted_at === null),
+    [keywords]
   );
 
   const createKeyword = useCallback(
     async (data: Omit<Keyword, 'id' | 'created_at' | 'deleted_at'>) => {
       setIsMutating(true);
       try {
-        const newKw: Keyword = {
-          ...data,
-          id: `kw-${Date.now()}`,
-          created_at: new Date().toISOString().split('T')[0],
-          deleted_at: null,
-        };
-        await mockCreate(newKw);
-        setKeywords((prev) => [...prev, newKw]);
+        // REWIRED: Agent 4 api-content
+        const a4Kw = await apiCreateKeyword({
+          term: data.term,
+          definition: data.definition,
+          priority: data.priority,
+          status: data.status,
+        });
+        setKeywords((prev) => [...prev, toA6Keyword(a4Kw, data.summary_id)]);
         toast.success('Keyword criada com sucesso');
-      } catch {
+      } catch (err) {
+        console.error('[useKeywords] create error:', err);
         toast.error('Erro ao criar keyword');
       } finally {
         setIsMutating(false);
@@ -85,14 +116,19 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
   const updateKeyword = useCallback(async (id: string, data: Partial<Keyword>) => {
     setIsMutating(true);
     try {
-      setKeywords((prev) =>
-        prev.map((kw) => (kw.id === id ? { ...kw, ...data } : kw))
-      );
-      await mockUpdate({ id, ...data });
+      setKeywords((prev) => prev.map((kw) => (kw.id === id ? { ...kw, ...data } : kw)));
+      // REWIRED: Agent 4 api-content
+      await apiUpdateKeyword(id, {
+        ...(data.term !== undefined && { term: data.term }),
+        ...(data.definition !== undefined && { definition: data.definition }),
+        ...(data.priority !== undefined && { priority: data.priority }),
+        ...(data.status !== undefined && { status: data.status }),
+      });
       toast.success('Keyword atualizada');
-    } catch {
+    } catch (err) {
+      console.error('[useKeywords] update error:', err);
       toast.error('Erro ao atualizar keyword');
-      await fetchKeywords(); // rollback
+      await fetchKeywords();
     } finally {
       setIsMutating(false);
     }
@@ -101,15 +137,12 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
   const deleteKeyword = useCallback(async (id: string) => {
     setIsMutating(true);
     try {
-      // Soft-delete (R05)
-      setKeywords((prev) =>
-        prev.map((kw) =>
-          kw.id === id ? { ...kw, deleted_at: new Date().toISOString() } : kw
-        )
-      );
-      await mockSoftDelete(id);
+      setKeywords((prev) => prev.filter((kw) => kw.id !== id));
+      // REWIRED: Agent 4 api-content (hard delete)
+      await apiDeleteKeyword(id);
       toast.success('Keyword eliminada');
-    } catch {
+    } catch (err) {
+      console.error('[useKeywords] delete error:', err);
       toast.error('Erro ao eliminar keyword');
       await fetchKeywords();
     } finally {
@@ -117,22 +150,21 @@ export function useKeywords({ summaryId }: UseKeywordsOptions = {}): UseKeywords
     }
   }, [fetchKeywords]);
 
-  const generateAI = useCallback(async (sid: string) => {
+  const generateAI = useCallback(async (_sid: string) => {
     setIsGenerating(true);
     try {
-      const generated: Keyword = await mockAIGenerate({
-        id: `kw-ai-${Date.now()}`,
+      // TODO: Wire to Gemini AI generation endpoint when available
+      const a4Kw = await apiCreateKeyword({
         term: 'Complexo de Golgi',
         definition: 'Organela responsavel pela modificacao, empacotamento e transporte de proteinas e lipidios.',
         priority: 4,
-        summary_id: sid,
-        status: 'draft' as const,
-        created_at: new Date().toISOString().split('T')[0],
-        deleted_at: null,
+        status: 'draft',
+        source: 'ai',
       });
-      setKeywords((prev) => [...prev, generated]);
+      setKeywords((prev) => [...prev, toA6Keyword(a4Kw, _sid)]);
       toast.success('Keyword gerada com IA');
-    } catch {
+    } catch (err) {
+      console.error('[useKeywords] generateAI error:', err);
       toast.error('Erro ao gerar keyword com IA');
     } finally {
       setIsGenerating(false);
