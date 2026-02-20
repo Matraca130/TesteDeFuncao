@@ -612,8 +612,15 @@ export async function dismissRecommendation(recId: string): Promise<void> {
 }
 
 // ── SACRED: KwStudentNote shims (use-student-notes.ts) ───────
+// FIX P0: Mock store uses field 'note' but KwStudentNote type expects 'content'.
+// Map mock output to include 'content' so toA6StudentNote adapter works correctly.
 export async function getKwStudentNotesByKeyword(kwId: string, _studentId: string): Promise<any[]> {
-  if (USE_MOCKS) { await delay(); return store.studentNotes.filter(n => n.keyword_id === kwId); }
+  if (USE_MOCKS) {
+    await delay();
+    return store.studentNotes
+      .filter(n => n.keyword_id === kwId)
+      .map(n => ({ ...n, content: n.note })); // P0 FIX: bridge 'note' → 'content'
+  }
   const res = await fetch(`${API_BASE_URL}/keywords/${kwId}/student-notes?student_id=${_studentId}`, { headers: authHeaders() });
   return (await res.json()).data;
 }
