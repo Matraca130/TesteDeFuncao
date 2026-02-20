@@ -8,9 +8,11 @@
 //   1. GET /institutions → all institutions (owner sees everything)
 //   2. GET /institutions/:id/dashboard-stats → stats per institution
 //   3. Platform summary calculated from aggregated stats
+//
+// FIX: navigate() → <Navigate> to avoid side-effects during render
 // ============================================================
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { AxonLogo } from '../components/AxonLogo';
 import { Card, CardContent } from '../components/ui/card';
@@ -184,16 +186,14 @@ export function OwnerDashboard() {
     }
   }, [isAuthenticated, authLoading]);
 
-  // Redirect if not authenticated
+  // FIX: Use <Navigate> component instead of navigate() side-effect during render
   if (!authLoading && !isAuthenticated) {
-    navigate('/', { replace: true });
-    return null;
+    return <Navigate to="/" replace />;
   }
 
-  // Redirect if not a platform owner
+  // FIX: Use <Navigate> component instead of navigate() side-effect during render
   if (!authLoading && isAuthenticated && !user?.is_super_admin) {
-    navigate('/go', { replace: true });
-    return null;
+    return <Navigate to="/go" replace />;
   }
 
   if (authLoading) {

@@ -1,13 +1,16 @@
 // ============================================================
 // Axon v4.4 — AuthContext (WIRED by Agent 4 P3)
 // NOW: calls setApiAuthToken() on login/refresh/logout
-// so api-client.ts automatically includes Bearer token.
+// so api-core.ts automatically includes Bearer token.
+//
+// FIX: Changed import from api-client → api-core so the token
+// is stored in the same module that Owner/Admin read from.
 // ============================================================
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase-client';
 import { supabaseAnonKey, apiBaseUrl } from '../lib/config';
-import { setApiAuthToken } from '../lib/api-client';
+import { setApiAuthToken } from '../lib/api-core';
 import type { AuthUser, Membership, Institution, AuthContextType } from '../../types/auth';
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   const clearError = useCallback(() => setError(null), []);
 
-  // Agent 4 P3: sync token to api-client whenever accessToken changes
+  // FIX: sync token to api-core (not api-client) so Owner/Admin get the token
   useEffect(() => {
     setApiAuthToken(accessToken);
   }, [accessToken]);

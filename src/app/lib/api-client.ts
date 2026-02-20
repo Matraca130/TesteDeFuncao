@@ -4,14 +4,11 @@
 //
 // 3-Layer: UI -> Hooks -> api-client (this file)
 //
-// USE_MOCKS=true (default): in-memory store with simulated delay
-// USE_MOCKS=false: fetch to real Hono endpoints (when available)
+// FIX: USE_MOCKS=false — all functions now hit the real Hono backend.
+// FIX: API_BASE_URL now uses apiBaseUrl from config.ts (was '/api').
 //
 // SHIMS SECTION at bottom: 23 Agent 4 function aliases that the
-// REWIRED hooks import. These delegate to the existing mock store.
-//
-// Phase 4: barrel re-export of api-client-extensions.ts REMOVED.
-// Consumers now import directly from api-*.ts modules.
+// REWIRED hooks import. These delegate to the real backend.
 // ============================================================
 import {
   MOCK_SUMMARIES, MOCK_KEYWORDS, MOCK_FLASHCARDS, MOCK_QUIZ_QUESTIONS,
@@ -24,10 +21,13 @@ import {
 
 import type { KeywordSummaryLink, StudyGoal, SmartStudyRecommendation } from './types-extended';
 import type { StudyPlan as A4StudyPlan } from './types-extended';
+import { apiBaseUrl } from './config';
 
 // ── Config ────────────────────────────────────────────────────────
-const USE_MOCKS = true; // TODO: read from import.meta.env.VITE_USE_MOCKS
-const API_BASE_URL = '/api'; // TODO: read from import.meta.env.VITE_API_BASE_URL
+// FIX: Mocks disabled — all calls go to real Hono backend
+const USE_MOCKS = false;
+// FIX: URL from config.ts (resolves to correct Supabase edge function)
+const API_BASE_URL = apiBaseUrl;
 
 let _authToken: string | null = null;
 export function setApiAuthToken(token: string | null) { _authToken = token; }
@@ -50,7 +50,7 @@ function now(): string {
   return new Date().toISOString();
 }
 
-// ── In-Memory Store (mutable, survives re-renders) ────────────
+// ── In-Memory Store (kept for fallback, but USE_MOCKS=false skips it) ─
 const store = {
   summaries: [...MOCK_SUMMARIES] as Summary[],
   keywords: [...MOCK_KEYWORDS] as Keyword[],
