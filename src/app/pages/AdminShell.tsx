@@ -29,7 +29,6 @@ import {
 import { Button } from '../components/ui/button';
 import { Separator } from '../components/ui/separator';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Toaster } from 'sonner';
 import { cn } from '../components/ui/utils';
 import { headingStyle, bodyStyle } from '../lib/design-tokens';
 
@@ -154,8 +153,7 @@ export function AdminShell() {
         </main>
       </div>
 
-      {/* Toaster for notifications */}
-      <Toaster position="top-right" richColors closeButton />
+      {/* Toaster removed — App.tsx provides the global <Toaster> */}
     </div>
   );
 }
