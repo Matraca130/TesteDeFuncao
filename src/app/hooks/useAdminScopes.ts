@@ -1,9 +1,7 @@
 // ============================================================
 // Axon v4.4 — useAdminScopes Hook
-// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-client
-//
-// Loads scopes, eligible members, and scope options in parallel.
-// Provides mutations for scope CRUD.
+// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-admin
+// Phase 4: imports directly from api-admin.ts (no barrel)
 // ============================================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -13,17 +11,13 @@ import {
   createAdminScope,
   deleteAdminScope,
   getScopeOptions,
-} from '../lib/api-client';
+} from '../lib/api-admin';
 import type { MembershipFull, AdminScope, ScopeOption } from '../../types/auth';
 
 interface UseAdminScopesReturn {
-  /** All members of the institution */
   members: MembershipFull[];
-  /** Members eligible for scope assignment (admin + professor) */
   eligibleMembers: MembershipFull[];
-  /** All admin scopes for the institution */
   scopes: AdminScope[];
-  /** Available scope options for dropdowns */
   scopeOptions: ScopeOption[];
   loading: boolean;
   error: string | null;
@@ -84,15 +78,5 @@ export function useAdminScopes(instId: string): UseAdminScopesReturn {
     [instId]
   );
 
-  return {
-    members,
-    eligibleMembers,
-    scopes,
-    scopeOptions,
-    loading,
-    error,
-    reload,
-    createScope,
-    removeScope,
-  };
+  return { members, eligibleMembers, scopes, scopeOptions, loading, error, reload, createScope, removeScope };
 }

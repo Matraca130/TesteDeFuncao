@@ -1,13 +1,7 @@
 // ============================================================
 // Axon v4.4 — useMembers Hook
-// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-client
-//
-// Encapsulates member data fetching and mutations.
-// Pages use this hook; they never call api-client directly.
-//
-// When migrating from mocks to real API (Phase P3):
-//   Only this hook and api-client.ts need to change.
-//   Page components remain untouched.
+// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-admin
+// Phase 4: imports directly from api-admin.ts (no barrel)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -17,7 +11,7 @@ import {
   updateMemberRole,
   suspendMember,
   removeMember,
-} from '../lib/api-client';
+} from '../lib/api-admin';
 import type { MembershipFull, MembershipRole, InviteMemberPayload } from '../../types/auth';
 
 interface UseMembersReturn {
