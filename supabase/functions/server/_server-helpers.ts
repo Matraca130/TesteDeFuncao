@@ -41,8 +41,8 @@ export const K = {
   },
 };
 
-// ── Route prefix (used by routes-auth.tsx) ──────────────────
-export const PREFIX = "/make-server-ae4c3d80";
+// ── Route prefix (matches Supabase Edge Function name) ─────
+export const PREFIX = "/server";
 
 // ── Supabase admin client (legacy — prefer db() from db.ts) ─
 export function supabaseAdmin() {
