@@ -1,18 +1,18 @@
 // ============================================================
 // routes-auth.tsx
+// AXON v4.4 — SQL-based auth routes
 // Routes: POST /auth/signup, POST /auth/signin,
 //         GET /auth/me, POST /auth/signout
 // ============================================================
 import { Hono } from "npm:hono";
 import {
-  K,
   PREFIX,
   supabaseAdmin,
   getUserFromToken,
   getEnrichedMemberships,
   createMembership,
-  uuid,
 } from "./_server-helpers.ts";
+import { db, ensureProfile } from "./db.ts";
 
 const auth = new Hono();
 
@@ -40,6 +40,9 @@ auth.post(`${PREFIX}/auth/signup`, async (c) => {
     const userId = data.user?.id;
     if (!userId) return c.json({ success: false, error: { code: "SERVER_ERROR", message: "No user ID returned" } }, 500);
 
+    // Create profile in profiles table
+    await ensureProfile({ id: userId, email, name, avatar_url: null });
+
     const user = {
       id: userId, email, name, avatar_url: null,
       is_super_admin: false,
@@ -49,8 +52,13 @@ auth.post(`${PREFIX}/auth/signup`, async (c) => {
 
     let memberships: any[] = [];
     if (instId) {
-      const { default: kv } = await import("./kv_store.tsx");
-      const inst = await kv.get(K.inst(instId));
+      // Get institution from SQL table
+      const { data: inst } = await db()
+        .from("institutions")
+        .select("id, name, slug, logo_url, is_active, settings")
+        .eq("id", instId)
+        .maybeSingle();
+
       const memberRole = role || "student";
       const membership = await createMembership(userId, instId, memberRole);
       memberships = [{ ...membership, institution: inst || null }];
@@ -71,12 +79,29 @@ auth.get(`${PREFIX}/auth/me`, async (c) => {
   const user = await getUserFromToken(c);
   if (!user) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, 401);
   try {
+    // Sync profile on each /me call
+    await ensureProfile(user);
+
+    // Get profile from SQL table for platform_role
+    const { data: profile } = await db()
+      .from("profiles")
+      .select("platform_role, is_active")
+      .eq("id", user.id)
+      .maybeSingle();
+
     const memberships = await getEnrichedMemberships(user.id);
     console.log(`[Server] /auth/me: ${user.email}, ${memberships.length} memberships`);
     return c.json({
       success: true,
       data: {
-        user: { ...user, is_super_admin: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+        user: {
+          ...user,
+          platform_role: profile?.platform_role || "user",
+          is_super_admin: profile?.platform_role === "platform_admin",
+          is_active: profile?.is_active ?? true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
         memberships,
       },
     });
@@ -100,13 +125,30 @@ auth.post(`${PREFIX}/auth/signin`, async (c) => {
     const userId = data.user?.id;
     if (!userId) return c.json({ success: false, error: { code: "SERVER_ERROR", message: "No user ID" } }, 500);
 
+    // Sync profile on sign-in
+    await ensureProfile({
+      id: userId,
+      email: data.user.email || "",
+      name: data.user.user_metadata?.name || email.split("@")[0],
+      avatar_url: data.user.user_metadata?.avatar_url || null,
+    });
+
+    // Get profile for platform_role
+    const { data: profile } = await db()
+      .from("profiles")
+      .select("platform_role, is_active")
+      .eq("id", userId)
+      .maybeSingle();
+
     const memberships = await getEnrichedMemberships(userId);
     const user = {
       id: userId,
       email: data.user.email || "",
       name: data.user.user_metadata?.name || email.split("@")[0],
       avatar_url: data.user.user_metadata?.avatar_url || null,
-      is_super_admin: false,
+      platform_role: profile?.platform_role || "user",
+      is_super_admin: profile?.platform_role === "platform_admin",
+      is_active: profile?.is_active ?? true,
       created_at: data.user.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
