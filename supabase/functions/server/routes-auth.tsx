@@ -1,12 +1,19 @@
 // ============================================================
 // routes-auth.tsx
 // AXON v4.4 — SQL-based auth routes
+//
+// FIX: Removed ${PREFIX} from route paths. When mounted via
+//      app.route(PREFIX, auth) in index.ts, Hono strips the
+//      mount prefix automatically. Embedding PREFIX here caused
+//      double-prefixing → 404 on all auth endpoints.
+//      Now matches the pattern used by routes-institutions-v2.tsx
+//      and all other v2 route modules.
+//
 // Routes: POST /auth/signup, POST /auth/signin,
 //         GET /auth/me, POST /auth/signout
 // ============================================================
 import { Hono } from "npm:hono";
 import {
-  PREFIX,
   supabaseAdmin,
   getUserFromToken,
   getEnrichedMemberships,
@@ -17,7 +24,7 @@ import { db, ensureProfile } from "./db.ts";
 const auth = new Hono();
 
 // ── POST /auth/signup ───────────────────────────────────
-auth.post(`${PREFIX}/auth/signup`, async (c) => {
+auth.post("/auth/signup", async (c) => {
   try {
     const body = await c.req.json();
     const { email, password, name, institution_id, institutionId, role } = body;
@@ -75,7 +82,7 @@ auth.post(`${PREFIX}/auth/signup`, async (c) => {
 });
 
 // ── GET /auth/me ───────────────────────────────────────
-auth.get(`${PREFIX}/auth/me`, async (c) => {
+auth.get("/auth/me", async (c) => {
   const user = await getUserFromToken(c);
   if (!user) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, 401);
   try {
@@ -112,10 +119,10 @@ auth.get(`${PREFIX}/auth/me`, async (c) => {
 });
 
 // ── POST /auth/signout ──────────────────────────────────
-auth.post(`${PREFIX}/auth/signout`, (c) => c.json({ success: true }));
+auth.post("/auth/signout", (c) => c.json({ success: true }));
 
 // ── POST /auth/signin ───────────────────────────────────
-auth.post(`${PREFIX}/auth/signin`, async (c) => {
+auth.post("/auth/signin", async (c) => {
   try {
     const { email, password } = await c.req.json();
     const sb = supabaseAdmin();
