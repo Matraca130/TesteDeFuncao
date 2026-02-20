@@ -45,13 +45,15 @@ export {
 
 // ══════════════════════════════════════════════════════════════
 // B. RE-EXPORTS from api-plans.ts
-//    Consumer: usePlans.ts
+//    Consumers: usePlans.ts, AccessRulesSection.tsx
 // ══════════════════════════════════════════════════════════════
 export {
   getPlans,
   createPlan,
   updatePlan,
   deletePlan,
+  getPlanRules,
+  createPlanRule,
 } from './api-plans';
 
 // ══════════════════════════════════════════════════════════════
@@ -245,6 +247,23 @@ export async function togglePlanActive(instId: string, planId: string): Promise<
     method: 'PATCH', headers: authHeaders(),
   });
   return (await res.json()).data;
+}
+
+// ══════════════════════════════════════════════════════════════
+// G2. STUB — deletePlanRule
+//     Consumer: AccessRulesSection.tsx (Agent 5 — FORGE)
+//     Does NOT exist in api-plans.ts — needs real implementation
+//     in Phase 4 when backend endpoint is created.
+// ══════════════════════════════════════════════════════════════
+
+export async function deletePlanRule(planId: string, ruleId: string): Promise<void> {
+  if (USE_MOCKS) {
+    await delay();
+    return;
+  }
+  await fetch(`${API_BASE_URL}/plans/${planId}/rules/${ruleId}`, {
+    method: 'DELETE', headers: authHeaders(),
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
