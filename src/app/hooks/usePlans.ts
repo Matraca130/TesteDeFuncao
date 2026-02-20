@@ -1,8 +1,7 @@
 // ============================================================
 // Axon v4.4 — usePlans Hook
-// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-client
-//
-// Encapsulates plan data fetching and mutations.
+// Agent 5: FORGE — 3-Layer: Components → [Hooks] → api-plans
+// Phase 4: imports directly from api-plans.ts (no barrel)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -12,7 +11,7 @@ import {
   updatePlan,
   deletePlan,
   togglePlanActive,
-} from '../lib/api-client';
+} from '../lib/api-plans';
 import type { PricingPlan } from '../../types/auth';
 
 interface UsePlansReturn {

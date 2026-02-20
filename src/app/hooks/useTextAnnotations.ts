@@ -1,25 +1,26 @@
 // ============================================================
 // useTextAnnotations — SACRED text annotations on summaries
-// Agent 4 — BRIDGE | Phase P2 (rewired from local-only → api-client)
+// Agent 4 — BRIDGE | Phase P2 (rewired from local-only → api-sacred)
 //
 // SACRED ENTITY: TextAnnotation
 // - deleteAnnotation = soft-delete (sets deleted_at, never hard deletes)
 // - restoreAnnotation = restores from soft-delete (clears deleted_at)
 //
-// 3-layer rule compliant (UI → hook → api-client.ts)
-//
-// FIX(commit 4): Removed all duplicate code from bad merge.
+// Phase 4: imports directly from api-sacred.ts (no barrel)
+// Wrappers eliminated — calls api-sacred with correct signatures.
 // ============================================================
 
 import { useState, useEffect, useCallback, useMemo, type CSSProperties } from 'react';
 import type { TextAnnotation } from '../lib/types';
 import {
-  getTextAnnotations,
-  createTextAnnotation as apiCreateAnnotation,
-  updateTextAnnotation as apiUpdateAnnotation,
-  deleteTextAnnotation as apiDeleteAnnotation,
-  restoreTextAnnotation as apiRestoreAnnotation,
-} from '../lib/api-client';
+  getTextAnnotationsBySummary,
+  createTextAnnotation as sacredCreate,
+  updateTextAnnotation as sacredUpdate,
+  softDeleteTextAnnotation,
+  restoreTextAnnotation as sacredRestore,
+} from '../lib/api-sacred';
+
+const DEFAULT_STUDENT_ID = 'demo-student-001';
 
 // ── Types re-exported for UI convenience ────────────────────
 
@@ -31,7 +32,7 @@ export interface PendingAnnotation {
   rect: DOMRect;
 }
 
-// ── Highlighter visual styles ───────────────────────────────
+// ── Highlighter visual styles ───────────────────────────
 
 export const HIGHLIGHTER_STYLES: Record<AnnotationColor, CSSProperties> = {
   yellow: { background: 'linear-gradient(to bottom, transparent 40%, #fde047 40%, #fde047 85%, transparent 85%)' },
@@ -40,23 +41,18 @@ export const HIGHLIGHTER_STYLES: Record<AnnotationColor, CSSProperties> = {
   pink:   { background: 'linear-gradient(to bottom, transparent 40%, #f9a8d4 40%, #f9a8d4 85%, transparent 85%)' },
 };
 
-// ── Return type ─────────────────────────────────────────────
+// ── Return type ─────────────────────────────────────────
 
 export interface UseTextAnnotationsReturn {
-  // Data
   annotations: TextAnnotation[];
   deletedAnnotations: TextAnnotation[];
   loading: boolean;
   error: string | null;
-
-  // CRUD (through api-client.ts)
   addAnnotation: (text: string, type: AnnotationType, note?: string, color?: AnnotationColor) => Promise<void>;
   updateAnnotation: (annotationId: string, data: Partial<TextAnnotation>) => Promise<void>;
-  deleteAnnotation: (annotationId: string) => Promise<void>;   // SACRED soft-delete
-  restoreAnnotation: (annotationId: string) => Promise<void>;  // SACRED restore
+  deleteAnnotation: (annotationId: string) => Promise<void>;
+  restoreAnnotation: (annotationId: string) => Promise<void>;
   refresh: () => Promise<void>;
-
-  // UI state (local, not persisted)
   pendingAnnotation: PendingAnnotation | null;
   setPendingAnnotation: (p: PendingAnnotation | null) => void;
   annotationNoteInput: string;
@@ -68,20 +64,16 @@ export interface UseTextAnnotationsReturn {
   setAnnotationActiveTab: (t: AnnotationType) => void;
   annotationColor: AnnotationColor;
   setAnnotationColor: (c: AnnotationColor) => void;
-
-  // Constants
   highlighterStyles: Record<AnnotationColor, CSSProperties>;
 }
 
-// ── Hook ────────────────────────────────────────────────────
+// ── Hook ────────────────────────────────────────────────
 
 export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn {
-  // ── Server state ────────────────────────────────────────
   const [allAnnotations, setAllAnnotations] = useState<TextAnnotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Separate active from soft-deleted
   const annotations = useMemo(
     () => allAnnotations.filter(a => a.deleted_at === null),
     [allAnnotations]
@@ -91,7 +83,6 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     [allAnnotations]
   );
 
-  // ── UI-only state (preserved from old hook) ─────────────
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
   const [annotationNoteInput, setAnnotationNoteInput] = useState('');
   const [annotationQuestionInput, setAnnotationQuestionInput] = useState('');
@@ -99,14 +90,14 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
   const [annotationActiveTab, setAnnotationActiveTab] = useState<AnnotationType>('highlight');
   const [annotationColor, setAnnotationColor] = useState<AnnotationColor>('yellow');
 
-  // ── Fetch ───────────────────────────────────────────────
+  // ── Fetch (api-sacred: getTextAnnotationsBySummary) ─────
 
   const fetchAnnotations = useCallback(async () => {
     if (!summaryId) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getTextAnnotations(summaryId);
+      const data = await getTextAnnotationsBySummary(summaryId, DEFAULT_STUDENT_ID);
       setAllAnnotations(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao carregar anotacoes';
@@ -121,7 +112,7 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     fetchAnnotations();
   }, [fetchAnnotations]);
 
-  // ── Create ──────────────────────────────────────────────
+  // ── Create (api-sacred: createTextAnnotation) ──────────
 
   const addAnnotation = useCallback(async (
     text: string,
@@ -131,7 +122,7 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
   ) => {
     setError(null);
     try {
-      const created = await apiCreateAnnotation(summaryId, {
+      const created = await sacredCreate(summaryId, DEFAULT_STUDENT_ID, {
         original_text: text,
         display_text: text.length > 200 ? text.slice(0, 200) + '\u2026' : text,
         color,
@@ -139,12 +130,11 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
         type,
       });
 
-      // Simulate bot reply for 'question' type (same behavior as old hook)
       if (type === 'question') {
         setAnnotationBotLoading(true);
         setTimeout(async () => {
           try {
-            await apiUpdateAnnotation(summaryId, created.id, {
+            await sacredUpdate(created.id, {
               bot_reply: `Com base no trecho selecionado, posso explicar que: "${text.slice(0, 60)}..." Este conceito e fundamental na medicina porque se relaciona com os mecanismos fisiologicos e anatomicos da regiao estudada. Deseja que eu aprofunde algum aspecto especifico?`,
             });
             await fetchAnnotations();
@@ -156,7 +146,6 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
         }, 1500);
       }
 
-      // Clear UI state
       setPendingAnnotation(null);
       setAnnotationNoteInput('');
       setAnnotationQuestionInput('');
@@ -169,49 +158,47 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     }
   }, [summaryId, fetchAnnotations]);
 
-  // ── Update ──────────────────────────────────────────────
+  // ── Update (api-sacred: updateTextAnnotation) ──────────
 
   const updateAnnotation = useCallback(async (annotationId: string, data: Partial<TextAnnotation>) => {
     setError(null);
     try {
-      await apiUpdateAnnotation(summaryId, annotationId, data);
+      await sacredUpdate(annotationId, data);
       await fetchAnnotations();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao atualizar anotacao';
       setError(msg);
       console.error('[useTextAnnotations] update error:', err);
     }
-  }, [summaryId, fetchAnnotations]);
+  }, [fetchAnnotations]);
 
-  // ── SACRED: Soft-delete ─────────────────────────────────
+  // ── SACRED: Soft-delete (api-sacred: softDeleteTextAnnotation) ──
 
   const deleteAnnotation = useCallback(async (annotationId: string) => {
     setError(null);
     try {
-      await apiDeleteAnnotation(summaryId, annotationId);
+      await softDeleteTextAnnotation(annotationId);
       await fetchAnnotations();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao deletar anotacao';
       setError(msg);
       console.error('[useTextAnnotations] delete error:', err);
     }
-  }, [summaryId, fetchAnnotations]);
+  }, [fetchAnnotations]);
 
-  // ── SACRED: Restore ─────────────────────────────────────
+  // ── SACRED: Restore (api-sacred: restoreTextAnnotation) ─────
 
   const restoreAnnotation = useCallback(async (annotationId: string) => {
     setError(null);
     try {
-      await apiRestoreAnnotation(summaryId, annotationId);
+      await sacredRestore(annotationId);
       await fetchAnnotations();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao restaurar anotacao';
       setError(msg);
       console.error('[useTextAnnotations] restore error:', err);
     }
-  }, [summaryId, fetchAnnotations]);
-
-  // ── Close pending annotation on outside click ───────────
+  }, [fetchAnnotations]);
 
   useEffect(() => {
     if (!pendingAnnotation) return;
@@ -223,23 +210,16 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
   }, [pendingAnnotation]);
 
-  // ── Return ──────────────────────────────────────────────
-
   return {
-    // Data
     annotations,
     deletedAnnotations,
     loading,
     error,
-
-    // CRUD
     addAnnotation,
     updateAnnotation,
     deleteAnnotation,
     restoreAnnotation,
     refresh: fetchAnnotations,
-
-    // UI state
     pendingAnnotation,
     setPendingAnnotation,
     annotationNoteInput,
@@ -251,8 +231,6 @@ export function useTextAnnotations(summaryId: string): UseTextAnnotationsReturn 
     setAnnotationActiveTab,
     annotationColor,
     setAnnotationColor,
-
-    // Constants
     highlighterStyles: HIGHLIGHTER_STYLES,
   };
 }

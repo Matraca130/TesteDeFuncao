@@ -1,15 +1,13 @@
 // ============================================================
 // Axon v4.4 — useSummaryPersistence (REWIRED by Agent 4 P3)
-// NOW: imports from api-client.ts (3-layer rule compliant)
-// BEFORE: imported from services/studentApi.ts (direct fetch)
-// FIX: TextAnnotation fields mapped camelCase→snake_case
+// Phase 4: imports directly from api-student.ts (no barrel)
 // ============================================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getStudySummaryByTopic,
   saveStudySummaryByTopic,
-} from '../lib/api-client';
+} from '../lib/api-student';
 import type { TextAnnotation } from '../lib/types';
 import type { StudySummaryAnnotation } from '../lib/types';
 

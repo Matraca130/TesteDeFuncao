@@ -1,7 +1,6 @@
 // ============================================================
 // Axon v4.4 — useStudentData Hook (REWIRED by Agent 4 P3)
-// NOW: imports from api-client.ts (3-layer rule compliant)
-// BEFORE: imported from services/studentApi.ts (direct fetch)
+// Phase 4: imports directly from api-student.ts (no barrel)
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -13,7 +12,7 @@ import {
   getStudySessions,
   getFlashcardReviews,
   seedDemoData,
-} from '../lib/api-client';
+} from '../lib/api-student';
 import type {
   StudentProfile,
   StudentStats,
@@ -23,7 +22,6 @@ import type {
   FlashcardReview,
 } from '../lib/types';
 
-// Re-export types so consumers can import from this hook
 export type { StudentProfile, StudentStats, CourseProgress, DailyActivity, StudySession, FlashcardReview };
 
 const DEFAULT_STUDENT_ID = 'demo-student-001';

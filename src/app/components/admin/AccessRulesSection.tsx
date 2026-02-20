@@ -1,10 +1,7 @@
 // ============================================================
 // Axon v4.4 — AccessRulesSection (Extracted from PlanManagement)
 // Agent 5: FORGE
-//
-// Self-contained component that manages access rules for a plan.
-// Has its own data fetching (plan rules + scope options),
-// its own CRUD operations, and its own form state.
+// Phase 4: imports from api-plans.ts + api-admin.ts (no barrel)
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
@@ -25,8 +22,8 @@ import {
   getPlanRules,
   createPlanRule,
   deletePlanRule,
-  getScopeOptions,
-} from '../../lib/api-client';
+} from '../../lib/api-plans';
+import { getScopeOptions } from '../../lib/api-admin';
 import { CURRENT_INST_ID } from '../../lib/admin-constants';
 import type {
   PlanAccessRule,
@@ -35,7 +32,7 @@ import type {
   ContentType,
 } from '../../../types/auth';
 
-// ── Constants ────────────────────────────────
+// ── Constants ────────────────────────────────────────
 
 const CONTENT_TYPES: { value: ContentType; label: string }[] = [
   { value: 'summaries', label: 'Resumos' },
@@ -45,7 +42,7 @@ const CONTENT_TYPES: { value: ContentType; label: string }[] = [
   { value: 'ai_chat', label: 'AI Chat' },
 ];
 
-// ── Component ────────────────────────────────
+// ── Component ────────────────────────────────────────
 
 interface AccessRulesSectionProps {
   planId: string;

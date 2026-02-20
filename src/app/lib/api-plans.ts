@@ -1,3 +1,4 @@
+// Axon v4.4 — API Plans: CRUD + Rules + Toggle
 import type { PricingPlan, PlanAccessRule } from './types';
 import { USE_MOCKS, API_BASE_URL, authHeaders, store, mockId, delay, now } from './api-core';
 
@@ -7,3 +8,26 @@ export async function updatePlan(instId: string, planId: string, data: Partial<P
 export async function deletePlan(instId: string, planId: string): Promise<void> { if (USE_MOCKS) { await delay(); store.plans = store.plans.filter(p => p.id !== planId); return; } await fetch(`${API_BASE_URL}/institutions/${instId}/plans/${planId}`, { method: 'DELETE', headers: authHeaders() }); }
 export async function getPlanRules(planId: string): Promise<PlanAccessRule[]> { if (USE_MOCKS) { await delay(); return store.planRules.filter(r => r.plan_id === planId); } return (await (await fetch(`${API_BASE_URL}/plans/${planId}/rules`, { headers: authHeaders() })).json()).data; }
 export async function createPlanRule(planId: string, rule: Partial<PlanAccessRule>): Promise<PlanAccessRule> { if (USE_MOCKS) { await delay(); const n: PlanAccessRule = { id: mockId('rule'), plan_id: planId, resource_type: rule.resource_type || 'course', resource_id: rule.resource_id || '', permission: rule.permission || 'read', created_at: now() }; store.planRules.push(n); return n; } return (await (await fetch(`${API_BASE_URL}/plans/${planId}/rules`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(rule) })).json()).data; }
+
+// ── Moved from api-client-extensions.ts (Phase 4) ────────────
+
+export async function togglePlanActive(instId: string, planId: string): Promise<any> {
+  if (USE_MOCKS) {
+    await delay();
+    return { id: planId, institution_id: instId, active: true };
+  }
+  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/plans/${planId}/toggle-active`, {
+    method: 'PATCH', headers: authHeaders(),
+  });
+  return (await res.json()).data;
+}
+
+export async function deletePlanRule(planId: string, ruleId: string): Promise<void> {
+  if (USE_MOCKS) {
+    await delay();
+    return;
+  }
+  await fetch(`${API_BASE_URL}/plans/${planId}/rules/${ruleId}`, {
+    method: 'DELETE', headers: authHeaders(),
+  });
+}

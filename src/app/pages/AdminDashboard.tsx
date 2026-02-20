@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════
 // Axon v4.4 — Admin Dashboard (A5-05)
 // Agent 5: FORGE — Overview + Quick Actions + Setup Banner
+// Phase 4: imports from api-admin.ts (no barrel)
 // ═══════════════════════════════════════════════
 
 import React, { useEffect, useState } from 'react';
@@ -19,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Skeleton } from '../components/ui/skeleton';
 import { RoleBadge } from '../components/admin/RoleBadge';
-import { getDashboardStats, type DashboardStats } from '../lib/api-client';
+import { getDashboardStats, type DashboardStats } from '../lib/api-admin';
 import { CURRENT_INST_ID } from '../lib/admin-constants';
 import { headingStyle } from '../lib/design-tokens';
 
@@ -69,7 +70,7 @@ export function AdminDashboard() {
           {loading ? (
             <Skeleton className="h-8 w-64" />
           ) : (
-            <>Dashboard {stats?.institutionName && `— ${stats.institutionName}`}</>
+            <>Dashboard {stats?.institutionName && `\u2014 ${stats.institutionName}`}</>
           )}
         </h1>
         <p className="mt-1 text-zinc-500">
@@ -189,7 +190,7 @@ export function AdminDashboard() {
   );
 }
 
-// ── Sub-components ───────────────────────────────
+// ── Sub-components ───────────────────────────────────
 
 function StatsCard({
   title,
