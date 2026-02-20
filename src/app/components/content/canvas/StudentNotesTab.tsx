@@ -71,7 +71,7 @@ export function StudentNotesTab({ keywordId }: StudentNotesTabProps) {
     const note = activeNotes.find((n) => n.id === id);
     if (note) {
       setEditingId(id);
-      setEditText(note.note);
+      setEditText(note.note || '');
     }
   };
 
@@ -219,20 +219,20 @@ export function StudentNotesTab({ keywordId }: StudentNotesTabProps) {
                         className="text-gray-700 flex-1 whitespace-pre-wrap break-words"
                         style={{ fontSize: '0.875rem' }}
                       >
-                        {n.note}
+                        {n.note || ''}
                       </p>
                       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => handleStartEdit(n.id)}
                           className="p-1 text-gray-400 hover:text-teal-600 rounded transition-colors"
-                          aria-label={`Editar nota: ${n.note.slice(0, 30)}`}
+                          aria-label={`Editar nota: ${(n.note || '').slice(0, 30)}`}
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
                         <button
                           onClick={() => softDeleteNote(n.id)}
                           className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                          aria-label={`Eliminar nota: ${n.note.slice(0, 30)}`}
+                          aria-label={`Eliminar nota: ${(n.note || '').slice(0, 30)}`}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -275,13 +275,13 @@ export function StudentNotesTab({ keywordId }: StudentNotesTabProps) {
                     className="text-gray-400 truncate flex-1"
                     style={{ fontSize: '0.75rem' }}
                   >
-                    {n.note}
+                    {n.note || ''}
                   </p>
                   <button
                     onClick={() => restoreNote(n.id)}
                     className="text-teal-600 hover:text-teal-700 shrink-0 p-0.5 rounded transition-colors"
                     style={{ fontSize: '0.75rem' }}
-                    aria-label={`Restaurar nota: ${n.note.slice(0, 30)}`}
+                    aria-label={`Restaurar nota: ${(n.note || '').slice(0, 30)}`}
                   >
                     <Undo2 className="w-3 h-3" />
                   </button>
