@@ -1,55 +1,48 @@
 // ============================================================
 // Axon v4.4 — Route Configuration (UNIFIED + AUTH WIRED)
 //
-// FIX: Previously, all routes were accessible without auth.
-// Now: LandingPage is the entry point, protected routes require login.
+// BEFORE: All routes were unprotected under AppNavigation.
+//         LandingPage, login pages, and guards existed as dead code.
 //
-// Layout hierarchy:
-//   / → LandingPage (public, role selection)
-//   /admin/login → AdminLoginPage (RequireGuest)
-//   /professor/login → ProfessorLoginPage (RequireGuest)
-//   /i/:slug → InstitutionPublicPage (public)
-//   /i/:slug/login → StudentLoginPage (RequireGuest)
-//   /i/:slug/signup → StudentSignupPage (RequireGuest)
-//   /go → PostLoginRouter (redirects by role)
-//   /select-institution → SelectInstitutionPage (RequireAuth)
-//   /no-institution → NoInstitutionPage (RequireAuth)
-//   /dashboard → RequireAuth → AppNavigation → DashboardHome
-//   /admin/* → RequireAuth → AppNavigation → AdminShell
-//   /professor/* → RequireAuth → AppNavigation → Professor editors
-//   /study/* → RequireAuth → AppNavigation → Student study pages
+// NOW:    LandingPage is the entry point at /.
+//         Auth pages are connected as public routes.
+//         App routes (admin, professor, study) keep their paths
+//         and are rendered with AppNavigation layout.
+//
+// Route specificity (React Router v7):
+//   /admin/login     → AdminLoginPage     (static, higher priority)
+//   /admin           → AppNavigation+Shell (layout, lower priority)
+//   /professor/login → ProfessorLoginPage  (static, higher priority)
+//   /professor/*     → AppNavigation+pages (layout, lower priority)
 // ============================================================
 
 import { createBrowserRouter } from 'react-router';
 
-// ── Public pages ─────────────────────────────────────────
+// ── Public pages (full-screen, no sidebar) ──
 import { LandingPage } from './pages/LandingPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { ProfessorLoginPage } from './pages/ProfessorLoginPage';
-import { InstitutionPublicPage } from './pages/InstitutionPublicPage';
 import { StudentLoginPage } from './pages/StudentLoginPage';
 import { StudentSignupPage } from './pages/StudentSignupPage';
-
-// ── Post-login routing ───────────────────────────────────
-import { PostLoginRouter } from './components/guards/PostLoginRouter';
+import { InstitutionPublicPage } from './pages/InstitutionPublicPage';
 import { SelectInstitutionPage } from './pages/SelectInstitutionPage';
 import { NoInstitutionPage } from './pages/NoInstitutionPage';
 
-// ── Auth guard wrapper ───────────────────────────────────
-import { RequireAuth } from './components/guards/RequireAuth';
+// ── Auth routing ──
+import { PostLoginRouter } from './components/guards/PostLoginRouter';
 
-// ── Layout ───────────────────────────────────────────────
+// ── Layout components ──
 import { AppNavigation } from './components/layout/AppNavigation';
 import { AdminShell } from './pages/AdminShell';
 
-// ── Admin pages ──────────────────────────────────────────
+// ── Agent 5 — Admin pages ──
 import { AdminDashboard } from './pages/AdminDashboard';
 import { InstitutionWizard } from './pages/InstitutionWizard';
 import { MemberManagement } from './pages/MemberManagement';
 import { PlanManagement } from './pages/PlanManagement';
 import { AdminScopesPage } from './pages/AdminScopesPage';
 
-// ── Professor pages ──────────────────────────────────────
+// ── Agent 6 — Professor pages ──
 import { DashboardHome } from './pages/DashboardHome';
 import { ProfessorKeywordEditor } from './pages/ProfessorKeywordEditor';
 import { ProfessorFlashcardEditor } from './pages/ProfessorFlashcardEditor';
@@ -57,12 +50,12 @@ import { ProfessorQuizEditor } from './pages/ProfessorQuizEditor';
 import { VideoManager } from './pages/VideoManager';
 import { ProfessorContentFlow } from './pages/ProfessorContentFlow';
 
-// ── Student pages ────────────────────────────────────────
+// ── Agent 6 — Student pages ──
 import { VideoStudyPage } from './pages/VideoStudyPage';
 import { SmartStudyPage } from './pages/SmartStudyPage';
 import { StudyPlansPage } from './pages/StudyPlansPage';
 
-// ── Design tokens ────────────────────────────────────────
+// ── Design tokens ──
 import { headingStyle, bodyStyle } from './lib/design-tokens';
 
 // ── 404 Page ─────────────────────────────────────────────
@@ -84,54 +77,51 @@ function NotFound() {
   );
 }
 
-// ── Auth Layout Wrapper ──────────────────────────────────
-// Wraps AppNavigation inside RequireAuth so all child routes
-// are protected. If not authenticated, redirects to /.
-function ProtectedAppLayout() {
-  return (
-    <RequireAuth>
-      <AppNavigation />
-    </RequireAuth>
-  );
-}
-
 // ── Router ───────────────────────────────────────────────
 export const router = createBrowserRouter([
-  // ════════════════════════════════════════════════════════
-  // PUBLIC ROUTES (no auth required)
-  // ════════════════════════════════════════════════════════
+  // ============================================================
+  // PUBLIC ROUTES — Full-screen, no sidebar, no auth required
+  // ============================================================
 
-  // Landing page — first thing users see
+  // Landing page — FIRST thing user sees
   { path: '/', Component: LandingPage },
 
-  // Auth pages (RequireGuest is built into each component)
-  { path: 'admin/login', Component: AdminLoginPage },
-  { path: 'professor/login', Component: ProfessorLoginPage },
+  // Auth: login pages (each wraps itself with RequireGuest)
+  { path: '/admin/login', Component: AdminLoginPage },
+  { path: '/professor/login', Component: ProfessorLoginPage },
+  { path: '/i/:slug', Component: InstitutionPublicPage },
+  { path: '/i/:slug/login', Component: StudentLoginPage },
+  { path: '/i/:slug/signup', Component: StudentSignupPage },
 
-  // Institution public page + student auth
-  { path: 'i/:slug', Component: InstitutionPublicPage },
-  { path: 'i/:slug/login', Component: StudentLoginPage },
-  { path: 'i/:slug/signup', Component: StudentSignupPage },
+  // Post-login router — redirects by role to /admin, /professor, /study
+  { path: '/go', Component: PostLoginRouter },
 
-  // ════════════════════════════════════════════════════════
-  // POST-LOGIN ROUTING
-  // ════════════════════════════════════════════════════════
-  { path: 'go', Component: PostLoginRouter },
-  { path: 'select-institution', Component: SelectInstitutionPage },
-  { path: 'no-institution', Component: NoInstitutionPage },
+  // Auth: institution selection (wraps itself with RequireAuth)
+  { path: '/select-institution', Component: SelectInstitutionPage },
+  { path: '/no-institution', Component: NoInstitutionPage },
 
-  // ════════════════════════════════════════════════════════
-  // PROTECTED ROUTES (RequireAuth via ProtectedAppLayout)
-  // ════════════════════════════════════════════════════════
+  // ============================================================
+  // APP ROUTES — With AppNavigation sidebar layout
+  // These paths match what getRouteForRole() returns.
+  // React Router specificity ensures /admin/login (static) matches
+  // BEFORE /admin (layout) — no conflict.
+  // ============================================================
+
+  // Dashboard (generic home after login)
   {
-    Component: ProtectedAppLayout,
+    path: '/dashboard',
+    Component: AppNavigation,
     children: [
-      // ── Dashboard Home ──
-      { path: 'dashboard', Component: DashboardHome },
+      { index: true, Component: DashboardHome },
+    ],
+  },
 
-      // ── Admin routes ──
+  // Admin routes — getRouteForRole('owner'|'admin') → '/admin'
+  {
+    path: '/admin',
+    Component: AppNavigation,
+    children: [
       {
-        path: 'admin',
         Component: AdminShell,
         children: [
           { index: true, Component: AdminDashboard },
@@ -141,21 +131,35 @@ export const router = createBrowserRouter([
           { path: 'scopes', Component: AdminScopesPage },
         ],
       },
-
-      // ── Professor routes ──
-      { path: 'professor/keywords', Component: ProfessorKeywordEditor },
-      { path: 'professor/flashcards', Component: ProfessorFlashcardEditor },
-      { path: 'professor/quizzes', Component: ProfessorQuizEditor },
-      { path: 'professor/videos', Component: VideoManager },
-      { path: 'professor/content-flow', Component: ProfessorContentFlow },
-
-      // ── Student routes ──
-      { path: 'study/video/:videoId', Component: VideoStudyPage },
-      { path: 'study/smart-study', Component: SmartStudyPage },
-      { path: 'study/plans', Component: StudyPlansPage },
-
-      // ── Catch-all inside protected area ──
-      { path: '*', Component: NotFound },
     ],
   },
+
+  // Professor routes — getRouteForRole('professor') → '/professor'
+  {
+    path: '/professor',
+    Component: AppNavigation,
+    children: [
+      { index: true, Component: DashboardHome },
+      { path: 'keywords', Component: ProfessorKeywordEditor },
+      { path: 'flashcards', Component: ProfessorFlashcardEditor },
+      { path: 'quizzes', Component: ProfessorQuizEditor },
+      { path: 'videos', Component: VideoManager },
+      { path: 'content-flow', Component: ProfessorContentFlow },
+    ],
+  },
+
+  // Student/Study routes — getRouteForRole('student') → '/study'
+  {
+    path: '/study',
+    Component: AppNavigation,
+    children: [
+      { index: true, Component: SmartStudyPage },
+      { path: 'video/:videoId', Component: VideoStudyPage },
+      { path: 'smart-study', Component: SmartStudyPage },
+      { path: 'plans', Component: StudyPlansPage },
+    ],
+  },
+
+  // ── Catch-all ──
+  { path: '*', Component: NotFound },
 ]);
