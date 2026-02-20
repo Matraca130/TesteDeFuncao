@@ -1,27 +1,36 @@
 // ============================================================
 // routes-institutions.tsx
-// Routes: GET /institutions, GET /institutions/by-slug/:slug,
-//         POST /institutions
+// FIX: Removed ${PREFIX} from paths — the prefix is applied
+// by app.route(PREFIX, institutions) in index.ts.
+// ADDED: GET /institutions/check-slug/:slug
+// ADDED: GET /institutions/:instId/dashboard-stats
+// Routes:
+//   GET  /institutions
+//   GET  /institutions/by-slug/:slug
+//   GET  /institutions/check-slug/:slug
+//   GET  /institutions/:instId/dashboard-stats
+//   POST /institutions
 // ============================================================
 import { Hono } from "npm:hono";
 import * as kv from "./kv_store.tsx";
-import { K, PREFIX, getUserId, createMembership, uuid } from "./_server-helpers.ts";
+import { K, getUserId, createMembership, uuid } from "./_server-helpers.ts";
 
 const institutions = new Hono();
 
 // ── GET /institutions ───────────────────────────────────
-institutions.get(`${PREFIX}/institutions`, async (c) => {
+institutions.get("/institutions", async (c) => {
   try {
     const allInsts = await kv.getByPrefix(K.PFX.INST);
     const filtered = allInsts.filter((i: any) => i && typeof i === "object" && i.id);
     return c.json({ success: true, data: filtered });
   } catch (err) {
+    console.log(`[Institutions] GET list error:`, err);
     return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
   }
 });
 
 // ── GET /institutions/by-slug/:slug ─────────────────────
-institutions.get(`${PREFIX}/institutions/by-slug/:slug`, async (c) => {
+institutions.get("/institutions/by-slug/:slug", async (c) => {
   try {
     const slug = c.req.param("slug");
 
@@ -45,12 +54,81 @@ institutions.get(`${PREFIX}/institutions/by-slug/:slug`, async (c) => {
     }
     return c.json({ success: true, data: institution });
   } catch (err) {
+    console.log(`[Institutions] GET by-slug error:`, err);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+// ── GET /institutions/check-slug/:slug ──────────────────
+institutions.get("/institutions/check-slug/:slug", async (c) => {
+  try {
+    const slug = c.req.param("slug");
+    const existing = await kv.get(K.idxSlugInst(slug));
+    if (existing) {
+      // Suggest alternative
+      const suggestion = `${slug}-${Date.now() % 10000}`;
+      return c.json({ success: true, data: { available: false, suggestion } });
+    }
+    return c.json({ success: true, data: { available: true } });
+  } catch (err) {
+    console.log(`[Institutions] check-slug error:`, err);
+    return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
+  }
+});
+
+// ── GET /institutions/:instId/dashboard-stats ───────────
+institutions.get("/institutions/:instId/dashboard-stats", async (c) => {
+  const userId = await getUserId(c);
+  if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
+  try {
+    const instId = c.req.param("instId");
+
+    // Get institution info
+    const institution = await kv.get(K.inst(instId));
+    const instName = institution ? (institution as any).name : instId;
+
+    // Count members by role
+    const memberUserIds = await kv.getByPrefix(`${K.PFX.IDX_INST_MEMBERS}${instId}:`);
+    const membersByRole: Record<string, number> = {};
+    let totalMembers = 0;
+    let activeStudents = 0;
+    let pendingInvites = 0;
+
+    for (const mUserId of memberUserIds) {
+      if (typeof mUserId !== "string") continue;
+      const membership = await kv.get(K.member(instId, mUserId));
+      if (!membership) continue;
+      totalMembers++;
+      const role = (membership as any).role || 'unknown';
+      membersByRole[role] = (membersByRole[role] || 0) + 1;
+      if (role === 'student' && (membership as any).status !== 'suspended') activeStudents++;
+      if ((membership as any).status === 'invited') pendingInvites++;
+    }
+
+    // Count plans for institution
+    const planIds = await kv.getByPrefix(`idx:inst-plans:${instId}:`);
+    const totalPlans = planIds.filter((id: any) => typeof id === "string").length;
+
+    return c.json({
+      success: true,
+      data: {
+        institutionName: instName,
+        hasInstitution: !!institution,
+        totalMembers,
+        totalPlans,
+        activeStudents,
+        pendingInvites,
+        membersByRole,
+      },
+    });
+  } catch (err) {
+    console.log(`[Institutions] dashboard-stats error:`, err);
     return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
   }
 });
 
 // ── POST /institutions ──────────────────────────────────
-institutions.post(`${PREFIX}/institutions`, async (c) => {
+institutions.post("/institutions", async (c) => {
   const userId = await getUserId(c);
   if (!userId) return c.json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authorized" } }, 401);
   try {
@@ -75,6 +153,7 @@ institutions.post(`${PREFIX}/institutions`, async (c) => {
     console.log(`[Server] Created institution: ${name} (${slug}), owner=${userId}`);
     return c.json({ success: true, data: institution });
   } catch (err) {
+    console.log(`[Institutions] POST error:`, err);
     return c.json({ success: false, error: { code: "SERVER_ERROR", message: `${err}` } }, 500);
   }
 });

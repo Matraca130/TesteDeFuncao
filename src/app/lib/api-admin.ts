@@ -1,7 +1,27 @@
+// ============================================================
 // Axon v4.4 — API Admin: Scopes, Members, Dashboard, Institution
-// Phase 4: consolidated from api-admin.ts + api-client-extensions.ts
+// UPDATED: Admin area uses REAL backend (not mocks).
+//
+// Strategy:
+//   ADMIN_LIVE = true → always fetch from real Supabase backend
+//   Mock fallback only for endpoints that don't exist yet
+//   (getScopeOptions) — marked with TODO.
+//
+// Backend endpoint mapping (after path fixes):
+//   GET    /institutions/:instId/admin-scopes  → getAdminScopes
+//   POST   /admin-scopes                       → createAdminScope
+//   DELETE /admin-scopes/:scopeId               → deleteAdminScope
+//   GET    /members/:instId                     → getMembers
+//   POST   /members                             → inviteMember
+//   PATCH  /members/:memberId/role              → updateMemberRole
+//   PATCH  /members/:memberId/suspend           → suspendMember
+//   DELETE /members/:memberId                   → removeMember
+//   GET    /institutions/:instId/dashboard-stats→ getDashboardStats
+//   POST   /institutions                        → createInstitution
+//   GET    /institutions/check-slug/:slug       → checkSlugAvailability
+// ============================================================
 import type { AdminScope } from './types';
-import { USE_MOCKS, API_BASE_URL, authHeaders, store, mockId, delay, now } from './api-core';
+import { API_BASE_URL, authHeaders, delay, mockId, now } from './api-core';
 import type {
   MembershipFull,
   MembershipRole,
@@ -10,91 +30,154 @@ import type {
   ScopeOption,
 } from '../../types/auth';
 
-// ══════════════════════════════════════════════════════════════
-// SCOPES — original api-admin.ts functions
-// ══════════════════════════════════════════════════════════════
+// Admin area ALWAYS uses real backend
+const ADMIN_LIVE = true;
 
-export async function getAdminScopes(instId: string): Promise<AdminScope[]> { if (USE_MOCKS) { await delay(); return store.adminScopes.filter(s => s.institution_id === instId); } return (await (await fetch(`${API_BASE_URL}/institutions/${instId}/scopes`, { headers: authHeaders() })).json()).data; }
-export async function createAdminScope(instId: string, scope: Partial<AdminScope>): Promise<AdminScope> { if (USE_MOCKS) { await delay(); const n: AdminScope = { id: mockId('scope'), institution_id: instId, user_id: scope.user_id || '', scope_type: scope.scope_type || 'course', scope_id: scope.scope_id, role: scope.role || 'professor', created_at: now() }; store.adminScopes.push(n); return n; } return (await (await fetch(`${API_BASE_URL}/institutions/${instId}/scopes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(scope) })).json()).data; }
-
-export async function deleteAdminScope(instId: string, scopeId: string): Promise<void> {
-  if (USE_MOCKS) { await delay(); return; }
-  await fetch(`${API_BASE_URL}/institutions/${instId}/scopes/${scopeId}`, { method: 'DELETE', headers: authHeaders() });
-}
-
-export async function getScopeOptions(instId: string): Promise<ScopeOption[]> {
-  if (USE_MOCKS) {
-    await delay();
-    return [
-      { id: 'course-anatomy', name: 'Anatomia Humana', type: 'course' },
-      { id: 'course-physio', name: 'Fisiologia', type: 'course' },
-      { id: 'sem-1', name: 'Semestre 1', type: 'semester' },
-      { id: 'sec-musculo', name: 'Sistema Musculoesqueletico', type: 'section' },
-    ];
+// ── Fetch helper with error logging ─────────────────────────
+async function adminFetch(url: string, options?: RequestInit): Promise<any> {
+  const res = await fetch(url, options);
+  const data = await res.json();
+  if (!data.success) {
+    const errMsg = data.error?.message || `HTTP ${res.status}`;
+    console.error(`[api-admin] ${options?.method || 'GET'} ${url} failed:`, errMsg);
+    throw new Error(errMsg);
   }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/scope-options`, { headers: authHeaders() });
-  return (await res.json()).data;
+  return data;
 }
 
 // ══════════════════════════════════════════════════════════════
-// MEMBERS — moved from api-client-extensions.ts (Phase 4)
+// SCOPES
+// Backend: routes-admin-scopes.tsx
 // ══════════════════════════════════════════════════════════════
 
-const _mockMembers: MembershipFull[] = [
-  { id: 'mem-001', user_id: 'usr-001', institution_id: 'inst-001', role: 'owner', status: 'active', name: 'Dr. Maria Santos', email: 'maria@axon.edu', avatar_url: null, created_at: '2025-01-15T10:00:00Z' },
-  { id: 'mem-002', user_id: 'usr-002', institution_id: 'inst-001', role: 'professor', status: 'active', name: 'Prof. Carlos Oliveira', email: 'carlos@axon.edu', avatar_url: null, created_at: '2025-01-20T10:00:00Z' },
-  { id: 'mem-003', user_id: 'usr-003', institution_id: 'inst-001', role: 'student', status: 'active', name: 'Ana Lima', email: 'ana@aluno.axon.edu', avatar_url: null, created_at: '2025-02-01T10:00:00Z' },
-  { id: 'mem-004', user_id: 'usr-004', institution_id: 'inst-001', role: 'professor', status: 'invited', name: 'Prof. Julia Pereira', email: 'julia@axon.edu', avatar_url: null, created_at: '2025-02-15T10:00:00Z' },
-];
+export async function getAdminScopes(instId: string): Promise<AdminScope[]> {
+  if (!ADMIN_LIVE) {
+    await delay();
+    return [];
+  }
+  try {
+    const data = await adminFetch(
+      `${API_BASE_URL}/institutions/${instId}/admin-scopes`,
+      { headers: authHeaders() }
+    );
+    return data.data || [];
+  } catch (err) {
+    console.error(`[api-admin] getAdminScopes(${instId}) error:`, err);
+    return [];
+  }
+}
+
+export async function createAdminScope(instId: string, scope: Partial<AdminScope>): Promise<AdminScope> {
+  if (!ADMIN_LIVE) {
+    await delay();
+    return { id: mockId('scope'), institution_id: instId, ...scope } as AdminScope;
+  }
+  const data = await adminFetch(
+    `${API_BASE_URL}/admin-scopes`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ ...scope, institution_id: instId }),
+    }
+  );
+  return data.data;
+}
+
+export async function deleteAdminScope(_instId: string, scopeId: string): Promise<void> {
+  if (!ADMIN_LIVE) {
+    await delay();
+    return;
+  }
+  await adminFetch(
+    `${API_BASE_URL}/admin-scopes/${scopeId}`,
+    { method: 'DELETE', headers: authHeaders() }
+  );
+}
+
+// TODO: Backend endpoint /institutions/:instId/scope-options does not exist yet.
+// This function keeps mock data until the endpoint is created.
+export async function getScopeOptions(_instId: string): Promise<ScopeOption[]> {
+  await delay();
+  return [
+    { id: 'course-anatomy', name: 'Anatomia Humana', type: 'course' },
+    { id: 'course-physio', name: 'Fisiologia', type: 'course' },
+    { id: 'sem-1', name: 'Semestre 1', type: 'semester' },
+    { id: 'sec-musculo', name: 'Sistema Musculoesqueletico', type: 'section' },
+  ];
+}
+
+// ══════════════════════════════════════════════════════════════
+// MEMBERS
+// Backend: routes-members.tsx
+// ══════════════════════════════════════════════════════════════
 
 export async function getMembers(instId: string): Promise<MembershipFull[]> {
-  if (USE_MOCKS) { await delay(); return _mockMembers.filter(m => m.institution_id === instId); }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/members`, { headers: authHeaders() });
-  return (await res.json()).data;
+  if (!ADMIN_LIVE) {
+    await delay();
+    return [];
+  }
+  try {
+    const data = await adminFetch(
+      `${API_BASE_URL}/members/${instId}`,
+      { headers: authHeaders() }
+    );
+    return data.data || [];
+  } catch (err) {
+    console.error(`[api-admin] getMembers(${instId}) error:`, err);
+    return [];
+  }
 }
 
 export async function inviteMember(instId: string, payload: InviteMemberPayload): Promise<MembershipFull> {
-  if (USE_MOCKS) {
-    await delay();
-    const m: MembershipFull = { id: mockId('mem'), user_id: mockId('usr'), institution_id: instId, role: payload.role, status: 'invited', name: undefined, email: payload.email, avatar_url: null, created_at: now() };
-    _mockMembers.push(m);
-    return m;
-  }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/members/invite`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
-  return (await res.json()).data;
+  const data = await adminFetch(
+    `${API_BASE_URL}/members`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        institution_id: instId,
+        role: payload.role,
+        email: payload.email,
+      }),
+    }
+  );
+  return data.data;
 }
 
 export async function updateMemberRole(instId: string, memberId: string, role: MembershipRole): Promise<MembershipFull> {
-  if (USE_MOCKS) {
-    await delay();
-    const i = _mockMembers.findIndex(m => m.id === memberId);
-    if (i === -1) throw new Error(`Member ${memberId} not found`);
-    _mockMembers[i] = { ..._mockMembers[i], role };
-    return _mockMembers[i];
-  }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/members/${memberId}/role`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ role }) });
-  return (await res.json()).data;
+  const data = await adminFetch(
+    `${API_BASE_URL}/members/${memberId}/role`,
+    {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ role, institution_id: instId }),
+    }
+  );
+  return data.data;
 }
 
 export async function suspendMember(instId: string, memberId: string): Promise<MembershipFull> {
-  if (USE_MOCKS) {
-    await delay();
-    const i = _mockMembers.findIndex(m => m.id === memberId);
-    if (i === -1) throw new Error(`Member ${memberId} not found`);
-    _mockMembers[i] = { ..._mockMembers[i], status: 'suspended' };
-    return _mockMembers[i];
-  }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/members/${memberId}/suspend`, { method: 'PATCH', headers: authHeaders() });
-  return (await res.json()).data;
+  const data = await adminFetch(
+    `${API_BASE_URL}/members/${memberId}/suspend`,
+    {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ institution_id: instId }),
+    }
+  );
+  return data.data;
 }
 
 export async function removeMember(instId: string, memberId: string): Promise<void> {
-  if (USE_MOCKS) { await delay(); const i = _mockMembers.findIndex(m => m.id === memberId); if (i !== -1) _mockMembers.splice(i, 1); return; }
-  await fetch(`${API_BASE_URL}/institutions/${instId}/members/${memberId}`, { method: 'DELETE', headers: authHeaders() });
+  await adminFetch(
+    `${API_BASE_URL}/members/${memberId}?institution_id=${instId}`,
+    { method: 'DELETE', headers: authHeaders() }
+  );
 }
 
 // ══════════════════════════════════════════════════════════════
-// DASHBOARD STATS — moved from api-client-extensions.ts (Phase 4)
+// DASHBOARD STATS
+// Backend: routes-institutions.tsx → GET /institutions/:instId/dashboard-stats
 // ══════════════════════════════════════════════════════════════
 
 export interface DashboardStats {
@@ -108,44 +191,71 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(instId: string): Promise<DashboardStats> {
-  if (USE_MOCKS) {
+  if (!ADMIN_LIVE) {
     await delay();
-    const members = _mockMembers.filter(m => m.institution_id === instId);
-    const byRole: Record<string, number> = {};
-    members.forEach(m => { byRole[m.role] = (byRole[m.role] || 0) + 1; });
     return {
       institutionName: 'Universidade Demo',
       hasInstitution: true,
-      totalMembers: members.length,
-      totalPlans: 2,
-      activeStudents: members.filter(m => m.role === 'student' && m.status === 'active').length,
-      pendingInvites: members.filter(m => m.status === 'invited').length,
-      membersByRole: byRole,
+      totalMembers: 0,
+      totalPlans: 0,
+      activeStudents: 0,
+      pendingInvites: 0,
+      membersByRole: {},
     };
   }
-  const res = await fetch(`${API_BASE_URL}/institutions/${instId}/dashboard-stats`, { headers: authHeaders() });
-  return (await res.json()).data;
+  try {
+    const data = await adminFetch(
+      `${API_BASE_URL}/institutions/${instId}/dashboard-stats`,
+      { headers: authHeaders() }
+    );
+    return data.data;
+  } catch (err) {
+    console.error(`[api-admin] getDashboardStats(${instId}) error:`, err);
+    // Return safe defaults on error
+    return {
+      institutionName: instId,
+      hasInstitution: false,
+      totalMembers: 0,
+      totalPlans: 0,
+      activeStudents: 0,
+      pendingInvites: 0,
+      membersByRole: {},
+    };
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
-// INSTITUTION WIZARD — moved from api-client-extensions.ts (Phase 4)
+// INSTITUTION WIZARD
+// Backend: routes-institutions.tsx
 // ══════════════════════════════════════════════════════════════
 
 export async function createInstitution(payload: InstitutionCreatePayload): Promise<any> {
-  if (USE_MOCKS) {
-    await delay(500);
-    return { id: mockId('inst'), ...payload, owner_id: 'usr-001', created_at: now() };
-  }
-  const res = await fetch(`${API_BASE_URL}/institutions`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
-  return (await res.json()).data;
+  const data = await adminFetch(
+    `${API_BASE_URL}/institutions`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    }
+  );
+  return data.data;
 }
 
 export async function checkSlugAvailability(slug: string): Promise<{ available: boolean; suggestion?: string }> {
-  if (USE_MOCKS) {
+  if (!ADMIN_LIVE) {
     await delay(300);
     const taken = ['demo', 'test', 'admin', 'axon'];
     return { available: !taken.includes(slug), suggestion: taken.includes(slug) ? `${slug}-${Date.now() % 1000}` : undefined };
   }
-  const res = await fetch(`${API_BASE_URL}/institutions/check-slug/${slug}`, { headers: authHeaders() });
-  return (await res.json()).data;
+  try {
+    const data = await adminFetch(
+      `${API_BASE_URL}/institutions/check-slug/${slug}`,
+      { headers: authHeaders() }
+    );
+    return data.data;
+  } catch (err) {
+    console.error(`[api-admin] checkSlugAvailability(${slug}) error:`, err);
+    // Fallback: assume available
+    return { available: true };
+  }
 }
