@@ -6,6 +6,9 @@
 //
 // USE_MOCKS=true (default): in-memory store with simulated delay
 // USE_MOCKS=false: fetch to real Hono endpoints (when available)
+//
+// SHIMS SECTION at bottom: 23 Agent 4 function aliases that the
+// REWIRED hooks import. These delegate to the existing mock store.
 // ============================================================
 import {
   MOCK_SUMMARIES, MOCK_KEYWORDS, MOCK_FLASHCARDS, MOCK_QUIZ_QUESTIONS,
@@ -15,6 +18,9 @@ import {
   type Video, type StudentNote, type VideoNote, type SmartStudyItem,
   type StudyPlan, type StudyPlanItem, type DailyActivity,
 } from '../data/mock-data';
+
+import type { KeywordSummaryLink, StudyGoal, SmartStudyRecommendation } from './types-extended';
+import type { StudyPlan as A4StudyPlan } from './types-extended';
 
 // ── Config ────────────────────────────────────────────────────────
 const USE_MOCKS = true; // TODO: read from import.meta.env.VITE_USE_MOCKS
@@ -53,6 +59,7 @@ const store = {
   smartStudy: [...MOCK_SMART_STUDY] as SmartStudyItem[],
   studyPlans: [...MOCK_STUDY_PLANS] as StudyPlan[],
   dailyActivity: [...MOCK_DAILY_ACTIVITY] as DailyActivity[],
+  studyGoals: [] as StudyGoal[],
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -73,13 +80,13 @@ export async function getSummaryById(id: string): Promise<Summary | undefined> {
 // ══════════════════════════════════════════════════════════════
 // KEYWORDS (professor CRUD)
 // ══════════════════════════════════════════════════════════════
-export async function getKeywords(): Promise<Keyword[]> {
+export async function getKeywords(): Promise<any[]> {
   if (USE_MOCKS) { await delay(); return [...store.keywords]; }
   const res = await fetch(`${API_BASE_URL}/keywords`, { headers: authHeaders() });
   return (await res.json()).data;
 }
 
-export async function createKeyword(data: Omit<Keyword, 'id' | 'created_at' | 'deleted_at'>): Promise<Keyword> {
+export async function createKeyword(data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const kw: Keyword = { ...data, id: mockId('kw'), created_at: now().split('T')[0], deleted_at: null };
@@ -90,7 +97,7 @@ export async function createKeyword(data: Omit<Keyword, 'id' | 'created_at' | 'd
   return (await res.json()).data;
 }
 
-export async function updateKeyword(id: string, data: Partial<Keyword>): Promise<Keyword> {
+export async function updateKeyword(id: string, data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const i = store.keywords.findIndex(k => k.id === id);
@@ -131,13 +138,13 @@ export async function generateKeywordAI(summaryId: string): Promise<Keyword> {
 // ══════════════════════════════════════════════════════════════
 // FLASHCARDS (professor CRUD)
 // ══════════════════════════════════════════════════════════════
-export async function getFlashcards(): Promise<Flashcard[]> {
+export async function getFlashcards(): Promise<any[]> {
   if (USE_MOCKS) { await delay(); return [...store.flashcards]; }
   const res = await fetch(`${API_BASE_URL}/flashcards`, { headers: authHeaders() });
   return (await res.json()).data;
 }
 
-export async function createFlashcard(data: Omit<Flashcard, 'id' | 'deleted_at'>): Promise<Flashcard> {
+export async function createFlashcard(data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const fc: Flashcard = { ...data, id: mockId('fc'), deleted_at: null };
@@ -148,7 +155,7 @@ export async function createFlashcard(data: Omit<Flashcard, 'id' | 'deleted_at'>
   return (await res.json()).data;
 }
 
-export async function updateFlashcard(id: string, data: Partial<Flashcard>): Promise<Flashcard> {
+export async function updateFlashcard(id: string, data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const i = store.flashcards.findIndex(f => f.id === id);
@@ -173,13 +180,13 @@ export async function softDeleteFlashcard(id: string): Promise<void> {
 // ══════════════════════════════════════════════════════════════
 // QUIZ QUESTIONS (professor CRUD)
 // ══════════════════════════════════════════════════════════════
-export async function getQuizQuestions(): Promise<QuizQuestion[]> {
+export async function getQuizQuestions(): Promise<any[]> {
   if (USE_MOCKS) { await delay(); return [...store.quizQuestions]; }
   const res = await fetch(`${API_BASE_URL}/quiz-questions`, { headers: authHeaders() });
   return (await res.json()).data;
 }
 
-export async function createQuizQuestion(data: Omit<QuizQuestion, 'id' | 'deleted_at'>): Promise<QuizQuestion> {
+export async function createQuizQuestion(data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const q: QuizQuestion = { ...data, id: mockId('qq'), deleted_at: null };
@@ -190,7 +197,7 @@ export async function createQuizQuestion(data: Omit<QuizQuestion, 'id' | 'delete
   return (await res.json()).data;
 }
 
-export async function updateQuizQuestion(id: string, data: Partial<QuizQuestion>): Promise<QuizQuestion> {
+export async function updateQuizQuestion(id: string, data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
     const i = store.quizQuestions.findIndex(q => q.id === id);
@@ -213,9 +220,10 @@ export async function softDeleteQuizQuestion(id: string): Promise<void> {
 }
 
 // ══════════════════════════════════════════════════════════════
-// VIDEOS (professor CRUD)
+// VIDEOS (professor CRUD) — polymorphic signatures
+// Supports: (summaryId?, data?) for Agent 6 AND Agent 4 patterns
 // ══════════════════════════════════════════════════════════════
-export async function getVideos(summaryId?: string): Promise<Video[]> {
+export async function getVideos(summaryId?: string): Promise<any[]> {
   if (USE_MOCKS) {
     await delay();
     return summaryId ? store.videos.filter(v => v.summary_id === summaryId) : [...store.videos];
@@ -225,18 +233,44 @@ export async function getVideos(summaryId?: string): Promise<Video[]> {
   return (await res.json()).data;
 }
 
-export async function createVideo(data: Omit<Video, 'id' | 'deleted_at'>): Promise<Video> {
+// Polymorphic: createVideo(data) OR createVideo(summaryId, data)
+export async function createVideo(dataOrSummaryId: any, maybeData?: any): Promise<any> {
+  let videoData: any;
+  if (typeof dataOrSummaryId === 'string' && maybeData) {
+    videoData = {
+      title: maybeData.title,
+      url: maybeData.url,
+      description: maybeData.description || '',
+      summary_id: dataOrSummaryId,
+      duration_seconds: maybeData.duration_ms != null ? Math.round(maybeData.duration_ms / 1000) : (maybeData.duration_seconds || 0),
+      order: maybeData.order_index ?? maybeData.order ?? 0,
+    };
+  } else {
+    videoData = dataOrSummaryId;
+  }
   if (USE_MOCKS) {
     await delay();
-    const v: Video = { ...data, id: mockId('vid'), deleted_at: null };
+    const v: Video = { ...videoData, id: mockId('vid'), deleted_at: null };
     store.videos.push(v);
     return v;
   }
-  const res = await fetch(`${API_BASE_URL}/videos`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
+  const res = await fetch(`${API_BASE_URL}/videos`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(videoData) });
   return (await res.json()).data;
 }
 
-export async function updateVideo(id: string, data: Partial<Video>): Promise<Video> {
+// Polymorphic: updateVideo(id, data) OR updateVideo(summaryId, id, data)
+export async function updateVideo(idOrSummaryId: string, dataOrId: any, maybeData?: any): Promise<any> {
+  let id: string;
+  let data: any;
+  if (typeof dataOrId === 'string' && maybeData) {
+    id = dataOrId;
+    data = maybeData;
+    if (data.duration_ms !== undefined) data.duration_seconds = Math.round(data.duration_ms / 1000);
+    if (data.order_index !== undefined) data.order = data.order_index;
+  } else {
+    id = idOrSummaryId;
+    data = dataOrId;
+  }
   if (USE_MOCKS) {
     await delay();
     const i = store.videos.findIndex(v => v.id === id);
@@ -311,7 +345,7 @@ export async function restoreStudentNote(id: string): Promise<void> {
 }
 
 // ══════════════════════════════════════════════════════════════
-// VIDEO NOTES — SACRED (soft-delete only)
+// VIDEO NOTES — SACRED (soft-delete only) — polymorphic
 // ══════════════════════════════════════════════════════════════
 export async function getVideoNotes(videoId: string): Promise<VideoNote[]> {
   if (USE_MOCKS) { await delay(); return store.videoNotes.filter(n => n.video_id === videoId); }
@@ -319,7 +353,23 @@ export async function getVideoNotes(videoId: string): Promise<VideoNote[]> {
   return (await res.json()).data;
 }
 
-export async function createVideoNote(videoId: string, noteText: string, timestampSeconds: number | null): Promise<VideoNote> {
+export async function createVideoNote(
+  videoId: string,
+  noteTextOrStudentId: string,
+  timestampSecondsOrNoteText: number | string | null,
+  maybeTimestampMs?: number | null,
+): Promise<VideoNote> {
+  let noteText: string;
+  let timestampSeconds: number | null;
+
+  if (maybeTimestampMs !== undefined) {
+    noteText = timestampSecondsOrNoteText as string;
+    timestampSeconds = maybeTimestampMs != null ? Math.round(maybeTimestampMs / 1000) : null;
+  } else {
+    noteText = noteTextOrStudentId;
+    timestampSeconds = timestampSecondsOrNoteText as number | null;
+  }
+
   if (USE_MOCKS) {
     await delay();
     const n: VideoNote = { id: mockId('vn'), student_id: 's-1', video_id: videoId, note: noteText, timestamp_seconds: timestampSeconds, created_at: now().split('T')[0], deleted_at: null };
@@ -387,18 +437,27 @@ export async function generateSmartStudySession(): Promise<SmartStudyItem[]> {
 }
 
 // ══════════════════════════════════════════════════════════════
-// STUDY PLANS (student CRUD)
+// STUDY PLANS (student CRUD) — optional studentId for A4 compat
 // ══════════════════════════════════════════════════════════════
-export async function getStudyPlans(): Promise<StudyPlan[]> {
+export async function getStudyPlans(_studentId?: string): Promise<any[]> {
   if (USE_MOCKS) { await delay(); return [...store.studyPlans]; }
   const res = await fetch(`${API_BASE_URL}/study-plans`, { headers: authHeaders() });
   return (await res.json()).data;
 }
 
-export async function createStudyPlan(data: Omit<StudyPlan, 'id' | 'created_at' | 'progress'>): Promise<StudyPlan> {
+export async function createStudyPlan(data: any): Promise<any> {
   if (USE_MOCKS) {
     await delay();
-    const plan: StudyPlan = { ...data, id: mockId('sp'), progress: 0, created_at: now().split('T')[0] };
+    const plan: StudyPlan = {
+      id: mockId('sp'),
+      title: data.title || data.name || 'Novo Plano',
+      description: data.description || '',
+      start_date: data.start_date || now().split('T')[0],
+      end_date: data.end_date || data.target_date || '',
+      progress: 0,
+      items: data.items || [],
+      created_at: now().split('T')[0],
+    };
     store.studyPlans.push(plan);
     return plan;
   }
@@ -428,10 +487,236 @@ export async function toggleStudyPlanItem(planId: string, itemId: string): Promi
 }
 
 // ══════════════════════════════════════════════════════════════
-// DAILY ACTIVITY
+// DAILY ACTIVITY — optional studentId for A4 compat
 // ══════════════════════════════════════════════════════════════
-export async function getDailyActivity(): Promise<DailyActivity[]> {
+export async function getDailyActivity(_studentId?: string): Promise<DailyActivity[]> {
   if (USE_MOCKS) { await delay(); return [...store.dailyActivity]; }
   const res = await fetch(`${API_BASE_URL}/daily-activity`, { headers: authHeaders() });
   return (await res.json()).data;
 }
+
+
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// AGENT 4 API SHIMS — 23 functions imported by REWIRED hooks
+// All hooks were "REWIRED" to use Agent 4 function names
+// but still import from this file. These shims delegate to
+// the existing mock store above.
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+// ── Flashcard shims (use-flashcards.ts) ──────────────────────
+export async function getFlashcardsBySummary(summaryId: string): Promise<any[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.flashcards.filter(fc => fc.summary_id === summaryId && !fc.deleted_at);
+  }
+  const res = await fetch(`${API_BASE_URL}/flashcards?summary_id=${summaryId}`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export const deleteFlashcard = softDeleteFlashcard;
+
+// ── Keyword shims (use-keywords.ts) ──────────────────────────
+export async function getKeywordsBySummary(summaryId: string): Promise<KeywordSummaryLink[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.keywords
+      .filter(kw => kw.summary_id === summaryId && !kw.deleted_at)
+      .map(kw => ({
+        id: `ksl-${kw.id}-${summaryId}`,
+        keyword_id: kw.id,
+        summary_id: summaryId,
+        created_at: kw.created_at,
+      }));
+  }
+  const res = await fetch(`${API_BASE_URL}/summaries/${summaryId}/keywords`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export const deleteKeyword = softDeleteKeyword;
+
+// ── Quiz shims (use-quiz-questions.ts) ───────────────────────
+export async function getQuizQuestionsBySummary(summaryId: string): Promise<any[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.quizQuestions.filter(q => q.summary_id === summaryId && !q.deleted_at);
+  }
+  const res = await fetch(`${API_BASE_URL}/quiz-questions?summary_id=${summaryId}`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export const deleteQuizQuestion = softDeleteQuizQuestion;
+
+// ── Video shims (use-videos.ts) ──────────────────────────────
+export async function deleteVideo(_summaryId: string, id: string): Promise<void> {
+  return softDeleteVideo(id);
+}
+
+// ── Content hierarchy shim (use-summaries.ts) ────────────────
+export async function fetchContentHierarchy(): Promise<{
+  topics: Array<{ id: string; name: string }>;
+  summaries: Array<{ id: string; topic_id: string; content_markdown?: string; status: string }>;
+}> {
+  if (USE_MOCKS) {
+    await delay();
+    const topicMap = new Map<string, string>();
+    store.summaries.forEach(s => {
+      if (!topicMap.has(s.topic_id)) {
+        topicMap.set(s.topic_id, s.title);
+      }
+    });
+    const topics = Array.from(topicMap.entries()).map(([id, name]) => ({ id, name }));
+    const summaries = store.summaries.map(s => ({
+      id: s.id,
+      topic_id: s.topic_id,
+      content_markdown: undefined,
+      status: s.status,
+    }));
+    return { topics, summaries };
+  }
+  const res = await fetch(`${API_BASE_URL}/content/hierarchy`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+// ── Study Goals shims (use-study-plans.ts) ───────────────────
+export async function getStudyGoals(planId: string): Promise<StudyGoal[]> {
+  if (USE_MOCKS) {
+    await delay();
+    const plan = store.studyPlans.find(p => p.id === planId);
+    if (!plan) return [];
+    return plan.items.map((item: StudyPlanItem) => ({
+      id: item.id,
+      plan_id: planId,
+      topic_id: item.keyword_id || item.summary_id || '',
+      topic_name: item.title,
+      target_mastery: 0.8,
+      current_mastery: item.completed ? 0.85 : 0.3,
+      status: item.completed ? 'completed' as const : 'in-progress' as const,
+      due_date: null,
+      created_at: plan.created_at,
+      updated_at: plan.created_at,
+    }));
+  }
+  const res = await fetch(`${API_BASE_URL}/study-plans/${planId}/goals`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export async function updateStudyGoal(goalId: string, data: Partial<StudyGoal>): Promise<void> {
+  if (USE_MOCKS) {
+    await delay();
+    for (const plan of store.studyPlans) {
+      const itemIdx = plan.items.findIndex((i: StudyPlanItem) => i.id === goalId);
+      if (itemIdx !== -1) {
+        if (data.status === 'completed') {
+          plan.items[itemIdx] = { ...plan.items[itemIdx], completed: true };
+        } else if (data.status === 'in-progress' || data.status === 'pending') {
+          plan.items[itemIdx] = { ...plan.items[itemIdx], completed: false };
+        }
+        const completed = plan.items.filter((i: StudyPlanItem) => i.completed).length;
+        plan.progress = plan.items.length > 0 ? Math.round((completed / plan.items.length) * 100) : 0;
+        return;
+      }
+    }
+    return;
+  }
+  await fetch(`${API_BASE_URL}/study-goals/${goalId}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) });
+}
+
+// ── Smart Study shims (use-smart-study.ts) ───────────────────
+export async function getSmartRecommendations(_studentId: string, _limit?: number): Promise<SmartStudyRecommendation[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.smartStudy.map((item, i) => ({
+      id: `rec-${item.keyword_id}`,
+      student_id: _studentId,
+      type: 'review-keyword' as const,
+      resource_id: item.keyword_id,
+      resource_name: item.term,
+      reason: item.p_know < 0.5 ? 'Baixo dominio — revisao necessaria' : 'Revisao de manutencao',
+      priority: Math.round((1 - item.p_know) * 5),
+      estimated_minutes: 10 + Math.round(item.need_score * 20),
+      due_date: null,
+      status: 'pending' as const,
+      created_at: item.last_studied || now(),
+    }));
+  }
+  const res = await fetch(`${API_BASE_URL}/smart-study/recommendations?student_id=${_studentId}&limit=${_limit || 20}`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export async function dismissRecommendation(recId: string): Promise<void> {
+  if (USE_MOCKS) {
+    await delay();
+    const kwId = recId.replace('rec-', '');
+    store.smartStudy = store.smartStudy.filter(s => s.keyword_id !== kwId);
+    return;
+  }
+  await fetch(`${API_BASE_URL}/smart-study/recommendations/${recId}/dismiss`, { method: 'PATCH', headers: authHeaders() });
+}
+
+// ── SACRED: KwStudentNote shims (use-student-notes.ts) ───────
+export async function getKwStudentNotesByKeyword(kwId: string, _studentId: string): Promise<any[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.studentNotes.filter(n => n.keyword_id === kwId);
+  }
+  const res = await fetch(`${API_BASE_URL}/keywords/${kwId}/student-notes?student_id=${_studentId}`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+export async function createKwStudentNote(kwId: string, _studentId: string, content: string): Promise<any> {
+  if (USE_MOCKS) {
+    await delay();
+    const n: StudentNote = {
+      id: mockId('sn'),
+      student_id: _studentId,
+      keyword_id: kwId,
+      note: content,
+      created_at: now().split('T')[0],
+      deleted_at: null,
+    };
+    const a4Note = { ...n, content };
+    store.studentNotes.push(n);
+    return a4Note;
+  }
+  const res = await fetch(`${API_BASE_URL}/keywords/${kwId}/student-notes`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ content, student_id: _studentId }) });
+  return (await res.json()).data;
+}
+
+export async function updateKwStudentNote(id: string, content: string): Promise<any> {
+  if (USE_MOCKS) {
+    await delay();
+    const i = store.studentNotes.findIndex(n => n.id === id);
+    if (i === -1) throw new Error(`KwStudentNote ${id} not found`);
+    store.studentNotes[i] = { ...store.studentNotes[i], note: content };
+    return { ...store.studentNotes[i], content };
+  }
+  const res = await fetch(`${API_BASE_URL}/student-notes/${id}`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ content }) });
+  return (await res.json()).data;
+}
+
+export const softDeleteKwStudentNote = softDeleteStudentNote;
+export const restoreKwStudentNote = restoreStudentNote;
+
+// ── SACRED: VideoNote shims (use-video-notes.ts) ─────────────
+export async function getVideoNotesByVideo(videoId: string, _studentId: string): Promise<any[]> {
+  if (USE_MOCKS) {
+    await delay();
+    return store.videoNotes
+      .filter(n => n.video_id === videoId)
+      .map(n => ({
+        ...n,
+        content: n.note,
+        timestamp_ms: n.timestamp_seconds != null ? n.timestamp_seconds * 1000 : null,
+      }));
+  }
+  const res = await fetch(`${API_BASE_URL}/videos/${videoId}/notes?student_id=${_studentId}`, { headers: authHeaders() });
+  return (await res.json()).data;
+}
+
+// ══════════════════════════════════════════════════════════════
+// COMMIT 3: Bridge re-exports from api-client-extensions.ts
+// TECH-DEBT(Phase4): Remove after hooks import directly from api-*.ts
+// ══════════════════════════════════════════════════════════════
+export * from './api-client-extensions';

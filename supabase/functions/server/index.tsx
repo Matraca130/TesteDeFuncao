@@ -1,10 +1,8 @@
 // ============================================================
-// Axon v4.4 — Hono Server: Figma Make entrypoint (MERGED)
-// Mounts Agent 4 domain routes (~100 endpoints) + Agent 7 AI routes (5 endpoints)
-// PREFIX must match the Figma Make environment deployment
+// Axon v4.4 — Hono Server: Figma Make entrypoint (UNIFIED)
+// Mounts ALL route modules under ONE prefix.
+// Agent 4 domain routes + Agent 7 AI routes + Agent 1 ATLAS routes
 // ============================================================
-// Axon v4.4 — Hono Server: Main entrypoint
-// ~100 endpoints across 8 route modules, backed by KV store
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
@@ -23,6 +21,10 @@ import { ok, err } from "./kv-schema.tsx";
 
 // Agent 7 — AI Feedback routes
 import aiFeedback from "./ai-feedback-routes.tsx";
+
+// Agent 1 — ATLAS routes (Plans + AdminScopes)
+import plansRoutes from "./routes-plans.tsx";
+import adminScopesRoutes from "./routes-admin-scopes.tsx";
 
 const PREFIX = "/make-server-722e576f";
 const app = new Hono();
@@ -44,7 +46,17 @@ app.use(
 
 // Health check
 app.get(`${PREFIX}/health`, (c) => {
-  return c.json({ status: "ok", version: "4.4-p5", routes: "~105", agents: "A4+A7" });
+  return c.json({
+    status: "ok",
+    version: "4.4-p5-unified",
+    routes: "~120",
+    agents: "A1+A4+A7",
+    modules: [
+      "student", "sacred", "content", "misc", "flashcards",
+      "quizContent", "studyPlans", "smartStudy", "aiFeedback",
+      "plans", "adminScopes", "seed",
+    ],
+  });
 });
 
 // ── Agent 4: Domain route modules ──
@@ -59,20 +71,10 @@ app.route(PREFIX, smartStudyRoutes);
 
 // ── Agent 7: AI Feedback routes (A7-01 to A7-05) ──
 app.route(PREFIX, aiFeedback);
-// Health check endpoint
-app.get("/make-server-6e4db60a/health", (c) => {
-  return c.json({ status: "ok", version: "4.4-p4", routes: "~100" });
-});
 
-// Mount domain route groups under the server prefix
-app.route("/make-server-6e4db60a", studentRoutes);
-app.route("/make-server-6e4db60a", sacredRoutes);
-app.route("/make-server-6e4db60a", contentRoutes);
-app.route("/make-server-6e4db60a", miscRoutes);
-app.route("/make-server-6e4db60a", flashcardRoutes);
-app.route("/make-server-6e4db60a", quizContentRoutes);
-app.route("/make-server-6e4db60a", studyPlanRoutes);
-app.route("/make-server-6e4db60a", smartStudyRoutes);
+// ── Agent 1: ATLAS routes (Plans + AdminScopes) ──
+app.route(PREFIX, plansRoutes);
+app.route(PREFIX, adminScopesRoutes);
 
 // ── Seed: Full database seed (student + content + sacred + misc + P3) ──
 app.post(`${PREFIX}/seed-all`, async (c) => {
