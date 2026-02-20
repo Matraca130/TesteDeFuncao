@@ -19,6 +19,7 @@ import { formatTimestamp } from '../utils/media-helpers';
 
 // ── Type Adapter: Agent 4 VideoNote → Agent 6 VideoNote ──
 // Agent 4: { content, timestamp_ms } | Agent 6: { note, timestamp_seconds }
+// FIX P0: Defensive fallback for both field name conventions.
 const STUDENT_ID = 'demo-student-001'; // TODO: Replace with auth context
 
 function toA6VideoNote(a4: A4VideoNote): VideoNote {
@@ -26,8 +27,10 @@ function toA6VideoNote(a4: A4VideoNote): VideoNote {
     id: a4.id,
     student_id: a4.student_id,
     video_id: a4.video_id,
-    note: a4.content,
-    timestamp_seconds: a4.timestamp_ms != null ? Math.round(a4.timestamp_ms / 1000) : null,
+    note: a4.content ?? (a4 as any).note ?? '',
+    timestamp_seconds: a4.timestamp_ms != null
+      ? Math.round(a4.timestamp_ms / 1000)
+      : ((a4 as any).timestamp_seconds ?? null),
     created_at: a4.created_at,
     deleted_at: a4.deleted_at,
   };
