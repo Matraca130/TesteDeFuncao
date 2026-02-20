@@ -1,17 +1,7 @@
 // ============================================================
 // Axon v4.4 — Admin Shell (Sidebar + Content Area)
 // Agent 5: FORGE
-//
-// NOTE: In the repo, src/app/components/layout/AdminLayout.tsx is a
-// thin guard wrapper (RequireAuth + RequireRole). THIS component is the
-// VISUAL SHELL with sidebar navigation that wraps Agent 5 pages.
-//
-// When merging to repo:
-//   - Keep repo's AdminLayout.tsx as the auth guard
-//   - Add this AdminShell INSIDE AdminLayout's Outlet
-//   - Or: merge sidebar into repo's existing AppShell/Sidebar
-//
-// Uses design-tokens bridge (→ repo: import from '@/app/design-system')
+// UPDATED: Added 'Estudiantes' nav item for student management
 // ============================================================
 
 import React, { useState } from 'react';
@@ -40,6 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/admin', icon: <LayoutDashboard className="size-4" /> },
+  { label: 'Estudiantes', path: '/admin/students', icon: <GraduationCap className="size-4" /> },
   { label: 'Wizard', path: '/admin/wizard', icon: <Wand2 className="size-4" /> },
   { label: 'Miembros', path: '/admin/members', icon: <Users className="size-4" /> },
   { label: 'Planes', path: '/admin/plans', icon: <CreditCard className="size-4" /> },
@@ -123,7 +114,7 @@ export function AdminShell() {
 
         {/* Footer */}
         <div className="border-t border-zinc-200 px-4 py-3">
-          <p className="text-xs text-zinc-400">Axon v4.4 — Phase P2 (Mocks)</p>
+          <p className="text-xs text-zinc-400">Axon v4.4 — Admin</p>
         </div>
       </aside>
 
@@ -152,8 +143,6 @@ export function AdminShell() {
           <Outlet />
         </main>
       </div>
-
-      {/* Toaster removed — App.tsx provides the global <Toaster> */}
     </div>
   );
 }

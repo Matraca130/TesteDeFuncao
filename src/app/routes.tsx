@@ -1,20 +1,16 @@
 // ============================================================
 // Axon v4.4 — Route Configuration (UNIFIED + AUTH WIRED)
 //
-// UPDATED: Owner and Admin are now SEPARATE areas:
-//   /owner  → OwnerDashboard (sees all their institutions)
-//   /admin  → AdminShell (manages one specific institution)
+// UPDATED: Added /admin/students route for AdminStudentManagement
 //
-// Route specificity (React Router v7):
-//   /admin/login     → AdminLoginPage     (static, higher priority)
-//   /admin           → AppNavigation+Shell (layout, lower priority)
-//   /professor/login → ProfessorLoginPage  (static, higher priority)
-//   /professor/*     → AppNavigation+pages (layout, lower priority)
+// Owner and Admin are SEPARATE areas:
+//   /owner  -> OwnerDashboard (sees all their institutions)
+//   /admin  -> AdminShell (manages one specific institution)
 // ============================================================
 
 import { createBrowserRouter } from 'react-router';
 
-// ── Public pages (full-screen, no sidebar) ──
+// -- Public pages (full-screen, no sidebar) --
 import { LandingPage } from './pages/LandingPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { ProfessorLoginPage } from './pages/ProfessorLoginPage';
@@ -24,24 +20,25 @@ import { InstitutionPublicPage } from './pages/InstitutionPublicPage';
 import { SelectInstitutionPage } from './pages/SelectInstitutionPage';
 import { NoInstitutionPage } from './pages/NoInstitutionPage';
 
-// ── Owner area (full-screen, no sidebar) ──
+// -- Owner area (full-screen, no sidebar) --
 import { OwnerDashboard } from './pages/OwnerDashboard';
 
-// ── Auth routing ──
+// -- Auth routing --
 import { PostLoginRouter } from './components/guards/PostLoginRouter';
 
-// ── Layout components ──
+// -- Layout components --
 import { AppNavigation } from './components/layout/AppNavigation';
 import { AdminShell } from './pages/AdminShell';
 
-// ── Agent 5 — Admin pages ──
+// -- Agent 5 — Admin pages --
 import { AdminDashboard } from './pages/AdminDashboard';
 import { InstitutionWizard } from './pages/InstitutionWizard';
 import { MemberManagement } from './pages/MemberManagement';
 import { PlanManagement } from './pages/PlanManagement';
 import { AdminScopesPage } from './pages/AdminScopesPage';
+import { AdminStudentManagement } from './pages/AdminStudentManagement';
 
-// ── Agent 6 — Professor pages ──
+// -- Agent 6 — Professor pages --
 import { DashboardHome } from './pages/DashboardHome';
 import { ProfessorKeywordEditor } from './pages/ProfessorKeywordEditor';
 import { ProfessorFlashcardEditor } from './pages/ProfessorFlashcardEditor';
@@ -49,15 +46,15 @@ import { ProfessorQuizEditor } from './pages/ProfessorQuizEditor';
 import { VideoManager } from './pages/VideoManager';
 import { ProfessorContentFlow } from './pages/ProfessorContentFlow';
 
-// ── Agent 6 — Student pages ──
+// -- Agent 6 — Student pages --
 import { VideoStudyPage } from './pages/VideoStudyPage';
 import { SmartStudyPage } from './pages/SmartStudyPage';
 import { StudyPlansPage } from './pages/StudyPlansPage';
 
-// ── Design tokens ──
+// -- Design tokens --
 import { headingStyle, bodyStyle } from './lib/design-tokens';
 
-// ── 404 Page ─────────────────────────────────────────────
+// -- 404 Page --
 function NotFound() {
   return (
     <div className="flex h-screen items-center justify-center">
@@ -76,16 +73,16 @@ function NotFound() {
   );
 }
 
-// ── Router ───────────────────────────────────────────────
+// -- Router --
 export const router = createBrowserRouter([
   // ============================================================
   // PUBLIC ROUTES — Full-screen, no sidebar, no auth required
   // ============================================================
 
-  // Landing page — FIRST thing user sees
+  // Landing page
   { path: '/', Component: LandingPage },
 
-  // Auth: login pages (each wraps itself with RequireGuest)
+  // Auth: login pages
   { path: '/admin/login', Component: AdminLoginPage },
   { path: '/professor/login', Component: ProfessorLoginPage },
   { path: '/i/:slug', Component: InstitutionPublicPage },
@@ -93,26 +90,23 @@ export const router = createBrowserRouter([
   { path: '/i/:slug/signup', Component: StudentSignupPage },
 
   // Post-login router — redirects by role:
-  //   owner → /owner
-  //   admin → /admin
-  //   professor → /professor
-  //   student → /study
+  //   owner -> /owner
+  //   admin -> /admin
+  //   professor -> /professor
+  //   student -> /study
   { path: '/go', Component: PostLoginRouter },
 
-  // Auth: institution selection (wraps itself with RequireAuth)
+  // Auth: institution selection
   { path: '/select-institution', Component: SelectInstitutionPage },
   { path: '/no-institution', Component: NoInstitutionPage },
 
   // ============================================================
   // OWNER AREA — Full-screen, no sidebar
-  // Shows all institutions owned by the user.
-  // Separate from /admin which manages ONE institution.
   // ============================================================
   { path: '/owner', Component: OwnerDashboard },
 
   // ============================================================
   // APP ROUTES — With AppNavigation sidebar layout
-  // These paths match what getRouteForRole() returns.
   // ============================================================
 
   // Dashboard (generic home after login)
@@ -124,7 +118,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin routes — getRouteForRole('admin') → '/admin'
+  // Admin routes — getRouteForRole('admin') -> '/admin'
   // Owner can also arrive here after selecting an institution from /owner
   {
     path: '/admin',
@@ -134,6 +128,7 @@ export const router = createBrowserRouter([
         Component: AdminShell,
         children: [
           { index: true, Component: AdminDashboard },
+          { path: 'students', Component: AdminStudentManagement },
           { path: 'wizard', Component: InstitutionWizard },
           { path: 'members', Component: MemberManagement },
           { path: 'plans', Component: PlanManagement },
@@ -143,7 +138,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Professor routes — getRouteForRole('professor') → '/professor'
+  // Professor routes
   {
     path: '/professor',
     Component: AppNavigation,
@@ -157,7 +152,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Student/Study routes — getRouteForRole('student') → '/study'
+  // Student/Study routes
   {
     path: '/study',
     Component: AppNavigation,
@@ -169,6 +164,6 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // ── Catch-all ──
+  // Catch-all
   { path: '*', Component: NotFound },
 ]);
