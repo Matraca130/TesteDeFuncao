@@ -22,6 +22,10 @@ import adminScopes from "./routes-admin-scopes-v2.tsx";
 import subscriptions from "./routes-subscriptions.tsx";
 import accessRules from "./routes-access-rules.tsx";
 
+// ── Student management (SQL+KV hybrid)
+import studentRoutes from "./routes-student.tsx";
+import adminStudents from "./routes-admin-students.tsx";
+
 // ── Content & student routes (KV-based — unchanged)
 import content from "./routes-content.tsx";
 import canvas from "./routes-canvas.tsx";
@@ -60,17 +64,17 @@ app.use(
 app.get(`${PREFIX}/health`, (c) => {
   return c.json({
     status: "ok",
-    version: "4.4",
+    version: "4.4.1",
     prefix: PREFIX,
     function_name: "server",
     migration_status: "phase1_sql",
     sql_routes: [
       "institutions", "members", "plans", "platform-plans",
       "institution-plans", "admin-scopes", "subscriptions",
-      "access-rules", "check-access",
+      "access-rules", "check-access", "admin/students",
     ],
     kv_routes: [
-      "auth", "content", "canvas", "dashboard", "flashcards",
+      "auth", "students", "content", "canvas", "dashboard", "flashcards",
       "quiz", "reading", "reviews", "sessions",
       "model3d", "ai", "kwNotes", "videoNotes", "seed",
     ],
@@ -84,6 +88,10 @@ app.route(PREFIX, plans);
 app.route(PREFIX, adminScopes);
 app.route(PREFIX, subscriptions);
 app.route(PREFIX, accessRules);
+
+// ── Mount student management (SQL+KV) ────────────────────
+app.route(PREFIX, studentRoutes);
+app.route(PREFIX, adminStudents);
 
 // ── Mount auth ───────────────────────────────────────────
 app.route(PREFIX, auth);
